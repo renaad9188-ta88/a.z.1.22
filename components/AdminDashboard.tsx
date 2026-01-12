@@ -16,6 +16,7 @@ import {
   DollarSign
 } from 'lucide-react'
 import toast from 'react-hot-toast'
+import { formatDate } from '@/lib/date-utils'
 
 interface VisitRequest {
   id: string
@@ -191,6 +192,7 @@ export default function AdminDashboard() {
                 <span>تسجيل الخروج</span>
               </button>
             </div>
+          </div>
         </div>
       </header>
 
@@ -263,7 +265,7 @@ export default function AdminDashboard() {
                       {request.visit_type === 'visit' ? 'زيارة' : request.visit_type === 'umrah' ? 'عمرة' : 'سياحة'}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {new Date(request.travel_date).toLocaleDateString('ar-SA')}
+                      {formatDate(request.travel_date)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       {getStatusBadge(request.status)}

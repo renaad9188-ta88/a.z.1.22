@@ -13,3 +13,4 @@ export default async function JordanVisitPaymentPage({ params }: { params: { id:
   return <PaymentPage requestId={params.id} userId={user.id} />
 }
 
+

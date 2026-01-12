@@ -40,3 +40,4 @@ export interface AdminInfo {
   paymentImages?: string[]
 }
 
+

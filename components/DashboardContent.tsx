@@ -20,6 +20,7 @@ import {
   ArrowLeft
 } from 'lucide-react'
 import toast from 'react-hot-toast'
+import { formatDate } from '@/lib/date-utils'
 
 interface VisitRequest {
   id: string
@@ -385,13 +386,13 @@ export default function DashboardContent({ userId }: { userId: string }) {
                         </div>
                         <div className="flex items-center gap-2">
                           <Calendar className="w-3 h-3 sm:w-4 sm:h-4 flex-shrink-0" />
-                          <span className="break-words">تاريخ السفر: {new Date(request.travel_date).toLocaleDateString('ar-SA')}</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <span className="break-words">عدد الأيام: {request.days_count}</span>
-                        </div>
-                        <div className="flex items-center gap-2 sm:col-span-2 md:col-span-1">
-                          <span className="break-words">تاريخ الطلب: {new Date(request.created_at).toLocaleDateString('ar-SA')}</span>
+                          <span className="break-words">تاريخ السفر: {formatDate(request.travel_date)}</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="break-words">عدد الأيام: {request.days_count}</span>
+                          </div>
+                          <div className="flex items-center gap-2 sm:col-span-2 md:col-span-1">
+                            <span className="break-words">تاريخ الطلب: {formatDate(request.created_at)}</span>
                         </div>
                       </div>
                     </div>

@@ -64,3 +64,4 @@ export default function ImageGallery({ images, currentIndex, onClose, onNext, on
   )
 }
 
+

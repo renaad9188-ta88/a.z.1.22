@@ -8,6 +8,7 @@ import { ArrowRight } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { VisitRequest } from './request-details/types'
 import { parseAdminNotes, getSignedImageUrl } from './request-details/utils'
+import { formatDate } from '@/lib/date-utils'
 import RequestHeader from './request-details/RequestHeader'
 import RequestInfo from './request-details/RequestInfo'
 import CompanionsList from './request-details/CompanionsList'
@@ -231,8 +232,8 @@ export default function RequestDetails({ requestId, userId }: { requestId: strin
           {/* التواريخ */}
           <div className="pt-4 sm:pt-6 border-t border-gray-200">
             <div className="flex flex-col sm:flex-row justify-between gap-2 text-xs sm:text-sm text-gray-600">
-              <p>تاريخ الإنشاء: {new Date(request.created_at).toLocaleDateString('ar-SA')}</p>
-              <p>آخر تحديث: {new Date(request.updated_at).toLocaleDateString('ar-SA')}</p>
+              <p>تاريخ الإنشاء: {formatDate(request.created_at)}</p>
+              <p>آخر تحديث: {formatDate(request.updated_at)}</p>
             </div>
           </div>
         </div>
