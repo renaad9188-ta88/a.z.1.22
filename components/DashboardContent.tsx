@@ -14,7 +14,10 @@ import {
   Plus,
   MapPin,
   Phone,
-  Mail
+  Mail,
+  Building2,
+  GraduationCap,
+  ArrowLeft
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 
@@ -214,30 +217,133 @@ export default function DashboardContent({ userId }: { userId: string }) {
           </div>
         </div>
 
-        {/* Quick Actions */}
+        {/* Services Section */}
         <div className="bg-white p-4 sm:p-6 rounded-lg shadow-md mb-6 sm:mb-8">
-          <h2 className="text-lg sm:text-xl md:text-2xl font-bold mb-3 sm:mb-4">إجراءات سريعة</h2>
-          <div className="flex flex-col sm:flex-row flex-wrap gap-2 sm:gap-3 md:gap-4">
+          <div className="text-center mb-4 sm:mb-5">
+            <h2 className="text-lg sm:text-xl md:text-2xl font-bold text-gray-800 mb-2">
+              خدماتنا
+            </h2>
+            <div className="w-20 sm:w-24 h-0.5 bg-gradient-to-r from-red-500 via-yellow-400 to-green-600 rounded-full mx-auto mb-2"></div>
+            <p className="text-xs sm:text-sm text-gray-600">
+              اختر الخدمة التي تحتاجها
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+            {/* خدمة الزيارات السورية للأردن */}
             <Link
-              href="/request-visit"
-              className="flex items-center justify-center gap-2 px-4 sm:px-6 py-2 sm:py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm sm:text-base font-semibold"
+              href="/services/jordan-visit"
+              className="group relative bg-white rounded-xl shadow-md hover:shadow-xl transition-all duration-300 overflow-hidden transform hover:-translate-y-1 border border-gray-100 hover:border-gray-200"
             >
-              <Plus className="w-4 h-4 sm:w-5 sm:h-5" />
-              <span>طلب زيارة جديد</span>
+              <div className="absolute inset-0 bg-gradient-to-br from-blue-500 to-blue-600 opacity-0 group-hover:opacity-5 transition-opacity duration-300"></div>
+              <div className="relative p-4 sm:p-5">
+                <div className="flex items-center gap-2 sm:gap-3 mb-3 sm:mb-4">
+                  <span className="text-2xl sm:text-3xl transform group-hover:scale-110 transition-transform duration-300">
+                    🇯🇴
+                  </span>
+                  <div className="bg-blue-50 w-10 h-10 sm:w-12 sm:h-12 rounded-lg flex items-center justify-center group-hover:scale-110 transition-transform duration-300 shadow-sm">
+                    <Calendar className="w-5 h-5 sm:w-6 sm:h-6 text-blue-600" />
+                  </div>
+                </div>
+                <h3 className="text-sm sm:text-base md:text-lg font-bold text-gray-800 mb-1.5 sm:mb-2 group-hover:text-blue-600 transition-colors leading-tight">
+                  خدمات الزيارات السورية للأردن
+                </h3>
+                <p className="text-xs sm:text-sm text-gray-600 mb-3 sm:mb-4 leading-relaxed line-clamp-2">
+                  زيارة الأردن لمدة شهر - تنظيم جميع الإجراءات
+                </p>
+                <div className="flex items-center text-xs sm:text-sm font-semibold text-gray-700 group-hover:text-blue-600 transition-colors">
+                  <span>ابدأ الآن</span>
+                  <ArrowLeft className="w-3 h-3 sm:w-4 sm:h-4 mr-1.5 group-hover:translate-x-1 transition-transform" />
+                </div>
+              </div>
+              <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-blue-500 to-blue-600 transform scale-x-0 group-hover:scale-x-100 transition-transform duration-300"></div>
             </Link>
+
+            {/* خدمة مقابلة السفارة */}
             <Link
-              href="/contact"
-              className="flex items-center justify-center gap-2 px-4 sm:px-6 py-2 sm:py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition text-sm sm:text-base font-semibold"
+              href="/services/embassy-appointment"
+              className="group relative bg-white rounded-xl shadow-md hover:shadow-xl transition-all duration-300 overflow-hidden transform hover:-translate-y-1 border border-gray-100 hover:border-gray-200"
             >
-              <Phone className="w-4 h-4 sm:w-5 sm:h-5" />
-              <span>تواصل معنا</span>
+              <div className="absolute inset-0 bg-gradient-to-br from-green-500 to-green-600 opacity-0 group-hover:opacity-5 transition-opacity duration-300"></div>
+              <div className="relative p-4 sm:p-5">
+                <div className="flex items-center gap-2 sm:gap-3 mb-3 sm:mb-4">
+                  <span className="text-2xl sm:text-3xl transform group-hover:scale-110 transition-transform duration-300">
+                    🏛️
+                  </span>
+                  <div className="bg-green-50 w-10 h-10 sm:w-12 sm:h-12 rounded-lg flex items-center justify-center group-hover:scale-110 transition-transform duration-300 shadow-sm">
+                    <Building2 className="w-5 h-5 sm:w-6 sm:h-6 text-green-600" />
+                  </div>
+                </div>
+                <h3 className="text-sm sm:text-base md:text-lg font-bold text-gray-800 mb-1.5 sm:mb-2 group-hover:text-green-600 transition-colors leading-tight">
+                  خدمات مقابلة السفارة
+                </h3>
+                <p className="text-xs sm:text-sm text-gray-600 mb-3 sm:mb-4 leading-relaxed line-clamp-2">
+                  حجز مواعيد السفارة وتنظيم جميع المستندات المطلوبة
+                </p>
+                <div className="flex items-center text-xs sm:text-sm font-semibold text-gray-700 group-hover:text-green-600 transition-colors">
+                  <span>ابدأ الآن</span>
+                  <ArrowLeft className="w-3 h-3 sm:w-4 sm:h-4 mr-1.5 group-hover:translate-x-1 transition-transform" />
+                </div>
+              </div>
+              <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-green-500 to-green-600 transform scale-x-0 group-hover:scale-x-100 transition-transform duration-300"></div>
             </Link>
+
+            {/* خدمة امتحان جوته */}
             <Link
-              href="/map"
-              className="flex items-center justify-center gap-2 px-4 sm:px-6 py-2 sm:py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition text-sm sm:text-base font-semibold"
+              href="/services/goethe-exam"
+              className="group relative bg-white rounded-xl shadow-md hover:shadow-xl transition-all duration-300 overflow-hidden transform hover:-translate-y-1 border border-gray-100 hover:border-gray-200"
             >
-              <MapPin className="w-4 h-4 sm:w-5 sm:h-5" />
-              <span>الخريطة التفاعلية</span>
+              <div className="absolute inset-0 bg-gradient-to-br from-purple-500 to-purple-600 opacity-0 group-hover:opacity-5 transition-opacity duration-300"></div>
+              <div className="relative p-4 sm:p-5">
+                <div className="flex items-center gap-2 sm:gap-3 mb-3 sm:mb-4">
+                  <span className="text-2xl sm:text-3xl transform group-hover:scale-110 transition-transform duration-300">
+                    🎓
+                  </span>
+                  <div className="bg-purple-50 w-10 h-10 sm:w-12 sm:h-12 rounded-lg flex items-center justify-center group-hover:scale-110 transition-transform duration-300 shadow-sm">
+                    <GraduationCap className="w-5 h-5 sm:w-6 sm:h-6 text-purple-600" />
+                  </div>
+                </div>
+                <h3 className="text-sm sm:text-base md:text-lg font-bold text-gray-800 mb-1.5 sm:mb-2 group-hover:text-purple-600 transition-colors leading-tight">
+                  خدمة تقديم لامتحان جوته
+                </h3>
+                <p className="text-xs sm:text-sm text-gray-600 mb-3 sm:mb-4 leading-relaxed line-clamp-2">
+                  التسجيل في امتحان جوته وتنظيم جميع الإجراءات
+                </p>
+                <div className="flex items-center text-xs sm:text-sm font-semibold text-gray-700 group-hover:text-purple-600 transition-colors">
+                  <span>ابدأ الآن</span>
+                  <ArrowLeft className="w-3 h-3 sm:w-4 sm:h-4 mr-1.5 group-hover:translate-x-1 transition-transform" />
+                </div>
+              </div>
+              <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-purple-500 to-purple-600 transform scale-x-0 group-hover:scale-x-100 transition-transform duration-300"></div>
+            </Link>
+
+            {/* خدمات أخرى */}
+            <Link
+              href="/services/other"
+              className="group relative bg-white rounded-xl shadow-md hover:shadow-xl transition-all duration-300 overflow-hidden transform hover:-translate-y-1 border border-gray-100 hover:border-gray-200"
+            >
+              <div className="absolute inset-0 bg-gradient-to-br from-orange-500 to-orange-600 opacity-0 group-hover:opacity-5 transition-opacity duration-300"></div>
+              <div className="relative p-4 sm:p-5">
+                <div className="flex items-center gap-2 sm:gap-3 mb-3 sm:mb-4">
+                  <span className="text-2xl sm:text-3xl transform group-hover:scale-110 transition-transform duration-300">
+                    ✨
+                  </span>
+                  <div className="bg-orange-50 w-10 h-10 sm:w-12 sm:h-12 rounded-lg flex items-center justify-center group-hover:scale-110 transition-transform duration-300 shadow-sm">
+                    <Plus className="w-5 h-5 sm:w-6 sm:h-6 text-orange-600" />
+                  </div>
+                </div>
+                <h3 className="text-sm sm:text-base md:text-lg font-bold text-gray-800 mb-1.5 sm:mb-2 group-hover:text-orange-600 transition-colors leading-tight">
+                  خدمات أخرى
+                </h3>
+                <p className="text-xs sm:text-sm text-gray-600 mb-3 sm:mb-4 leading-relaxed line-clamp-2">
+                  اطلب خدمة مخصصة أو تواصل معنا مباشرة
+                </p>
+                <div className="flex items-center text-xs sm:text-sm font-semibold text-gray-700 group-hover:text-orange-600 transition-colors">
+                  <span>ابدأ الآن</span>
+                  <ArrowLeft className="w-3 h-3 sm:w-4 sm:h-4 mr-1.5 group-hover:translate-x-1 transition-transform" />
+                </div>
+              </div>
+              <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-orange-500 to-orange-600 transform scale-x-0 group-hover:scale-x-100 transition-transform duration-300"></div>
             </Link>
           </div>
         </div>

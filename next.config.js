@@ -9,9 +9,14 @@ const nextConfig = {
       },
       {
         protocol: 'https',
+        hostname: 'dcnywvixlcysalzfchye.supabase.co',
+      },
+      {
+        protocol: 'https',
         hostname: 'images.unsplash.com',
       },
     ],
+    unoptimized: false,
   },
   env: {
     NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL,
