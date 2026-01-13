@@ -2,15 +2,16 @@
 
 import { formatDate } from '@/lib/date-utils'
 import { VisitRequest } from './types'
-import { Clock, CheckCircle, XCircle, Eye, Calendar, MapPin, Users, DollarSign } from 'lucide-react'
+import { Clock, CheckCircle, XCircle, Eye, Calendar, MapPin, Users, DollarSign, Plane } from 'lucide-react'
 
 interface RequestCardProps {
   request: VisitRequest
   userProfile?: { full_name: string | null; phone: string | null }
   onClick: () => void
+  onScheduleTrip?: () => void
 }
 
-export default function RequestCard({ request, userProfile, onClick }: RequestCardProps) {
+export default function RequestCard({ request, userProfile, onClick, onScheduleTrip }: RequestCardProps) {
   const getStatusBadge = (status: string) => {
     const statusMap: Record<string, { text: string; color: string; bgColor: string; icon: any }> = {
       pending: { 
@@ -65,11 +66,12 @@ export default function RequestCard({ request, userProfile, onClick }: RequestCa
     ? request.companions_data.length 
     : request.companions_count || 0
 
+  const isApproved = request.status === 'approved'
+  const hasArrivalDate = request.arrival_date !== null
+  const isCompleted = request.status === 'completed' || request.trip_status === 'completed'
+
   return (
-    <div
-      onClick={onClick}
-      className="bg-white rounded-xl shadow-md hover:shadow-lg transition-all duration-300 p-4 sm:p-6 cursor-pointer border border-gray-200 hover:border-blue-300"
-    >
+    <div className="bg-white rounded-xl shadow-md hover:shadow-lg transition-all duration-300 p-4 sm:p-6 border border-gray-200 hover:border-blue-300">
       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
         {/* المعلومات الأساسية */}
         <div className="flex-1 space-y-3">
@@ -127,7 +129,57 @@ export default function RequestCard({ request, userProfile, onClick }: RequestCa
                 {request.deposit_amount} JOD
               </span>
             )}
+            {request.trip_status === 'scheduled_pending_approval' && (
+              <span className="px-2.5 py-1 bg-orange-50 text-orange-700 rounded-lg font-medium flex items-center gap-1">
+                <Clock className="w-3 h-3" />
+                حجز بانتظار الموافقة
+              </span>
+            )}
+            {hasArrivalDate && request.arrival_date && request.trip_status !== 'scheduled_pending_approval' && (
+              <span className="px-2.5 py-1 bg-purple-50 text-purple-700 rounded-lg font-medium flex items-center gap-1">
+                <Plane className="w-3 h-3" />
+                قدوم: {formatDate(request.arrival_date)}
+              </span>
+            )}
+            {isCompleted && (
+              <span className="px-2.5 py-1 bg-gray-800 text-white rounded-lg font-medium">
+                منتهي
+              </span>
+            )}
           </div>
+        </div>
+
+        {/* الأزرار */}
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-3">
+          {isApproved && !isCompleted && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation()
+                onScheduleTrip?.()
+              }}
+              className={`px-4 py-2 rounded-lg font-medium text-sm sm:text-base transition flex items-center justify-center gap-2 ${
+                request.trip_status === 'scheduled_pending_approval'
+                  ? 'bg-orange-600 text-white hover:bg-orange-700'
+                  : hasArrivalDate
+                  ? 'bg-purple-100 text-purple-700 hover:bg-purple-200'
+                  : 'bg-blue-600 text-white hover:bg-blue-700'
+              }`}
+            >
+              <Plane className="w-4 h-4" />
+              {request.trip_status === 'scheduled_pending_approval'
+                ? 'الموافقة على الحجز'
+                : hasArrivalDate
+                ? 'تعديل الموعد'
+                : 'حجز موعد الرحلة'}
+            </button>
+          )}
+          <button
+            onClick={onClick}
+            className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition font-medium text-sm sm:text-base flex items-center justify-center gap-2"
+          >
+            <Eye className="w-4 h-4" />
+            التفاصيل
+          </button>
         </div>
 
         {/* التاريخ */}

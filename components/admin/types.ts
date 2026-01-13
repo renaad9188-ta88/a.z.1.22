@@ -23,13 +23,16 @@ export interface VisitRequest {
   hotel_location: string | null
   rooms_count: number | null
   nights_count: number | null
-  status: 'pending' | 'under_review' | 'approved' | 'rejected'
+  status: 'pending' | 'under_review' | 'approved' | 'rejected' | 'completed'
   rejection_reason: string | null
   deposit_paid: boolean
   deposit_amount: number | null
   total_amount: number | null
   remaining_amount: number | null
   admin_notes: string | null
+  arrival_date: string | null
+  departure_date: string | null
+  trip_status: 'pending_arrival' | 'scheduled_pending_approval' | 'arrived' | 'completed' | null
   created_at: string
   updated_at: string
 }

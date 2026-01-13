@@ -10,6 +10,7 @@ import AdminStats from './admin/AdminStats'
 import RequestFilters from './admin/RequestFilters'
 import RequestCard from './admin/RequestCard'
 import RequestDetailsModal from './admin/RequestDetailsModal'
+import TripSchedulingModal from './admin/TripSchedulingModal'
 import { VisitRequest, UserProfile, AdminStats as StatsType } from './admin/types'
 
 export default function AdminDashboard() {
@@ -20,6 +21,7 @@ export default function AdminDashboard() {
   const [loading, setLoading] = useState(true)
   const [selectedRequest, setSelectedRequest] = useState<VisitRequest | null>(null)
   const [selectedUserProfile, setSelectedUserProfile] = useState<UserProfile | null>(null)
+  const [schedulingRequest, setSchedulingRequest] = useState<VisitRequest | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
   const [typeFilter, setTypeFilter] = useState('all')
@@ -153,6 +155,14 @@ export default function AdminDashboard() {
   const handleCloseModal = () => {
     setSelectedRequest(null)
     setSelectedUserProfile(null)
+  }
+
+  const handleScheduleTrip = (request: VisitRequest) => {
+    setSchedulingRequest(request)
+  }
+
+  const handleCloseSchedulingModal = () => {
+    setSchedulingRequest(null)
   }
 
   const handleClearFilters = () => {
@@ -297,6 +307,7 @@ export default function AdminDashboard() {
                   request={request}
                   userProfile={userProfiles[request.user_id]}
                   onClick={() => handleRequestClick(request)}
+                  onScheduleTrip={() => handleScheduleTrip(request)}
                 />
               ))}
             </>
@@ -311,6 +322,16 @@ export default function AdminDashboard() {
           userProfile={selectedUserProfile}
           onClose={handleCloseModal}
           onUpdate={loadRequests}
+        />
+      )}
+
+      {/* Trip Scheduling Modal */}
+      {schedulingRequest && (
+        <TripSchedulingModal
+          request={schedulingRequest}
+          onClose={handleCloseSchedulingModal}
+          onUpdate={loadRequests}
+          isAdmin={true}
         />
       )}
     </div>

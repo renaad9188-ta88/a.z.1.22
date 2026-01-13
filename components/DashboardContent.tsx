@@ -17,8 +17,11 @@ import {
   Mail,
   Building2,
   GraduationCap,
-  ArrowLeft
+  ArrowLeft,
+  Trash2,
+  Plane
 } from 'lucide-react'
+import TripSchedulingModal from './admin/TripSchedulingModal'
 import toast from 'react-hot-toast'
 import { formatDate } from '@/lib/date-utils'
 
@@ -31,6 +34,9 @@ interface VisitRequest {
   created_at: string
   city: string
   days_count: number
+  arrival_date: string | null
+  departure_date: string | null
+  trip_status: string | null
 }
 
 export default function DashboardContent({ userId }: { userId: string }) {
@@ -39,6 +45,7 @@ export default function DashboardContent({ userId }: { userId: string }) {
   const [requests, setRequests] = useState<VisitRequest[]>([])
   const [loading, setLoading] = useState(true)
   const [userProfile, setUserProfile] = useState<any>(null)
+  const [schedulingRequest, setSchedulingRequest] = useState<VisitRequest | null>(null)
 
   useEffect(() => {
     loadData()
@@ -77,7 +84,37 @@ export default function DashboardContent({ userId }: { userId: string }) {
     toast.success('تم تسجيل الخروج بنجاح')
   }
 
-  const getStatusBadge = (status: string) => {
+  const handleDeleteRequest = async (requestId: string) => {
+    if (!confirm('هل أنت متأكد من حذف هذا الطلب؟ لا يمكن التراجع عن هذا الإجراء.')) {
+      return
+    }
+
+    try {
+      const { error } = await supabase
+        .from('visit_requests')
+        .delete()
+        .eq('id', requestId)
+
+      if (error) throw error
+
+      toast.success('تم حذف الطلب بنجاح')
+      loadData()
+    } catch (error: any) {
+      toast.error('حدث خطأ أثناء حذف الطلب')
+    }
+  }
+
+  const getStatusBadge = (status: string, tripStatus: string | null) => {
+    // إذا كان الطلب منتهياً، اعرض "منتهي"
+    if (status === 'completed' || tripStatus === 'completed') {
+      return (
+        <span className="inline-flex items-center gap-1 px-2 sm:px-3 py-0.5 sm:py-1 rounded-full text-xs sm:text-sm font-medium bg-gray-800 text-white">
+          <CheckCircle className="w-3 h-3 sm:w-4 sm:h-4" />
+          <span>منتهي</span>
+        </span>
+      )
+    }
+
     const statusMap: Record<string, { text: string; color: string; icon: any }> = {
       pending: { text: 'قيد المراجعة', color: 'bg-yellow-100 text-yellow-800', icon: Clock },
       under_review: { text: 'بانتظار الموافقة', color: 'bg-blue-100 text-blue-800', icon: Clock },
@@ -188,7 +225,7 @@ export default function DashboardContent({ userId }: { userId: string }) {
               <div>
                 <p className="text-gray-600 text-xs sm:text-sm mb-1">مكتملة</p>
                 <p className="text-xl sm:text-2xl md:text-3xl font-bold text-green-600">
-                  {requests.filter(r => r.status === 'approved').length}
+                  {requests.filter(r => r.status === 'approved' || r.status === 'completed').length}
                 </p>
               </div>
               <CheckCircle className="w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 text-green-600 opacity-20 flex-shrink-0" />
@@ -373,7 +410,7 @@ export default function DashboardContent({ userId }: { userId: string }) {
                     <div className="flex-1 w-full">
                       <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 mb-3 sm:mb-2">
                         <h3 className="text-base sm:text-lg md:text-xl font-bold text-gray-800 break-words">{request.visitor_name}</h3>
-                        <div className="flex-shrink-0">{getStatusBadge(request.status)}</div>
+                        <div className="flex-shrink-0">{getStatusBadge(request.status, request.trip_status)}</div>
                       </div>
                       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 sm:gap-3 md:gap-4 mt-3 sm:mt-4 text-xs sm:text-sm text-gray-600">
                         <div className="flex items-center gap-2">
@@ -387,21 +424,76 @@ export default function DashboardContent({ userId }: { userId: string }) {
                         <div className="flex items-center gap-2">
                           <Calendar className="w-3 h-3 sm:w-4 sm:h-4 flex-shrink-0" />
                           <span className="break-words">تاريخ السفر: {formatDate(request.travel_date)}</span>
-                          </div>
+                        </div>
+                        {request.arrival_date && (
                           <div className="flex items-center gap-2">
-                            <span className="break-words">عدد الأيام: {request.days_count}</span>
+                            <Plane className="w-3 h-3 sm:w-4 sm:h-4 flex-shrink-0 text-blue-600" />
+                            <span className="break-words text-blue-700 font-medium">تاريخ القدوم: {formatDate(request.arrival_date)}</span>
                           </div>
-                          <div className="flex items-center gap-2 sm:col-span-2 md:col-span-1">
-                            <span className="break-words">تاريخ الطلب: {formatDate(request.created_at)}</span>
+                        )}
+                        {request.departure_date && (
+                          <div className="flex items-center gap-2">
+                            <Plane className="w-3 h-3 sm:w-4 sm:h-4 flex-shrink-0 text-green-600 rotate-180" />
+                            <span className="break-words text-green-700 font-medium">تاريخ المغادرة: {formatDate(request.departure_date)}</span>
+                          </div>
+                        )}
+                        <div className="flex items-center gap-2">
+                          <span className="break-words">عدد الأيام: {request.days_count}</span>
+                        </div>
+                        <div className="flex items-center gap-2 sm:col-span-2 md:col-span-1">
+                          <span className="break-words">تاريخ الطلب: {formatDate(request.created_at)}</span>
                         </div>
                       </div>
                     </div>
-                    <Link
-                      href={`/dashboard/request/${request.id}`}
-                      className="w-full sm:w-auto px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-xs sm:text-sm font-semibold text-center"
-                    >
-                      عرض التفاصيل
-                    </Link>
+                    <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+                      <Link
+                        href={`/dashboard/request/${request.id}`}
+                        className="w-full sm:w-auto px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-xs sm:text-sm font-semibold text-center"
+                      >
+                        عرض التفاصيل
+                      </Link>
+                      {/* زر حجز الرحلة - فعال للمقبولة، غير فعال للقيد الإجراء */}
+                      {request.visit_type === 'visit' && (
+                        <button
+                          onClick={() => setSchedulingRequest(request)}
+                          disabled={
+                            request.status !== 'approved' || 
+                            request.trip_status === 'completed' ||
+                            request.trip_status === 'arrived'
+                          }
+                          className={`w-full sm:w-auto px-4 py-2 rounded-lg transition text-xs sm:text-sm font-semibold flex items-center justify-center gap-2 ${
+                            request.status === 'approved' && 
+                            request.trip_status !== 'completed' && 
+                            request.trip_status !== 'arrived'
+                              ? 'bg-green-600 text-white hover:bg-green-700'
+                              : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                          }`}
+                          title={
+                            request.status !== 'approved'
+                              ? 'يجب الموافقة على الطلب أولاً'
+                              : request.trip_status === 'completed' || request.trip_status === 'arrived'
+                              ? 'الرحلة منتهية أو بدأت'
+                              : 'حجز موعد الرحلة'
+                          }
+                        >
+                          <Plane className="w-3 h-3 sm:w-4 sm:h-4" />
+                          {request.trip_status === 'scheduled_pending_approval'
+                            ? 'الحجز بانتظار الموافقة'
+                            : request.arrival_date
+                            ? 'تعديل موعد الرحلة'
+                            : 'حجز موعد الرحلة'}
+                        </button>
+                      )}
+                      {(request.status === 'completed' || request.trip_status === 'completed') && (
+                        <button
+                          onClick={() => handleDeleteRequest(request.id)}
+                          className="w-full sm:w-auto px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition text-xs sm:text-sm font-semibold flex items-center justify-center gap-2"
+                        >
+                          <Trash2 className="w-3 h-3 sm:w-4 sm:h-4" />
+                          حذف
+                        </button>
+                      )}
+                    </div>
                   </div>
                 </div>
               ))}
@@ -409,6 +501,16 @@ export default function DashboardContent({ userId }: { userId: string }) {
           )}
         </div>
       </div>
+
+      {/* Trip Scheduling Modal */}
+      {schedulingRequest && (
+        <TripSchedulingModal
+          request={schedulingRequest}
+          onClose={() => setSchedulingRequest(null)}
+          onUpdate={loadData}
+          isAdmin={false}
+        />
+      )}
     </div>
   )
 }
