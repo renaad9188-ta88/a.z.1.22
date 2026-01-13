@@ -10,9 +10,16 @@ export default async function AdminPage() {
     redirect('/auth/login')
   }
 
-  // Check if user is admin (you can implement your own admin check logic)
-  // For now, we'll allow any logged-in user to access admin panel
-  // In production, add proper role-based access control
+  // التحقق من أن المستخدم إداري
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('user_id', user.id)
+    .maybeSingle()
+
+  if (!profile || profile.role !== 'admin') {
+    redirect('/dashboard')
+  }
 
   return <AdminDashboard />
 }

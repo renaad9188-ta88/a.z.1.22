@@ -1,17 +1,18 @@
 export interface VisitRequest {
   id: string
+  user_id: string
   visitor_name: string
   nationality: string
   passport_number: string
   passport_expiry: string
   passport_image_url: string | null
-  visit_type: string
+  visit_type: 'visit' | 'umrah' | 'tourism'
   travel_date: string
   days_count: number
   city: string
   destination: string | null
   companions_count: number
-  companions_data: any
+  companions_data: any | null
   driver_name: string | null
   driver_phone: string | null
   vehicle_type: string | null
@@ -22,7 +23,7 @@ export interface VisitRequest {
   hotel_location: string | null
   rooms_count: number | null
   nights_count: number | null
-  status: string
+  status: 'pending' | 'under_review' | 'approved' | 'rejected'
   rejection_reason: string | null
   deposit_paid: boolean
   deposit_amount: number | null
@@ -33,12 +34,20 @@ export interface VisitRequest {
   updated_at: string
 }
 
-export interface AdminInfo {
-  jordanPhone?: string
-  syrianPhone?: string
-  purpose?: string
-  paymentImages?: string[]
+export interface UserProfile {
+  id: string
+  user_id: string
+  full_name: string | null
+  phone: string | null
+  created_at: string
 }
 
+export interface AdminStats {
+  total: number
+  pending: number
+  approved: number
+  rejected: number
+  underReview: number
+}
 
 

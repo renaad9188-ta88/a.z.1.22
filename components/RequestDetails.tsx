@@ -14,6 +14,7 @@ import RequestInfo from './request-details/RequestInfo'
 import CompanionsList from './request-details/CompanionsList'
 import PaymentImages from './request-details/PaymentImages'
 import ImageGallery from './request-details/ImageGallery'
+import AdminResponse from './request-details/AdminResponse'
 
 export default function RequestDetails({ requestId, userId }: { requestId: string; userId: string }) {
   const router = useRouter()
@@ -228,6 +229,9 @@ export default function RequestDetails({ requestId, userId }: { requestId: strin
             signedPaymentImages={signedPaymentImages}
             onOpenGallery={openImageGallery}
           />
+
+          {/* رد الإدارة */}
+          <AdminResponse adminNotes={request.admin_notes} />
 
           {/* التواريخ */}
           <div className="pt-4 sm:pt-6 border-t border-gray-200">
