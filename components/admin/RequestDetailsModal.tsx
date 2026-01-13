@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { X, Save, User, Phone, Calendar, MapPin, FileText, Image as ImageIcon, MessageSquare } from 'lucide-react'
+import { X, Save, User, Phone, Calendar, MapPin, FileText, Image as ImageIcon, MessageSquare, ZoomIn, ChevronLeft, ChevronRight } from 'lucide-react'
 import { VisitRequest, UserProfile } from './types'
 import { parseAdminNotes } from '../request-details/utils'
 import { getSignedImageUrl } from '../request-details/utils'
@@ -30,6 +30,9 @@ export default function RequestDetailsModal({
   const [adminResponse, setAdminResponse] = useState('')
   const [passportImages, setPassportImages] = useState<string[]>([])
   const [paymentImages, setPaymentImages] = useState<string[]>([])
+  const [imagesLoading, setImagesLoading] = useState(true)
+  const [selectedImageIndex, setSelectedImageIndex] = useState<number | null>(null)
+  const [selectedImageType, setSelectedImageType] = useState<'passport' | 'payment' | null>(null)
 
   useEffect(() => {
     if (request) {
@@ -54,38 +57,104 @@ export default function RequestDetailsModal({
   const loadImages = async () => {
     if (!request) return
 
+    setImagesLoading(true)
     const images: string[] = []
     const payments: string[] = []
 
-    // صورة الجواز الرئيسية
-    if (request.passport_image_url) {
-      const signedUrl = await getSignedImageUrl(request.passport_image_url, supabase)
-      images.push(signedUrl)
-    }
+    try {
+      // صورة الجواز الرئيسية
+      if (request.passport_image_url) {
+        try {
+          const signedUrl = await getSignedImageUrl(request.passport_image_url, supabase)
+          // استخدم signed URL إذا كان متاحاً، وإلا استخدم الرابط الأصلي
+          images.push(signedUrl || request.passport_image_url)
+        } catch (error) {
+          console.error('Error loading main passport image:', error)
+          // إذا فشل، استخدم الرابط الأصلي
+          images.push(request.passport_image_url)
+        }
+      }
 
-    // صور المرافقين
-    if (request.companions_data && Array.isArray(request.companions_data)) {
-      for (const companion of request.companions_data) {
-        if (companion.passportImages && Array.isArray(companion.passportImages)) {
-          for (const imgUrl of companion.passportImages) {
-            const signedUrl = await getSignedImageUrl(imgUrl, supabase)
-            images.push(signedUrl)
+      // صور المرافقين
+      if (request.companions_data) {
+        try {
+          // إذا كان JSON string، حوله إلى object
+          const companions = typeof request.companions_data === 'string' 
+            ? JSON.parse(request.companions_data) 
+            : request.companions_data
+
+          if (Array.isArray(companions)) {
+            for (const companion of companions) {
+              if (companion.passportImages && Array.isArray(companion.passportImages)) {
+                for (const imgUrl of companion.passportImages) {
+                  if (imgUrl) {
+                    try {
+                      const signedUrl = await getSignedImageUrl(imgUrl, supabase)
+                      images.push(signedUrl || imgUrl)
+                    } catch (error) {
+                      console.warn('Error loading companion passport image, using original URL:', error)
+                      images.push(imgUrl)
+                    }
+                  }
+                }
+              } else if (companion.passport_image_url) {
+                try {
+                  const signedUrl = await getSignedImageUrl(companion.passport_image_url, supabase)
+                  images.push(signedUrl || companion.passport_image_url)
+                } catch (error) {
+                  console.warn('Error loading companion passport image, using original URL:', error)
+                  images.push(companion.passport_image_url)
+                }
+              }
+            }
+          } else if (companions && typeof companions === 'object') {
+            // إذا كان object وليس array
+            Object.values(companions).forEach((companion: any) => {
+              if (companion?.passportImages && Array.isArray(companion.passportImages)) {
+                companion.passportImages.forEach((imgUrl: string) => {
+                  if (imgUrl) {
+                    try {
+                      getSignedImageUrl(imgUrl, supabase).then(signedUrl => {
+                        images.push(signedUrl || imgUrl)
+                      }).catch(() => {
+                        images.push(imgUrl)
+                      })
+                    } catch {
+                      images.push(imgUrl)
+                    }
+                  }
+                })
+              }
+            })
+          }
+        } catch (error) {
+          console.error('Error parsing companions_data:', error)
+        }
+      }
+
+      // صور الدفعات
+      const adminInfo = parseAdminNotes(request.admin_notes || '')
+      if (adminInfo?.paymentImages && Array.isArray(adminInfo.paymentImages)) {
+        for (const imgUrl of adminInfo.paymentImages) {
+          if (imgUrl) {
+            try {
+              const signedUrl = await getSignedImageUrl(imgUrl, supabase)
+              payments.push(signedUrl || imgUrl)
+            } catch (error) {
+              console.warn('Error loading payment image, using original URL:', error)
+              payments.push(imgUrl)
+            }
           }
         }
       }
+    } catch (error) {
+      console.error('Error in loadImages:', error)
+      toast.error('حدث خطأ أثناء تحميل الصور')
+    } finally {
+      setPassportImages(images)
+      setPaymentImages(payments)
+      setImagesLoading(false)
     }
-
-    // صور الدفعات
-    const adminInfo = parseAdminNotes(request.admin_notes || '')
-    if (adminInfo?.paymentImages) {
-      for (const imgUrl of adminInfo.paymentImages) {
-        const signedUrl = await getSignedImageUrl(imgUrl, supabase)
-        payments.push(signedUrl)
-      }
-    }
-
-    setPassportImages(images)
-    setPaymentImages(payments)
   }
 
   const handleSave = async () => {
@@ -227,52 +296,126 @@ export default function RequestDetailsModal({
           </div>
 
           {/* صور الجوازات */}
-          {passportImages.length > 0 && (
-            <div>
-              <h3 className="text-base sm:text-lg font-bold text-gray-800 mb-3 flex items-center gap-2">
-                <ImageIcon className="w-5 h-5 text-gray-600" />
-                صور الجوازات ({passportImages.length})
-              </h3>
+          <div>
+            <h3 className="text-base sm:text-lg font-bold text-gray-800 mb-3 flex items-center gap-2">
+              <ImageIcon className="w-5 h-5 text-gray-600" />
+              صور الجوازات ({passportImages.length})
+            </h3>
+            {imagesLoading ? (
+              <div className="flex items-center justify-center py-8">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                <span className="mr-3 text-gray-600">جاري تحميل الصور...</span>
+              </div>
+            ) : passportImages.length > 0 ? (
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
                 {passportImages.map((img, index) => (
-                  <div key={index} className="relative aspect-[3/4] rounded-lg overflow-hidden border border-gray-200">
+                  <div 
+                    key={index} 
+                    className="relative aspect-[3/4] rounded-lg overflow-hidden border-2 border-gray-200 hover:border-blue-500 transition-all cursor-pointer group"
+                    onClick={() => {
+                      setSelectedImageIndex(index)
+                      setSelectedImageType('passport')
+                    }}
+                  >
                     <img
                       src={img}
                       alt={`جواز ${index + 1}`}
-                      className="w-full h-full object-cover"
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
+                      loading="lazy"
                       onError={(e) => {
-                        (e.target as HTMLImageElement).style.display = 'none'
+                        const target = e.target as HTMLImageElement
+                        const parent = target.parentElement
+                        if (parent) {
+                          // محاولة استخدام الرابط الأصلي إذا كان مختلفاً
+                          const originalUrl = img.includes('?token=') 
+                            ? img.split('?token=')[0] 
+                            : img
+                          
+                          if (target.src !== originalUrl && !originalUrl.includes('?token=')) {
+                            target.src = originalUrl
+                            return
+                          }
+                          
+                          // إذا فشل أيضاً، اعرض رسالة خطأ
+                          target.style.display = 'none'
+                          parent.innerHTML = '<div class="w-full h-full flex flex-col items-center justify-center bg-gray-100 text-gray-400 text-xs p-2"><p>فشل تحميل الصورة</p><p class="text-[10px] mt-1 break-all text-center">' + originalUrl.substring(0, 30) + '...</p></div>'
+                        }
                       }}
                     />
+                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-all flex items-center justify-center">
+                      <ZoomIn className="w-6 h-6 sm:w-8 sm:h-8 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                    </div>
                   </div>
                 ))}
               </div>
-            </div>
-          )}
+            ) : (
+              <div className="bg-gray-50 rounded-lg p-6 text-center">
+                <ImageIcon className="w-12 h-12 text-gray-300 mx-auto mb-2" />
+                <p className="text-gray-500 text-sm">لا توجد صور جوازات متاحة</p>
+              </div>
+            )}
+          </div>
 
           {/* صور الدفعات */}
-          {paymentImages.length > 0 && (
-            <div>
-              <h3 className="text-base sm:text-lg font-bold text-gray-800 mb-3 flex items-center gap-2">
-                <ImageIcon className="w-5 h-5 text-green-600" />
-                صور الدفعات ({paymentImages.length})
-              </h3>
+          <div>
+            <h3 className="text-base sm:text-lg font-bold text-gray-800 mb-3 flex items-center gap-2">
+              <ImageIcon className="w-5 h-5 text-green-600" />
+              صور الدفعات ({paymentImages.length})
+            </h3>
+            {imagesLoading ? (
+              <div className="flex items-center justify-center py-8">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600"></div>
+                <span className="mr-3 text-gray-600">جاري تحميل الصور...</span>
+              </div>
+            ) : paymentImages.length > 0 ? (
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
                 {paymentImages.map((img, index) => (
-                  <div key={index} className="relative aspect-square rounded-lg overflow-hidden border border-gray-200">
+                  <div 
+                    key={index} 
+                    className="relative aspect-square rounded-lg overflow-hidden border-2 border-gray-200 hover:border-green-500 transition-all cursor-pointer group"
+                    onClick={() => {
+                      setSelectedImageIndex(index)
+                      setSelectedImageType('payment')
+                    }}
+                  >
                     <img
                       src={img}
                       alt={`دفعة ${index + 1}`}
-                      className="w-full h-full object-cover"
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
+                      loading="lazy"
                       onError={(e) => {
-                        (e.target as HTMLImageElement).style.display = 'none'
+                        const target = e.target as HTMLImageElement
+                        const parent = target.parentElement
+                        if (parent) {
+                          // محاولة استخدام الرابط الأصلي إذا كان مختلفاً
+                          const originalUrl = img.includes('?token=') 
+                            ? img.split('?token=')[0] 
+                            : img
+                          
+                          if (target.src !== originalUrl && !originalUrl.includes('?token=')) {
+                            target.src = originalUrl
+                            return
+                          }
+                          
+                          // إذا فشل أيضاً، اعرض رسالة خطأ
+                          target.style.display = 'none'
+                          parent.innerHTML = '<div class="w-full h-full flex flex-col items-center justify-center bg-gray-100 text-gray-400 text-xs p-2"><p>فشل تحميل الصورة</p><p class="text-[10px] mt-1 break-all text-center">' + originalUrl.substring(0, 30) + '...</p></div>'
+                        }
                       }}
                     />
+                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-all flex items-center justify-center">
+                      <ZoomIn className="w-6 h-6 sm:w-8 sm:h-8 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                    </div>
                   </div>
                 ))}
               </div>
-            </div>
-          )}
+            ) : (
+              <div className="bg-gray-50 rounded-lg p-6 text-center">
+                <ImageIcon className="w-12 h-12 text-gray-300 mx-auto mb-2" />
+                <p className="text-gray-500 text-sm">لا توجد صور دفعات متاحة</p>
+              </div>
+            )}
+          </div>
 
           {/* تحديث الحالة */}
           <div className="bg-yellow-50 rounded-lg p-4 border border-yellow-200">
@@ -360,6 +503,127 @@ export default function RequestDetailsModal({
           </button>
         </div>
       </div>
+
+      {/* Image Lightbox */}
+      {selectedImageIndex !== null && selectedImageType && (
+        <div 
+          className="fixed inset-0 bg-black/95 z-[60] flex items-center justify-center p-4"
+          onClick={() => {
+            setSelectedImageIndex(null)
+            setSelectedImageType(null)
+          }}
+        >
+          <button
+            onClick={() => {
+              setSelectedImageIndex(null)
+              setSelectedImageType(null)
+            }}
+            className="absolute top-4 left-4 text-white hover:text-gray-300 z-10 bg-black/50 rounded-full p-2"
+          >
+            <X className="w-6 h-6 sm:w-8 sm:h-8" />
+          </button>
+          
+          {selectedImageType === 'passport' && selectedImageIndex < passportImages.length && (
+            <>
+              {selectedImageIndex > 0 && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    setSelectedImageIndex(selectedImageIndex - 1)
+                  }}
+                  className="absolute right-4 top-1/2 -translate-y-1/2 text-white hover:text-gray-300 z-10 bg-black/50 rounded-full p-2 sm:p-3"
+                >
+                  <ChevronRight className="w-6 h-6 sm:w-8 sm:h-8" />
+                </button>
+              )}
+              
+              {selectedImageIndex < passportImages.length - 1 && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    setSelectedImageIndex(selectedImageIndex + 1)
+                  }}
+                  className="absolute left-4 top-1/2 -translate-y-1/2 text-white hover:text-gray-300 z-10 bg-black/50 rounded-full p-2 sm:p-3"
+                >
+                  <ChevronLeft className="w-6 h-6 sm:w-8 sm:h-8" />
+                </button>
+              )}
+
+              <div className="relative w-full h-full max-w-5xl max-h-[90vh] flex items-center justify-center">
+                <img
+                  src={passportImages[selectedImageIndex]}
+                  alt={`جواز ${selectedImageIndex + 1}`}
+                  className="max-w-full max-h-full object-contain"
+                  style={{ maxHeight: '90vh' }}
+                  onClick={(e) => e.stopPropagation()}
+                  onError={(e) => {
+                    const target = e.target as HTMLImageElement
+                    target.style.display = 'none'
+                    const parent = target.parentElement
+                    if (parent) {
+                      parent.innerHTML = '<div class="text-white text-center"><p class="text-lg mb-2">فشل تحميل الصورة</p><p class="text-sm text-gray-400">يرجى المحاولة مرة أخرى</p></div>'
+                    }
+                  }}
+                />
+              </div>
+
+              <div className="absolute bottom-4 left-1/2 -translate-x-1/2 text-white text-sm sm:text-base bg-black/50 px-4 py-2 rounded-full">
+                {selectedImageIndex + 1} / {passportImages.length}
+              </div>
+            </>
+          )}
+
+          {selectedImageType === 'payment' && selectedImageIndex < paymentImages.length && (
+            <>
+              {selectedImageIndex > 0 && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    setSelectedImageIndex(selectedImageIndex - 1)
+                  }}
+                  className="absolute right-4 top-1/2 -translate-y-1/2 text-white hover:text-gray-300 z-10 bg-black/50 rounded-full p-2 sm:p-3"
+                >
+                  <ChevronRight className="w-6 h-6 sm:w-8 sm:h-8" />
+                </button>
+              )}
+              
+              {selectedImageIndex < paymentImages.length - 1 && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    setSelectedImageIndex(selectedImageIndex + 1)
+                  }}
+                  className="absolute left-4 top-1/2 -translate-y-1/2 text-white hover:text-gray-300 z-10 bg-black/50 rounded-full p-2 sm:p-3"
+                >
+                  <ChevronLeft className="w-6 h-6 sm:w-8 sm:h-8" />
+                </button>
+              )}
+
+              <div className="relative w-full h-full max-w-5xl max-h-[90vh] flex items-center justify-center">
+                <img
+                  src={paymentImages[selectedImageIndex]}
+                  alt={`دفعة ${selectedImageIndex + 1}`}
+                  className="max-w-full max-h-full object-contain"
+                  style={{ maxHeight: '90vh' }}
+                  onClick={(e) => e.stopPropagation()}
+                  onError={(e) => {
+                    const target = e.target as HTMLImageElement
+                    target.style.display = 'none'
+                    const parent = target.parentElement
+                    if (parent) {
+                      parent.innerHTML = '<div class="text-white text-center"><p class="text-lg mb-2">فشل تحميل الصورة</p><p class="text-sm text-gray-400">يرجى المحاولة مرة أخرى</p></div>'
+                    }
+                  }}
+                />
+              </div>
+
+              <div className="absolute bottom-4 left-1/2 -translate-x-1/2 text-white text-sm sm:text-base bg-black/50 px-4 py-2 rounded-full">
+                {selectedImageIndex + 1} / {paymentImages.length}
+              </div>
+            </>
+          )}
+        </div>
+      )}
     </div>
   )
 }
