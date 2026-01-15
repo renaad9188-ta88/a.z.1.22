@@ -218,7 +218,7 @@ export default function AdminDashboard() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-white overflow-x-hidden">
       {/* Header */}
-      <header className="bg-white shadow-md sticky top-0 z-40 w-full">
+      <header className="bg-white shadow-md rounded-xl w-full">
         <div className="container mx-auto px-2 sm:px-3 md:px-4 py-2 sm:py-3 max-w-full">
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 sm:gap-3">
             <div className="flex items-center gap-1.5 sm:gap-2 md:gap-4 min-w-0 flex-1">

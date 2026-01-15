@@ -30,7 +30,8 @@ export default function RootLayout({
     <html lang="ar" dir="rtl">
       <body className={cairo.className}>
         <Header />
-        <div className="pt-12 sm:pt-14">
+        {/* Padding top matches fixed header height (header is taller due to back button) */}
+        <div className="pt-20 sm:pt-24">
           {children}
         </div>
         <Toaster position="top-center" />
