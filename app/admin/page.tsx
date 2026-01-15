@@ -11,11 +11,18 @@ export default async function AdminPage() {
   }
 
   // التحقق من أن المستخدم إداري
-  const { data: profile } = await supabase
+  const { data: profile, error: profileError } = await supabase
     .from('profiles')
     .select('role')
     .eq('user_id', user.id)
+    .order('updated_at', { ascending: false })
+    .limit(1)
     .maybeSingle()
+
+  if (profileError) {
+    // لو في duplicates أو مشكلة RLS، لا نعتبره admin بالخطأ — نعيده للداشبورد
+    console.error('Admin role check error:', profileError)
+  }
 
   if (!profile || profile.role !== 'admin') {
     redirect('/dashboard')

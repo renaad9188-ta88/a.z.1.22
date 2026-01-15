@@ -28,6 +28,7 @@ export default function NotificationsDropdown({ userId }: NotificationsDropdownP
   const [isOpen, setIsOpen] = useState(false)
   const [loading, setLoading] = useState(true)
   const [unreadCount, setUnreadCount] = useState(0)
+  const [isAdmin, setIsAdmin] = useState(false)
 
   useEffect(() => {
     if (!userId) {
@@ -36,6 +37,28 @@ export default function NotificationsDropdown({ userId }: NotificationsDropdownP
     }
 
     if (userId) {
+      // معرفة هل المستخدم إدمن أم لا (لتوجيه الإشعارات إلى المكان الصحيح)
+      ;(async () => {
+        try {
+          const { data: profile, error } = await supabase
+            .from('profiles')
+            .select('role')
+            .eq('user_id', userId)
+            .order('updated_at', { ascending: false })
+            .limit(1)
+            .maybeSingle()
+          if (error) {
+            console.error('Error checking admin role for notifications:', error)
+            setIsAdmin(false)
+          } else {
+            setIsAdmin(profile?.role === 'admin')
+          }
+        } catch (e) {
+          console.error('Error checking admin role for notifications:', e)
+          setIsAdmin(false)
+        }
+      })()
+
       loadNotifications()
       
       // تحديث الإشعارات كل 30 ثانية
@@ -153,9 +176,18 @@ export default function NotificationsDropdown({ userId }: NotificationsDropdownP
 
     // التنقل حسب نوع الإشعار
     if (notification.related_type === 'request' && notification.related_id) {
-      router.push(`/dashboard/request/${notification.related_id}`)
+      // الإدمن يفتح الطلب داخل لوحة الإدارة بدل إخراجه للداشبورد
+      if (isAdmin) {
+        router.push(`/admin?request=${notification.related_id}`)
+      } else {
+        router.push(`/dashboard/request/${notification.related_id}`)
+      }
     } else if (notification.related_type === 'trip' && notification.related_id) {
-      router.push(`/dashboard`)
+      if (isAdmin) {
+        router.push(`/admin?trip=${notification.related_id}`)
+      } else {
+        router.push(`/dashboard`)
+      }
     }
 
     setIsOpen(false)

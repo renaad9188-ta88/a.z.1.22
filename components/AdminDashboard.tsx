@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { createSupabaseBrowserClient } from '@/lib/supabase'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { LogOut, FileText } from 'lucide-react'
 import toast from 'react-hot-toast'
@@ -16,6 +16,7 @@ import { VisitRequest, UserProfile, AdminStats as StatsType } from './admin/type
 
 export default function AdminDashboard() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const supabase = createSupabaseBrowserClient()
   const [requests, setRequests] = useState<VisitRequest[]>([])
   const [userProfiles, setUserProfiles] = useState<{ [key: string]: UserProfile }>({})
@@ -31,6 +32,28 @@ export default function AdminDashboard() {
   useEffect(() => {
     loadRequests()
   }, [])
+
+  // فتح الطلب تلقائياً إذا جاء من إشعار داخل لوحة الإدارة
+  useEffect(() => {
+    if (loading) return
+
+    const requestId = searchParams.get('request')
+    const tripId = searchParams.get('trip')
+    const targetId = requestId || tripId
+    if (!targetId) return
+
+    const found = requests.find(r => r.id === targetId)
+    if (!found) return
+
+    if (requestId) {
+      setSelectedRequest(found)
+      setSelectedUserProfile(userProfiles[found.user_id] || null)
+    } else if (tripId) {
+      setSchedulingRequest(found)
+    }
+    // نزيل الباراميتر من الرابط حتى ما يفتح كل مرة عند تحديث الصفحة
+    router.replace('/admin')
+  }, [loading, requests, userProfiles, router, searchParams])
 
   const loadRequests = async () => {
     try {
@@ -51,45 +74,22 @@ export default function AdminDashboard() {
         .from('profiles')
         .select('role')
         .eq('user_id', user.id)
+        .order('updated_at', { ascending: false })
+        .limit(1)
         .maybeSingle() // استخدام maybeSingle بدلاً من single لتجنب الخطأ إذا لم يكن موجود
 
       if (profileError) {
         console.error('Error checking admin role:', profileError)
-        // إذا كان الخطأ بسبب عدم وجود profile، أنشئه
-        if (profileError.code === 'PGRST116') {
-          // Profile غير موجود، أنشئه كإداري
-          const { error: insertError } = await supabase
-            .from('profiles')
-            .insert({
-              user_id: user.id,
-              full_name: user.email?.split('@')[0] || 'Admin',
-              role: 'admin'
-            })
-          
-          if (insertError) {
-            console.error('Error creating profile:', insertError)
-            toast.error('خطأ في إنشاء الملف الشخصي')
-            return
-          }
-        } else {
-          toast.error('خطأ في التحقق من الصلاحيات')
-          return
-        }
+        toast.error('خطأ في التحقق من الصلاحيات')
+        return
       }
 
-      // التحقق مرة أخرى بعد الإنشاء
-      const { data: finalProfile } = await supabase
-        .from('profiles')
-        .select('role')
-        .eq('user_id', user.id)
-        .maybeSingle()
-
-      if (!finalProfile || finalProfile.role !== 'admin') {
+      if (!profile || profile.role !== 'admin') {
         toast.error('ليس لديك صلاحية للوصول إلى لوحة الإدارة')
         console.error('User is not admin:', { 
           userId: user.id, 
           email: user.email,
-          profile: finalProfile 
+          profile: profile 
         })
         router.push('/dashboard')
         return
