@@ -11,6 +11,19 @@ const DEPARTURE_CITIES = [
   'دير الزور', 'الحسكة', 'الرقة', 'إدلب', 'السويداء', 'القنيطرة', 'أخرى'
 ]
 
+const TOURISM_COMPANIES = [
+  'اختيار الموقع حسب الأنسب',
+  'شركة الأجنحة البيضاء للسياحة والسفر',
+  'شركة دهشان للسياحة والسفر',
+  'شركة نوفا',
+]
+
+const TRANSPORT_COMPANIES = [
+  'اختيار الموقع',
+  'شركة رويال للنقل',
+  'شركة الطريق الذهبي للنقل',
+]
+
 interface Person {
   id: string
   name: string
@@ -31,6 +44,9 @@ export default function JordanVisitForm() {
   const [formData, setFormData] = useState({
     jordanPhone: '',
     whatsappPhone: '',
+    tourismCompany: '',
+    transportCompany: '',
+    note: '',
     departureCity: '',
     otherCity: '',
     purpose: '',
@@ -199,6 +215,14 @@ export default function JordanVisitForm() {
       toast.error('يرجى إدخال رقم الهاتف الأردني ومكان الانطلاق')
       return
     }
+    if (!formData.tourismCompany) {
+      toast.error('يرجى اختيار الشركة المقدّم لها')
+      return
+    }
+    if (!formData.transportCompany) {
+      toast.error('يرجى اختيار شركة النقل')
+      return
+    }
 
     if (formData.departureCity === 'أخرى' && !formData.otherCity) {
       toast.error('يرجى إدخال اسم المدينة')
@@ -264,6 +288,13 @@ export default function JordanVisitForm() {
       const primary = personsData[0]
       const primaryVisitorName = primary?.name || 'زائر'
       const companionsOnly = personsData.slice(1) // المرافقين فقط (بدون الزائر الرئيسي)
+
+      const companiesBlock = [
+        `الشركة المقدّم لها: ${formData.tourismCompany}`,
+        `شركة النقل: ${formData.transportCompany}`,
+        formData.note?.trim() ? `ملاحظة: ${formData.note.trim()}` : null,
+      ].filter(Boolean).join('\n')
+
       const { data: requestData, error } = await supabase
         .from('visit_requests')
         .insert({
@@ -281,7 +312,7 @@ export default function JordanVisitForm() {
           // companions_count/companions_data تمثل المرافقين فقط (الزائر الرئيسي يُحسب منفصل)
           companions_count: companionsOnly.length,
           companions_data: companionsOnly,
-          admin_notes: `[DRAFT]\nخدمة: زيارة الأردن لمدة شهر\nاسم الحساب: ${accountName || 'غير محدد'}\nالهاتف الأردني: ${formData.jordanPhone}\nواتساب سوري (اختياري): ${formData.whatsappPhone || 'غير مدخل'}\nالغرض: ${formData.purpose || 'غير محدد'}`,
+          admin_notes: `[DRAFT]\nخدمة: زيارة الأردن لمدة شهر\nاسم الحساب: ${accountName || 'غير محدد'}\nالهاتف الأردني: ${formData.jordanPhone}\nواتساب سوري (اختياري): ${formData.whatsappPhone || 'غير مدخل'}\n${companiesBlock}\nالغرض: ${formData.purpose || 'غير محدد'}`,
         })
         .select()
         .single()
@@ -362,6 +393,58 @@ export default function JordanVisitForm() {
                     className="w-full px-3 sm:px-4 py-2.5 sm:py-3 text-sm sm:text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" 
                     placeholder="09XXXXXXXX أو +963XXXXXXXX" 
                   />
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1.5 sm:mb-2">
+                      الشركات المقدَّم لها *
+                    </label>
+                    <select
+                      required
+                      value={formData.tourismCompany}
+                      onChange={(e) => setFormData({ ...formData, tourismCompany: e.target.value })}
+                      className="w-full px-3 sm:px-4 py-2.5 sm:py-3 text-sm sm:text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 bg-white"
+                    >
+                      <option value="">اختر الشركة</option>
+                      {TOURISM_COMPANIES.map((c) => (
+                        <option key={c} value={c}>{c}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1.5 sm:mb-2">
+                      شركة النقل *
+                    </label>
+                    <select
+                      required
+                      value={formData.transportCompany}
+                      onChange={(e) => setFormData({ ...formData, transportCompany: e.target.value })}
+                      className="w-full px-3 sm:px-4 py-2.5 sm:py-3 text-sm sm:text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 bg-white"
+                    >
+                      <option value="">اختر شركة النقل</option>
+                      {TRANSPORT_COMPANIES.map((c) => (
+                        <option key={c} value={c}>{c}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1.5 sm:mb-2">
+                    ملاحظة (اختياري)
+                  </label>
+                  <textarea
+                    value={formData.note}
+                    onChange={(e) => setFormData({ ...formData, note: e.target.value })}
+                    rows={3}
+                    className="w-full px-3 sm:px-4 py-2.5 sm:py-3 text-sm sm:text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 resize-none"
+                    placeholder="اكتب أي ملاحظة للإدارة..."
+                  />
+                  <p className="mt-1 text-xs text-gray-500 leading-relaxed">
+                    سيتم إرسال أرقام الهواتف والواتساب للتنسيق وفتح مجموعات القدوم والتتبع.
+                  </p>
                 </div>
 
                 <div>
