@@ -73,10 +73,12 @@ export default function JordanVisitForm() {
         setAccountName(name)
 
         // Prefill phones from profile (if available)
+        // - jordanPhone: prefer jordan_phone, fallback to account phone (phone used at signup)
+        // - whatsappPhone: optional field (Syrian WhatsApp/phone)
         setFormData(prev => ({
           ...prev,
-          jordanPhone: prev.jordanPhone || profile?.jordan_phone || '',
-          whatsappPhone: prev.whatsappPhone || profile?.whatsapp_phone || profile?.phone || '',
+          jordanPhone: prev.jordanPhone || profile?.jordan_phone || profile?.phone || '',
+          whatsappPhone: prev.whatsappPhone || profile?.whatsapp_phone || '',
         }))
       } catch (e) {
         console.error('Error loading profile:', e)
@@ -193,8 +195,8 @@ export default function JordanVisitForm() {
 
   const handleSave = async () => {
     // التحقق من البيانات
-    if (!formData.jordanPhone || !formData.whatsappPhone || !formData.departureCity) {
-      toast.error('يرجى إدخال أرقام التواصل ومكان الانطلاق')
+    if (!formData.jordanPhone || !formData.departureCity) {
+      toast.error('يرجى إدخال رقم الهاتف الأردني ومكان الانطلاق')
       return
     }
 
@@ -234,7 +236,7 @@ export default function JordanVisitForm() {
           .from('profiles')
           .update({
             jordan_phone: formData.jordanPhone,
-            whatsapp_phone: formData.whatsappPhone,
+            whatsapp_phone: formData.whatsappPhone || null,
           })
           .eq('user_id', user.id)
         if (updateErr?.code === '42703') {
@@ -279,7 +281,7 @@ export default function JordanVisitForm() {
           // companions_count/companions_data تمثل المرافقين فقط (الزائر الرئيسي يُحسب منفصل)
           companions_count: companionsOnly.length,
           companions_data: companionsOnly,
-          admin_notes: `[DRAFT]\nخدمة: زيارة الأردن لمدة شهر\nاسم الحساب: ${accountName || 'غير محدد'}\nالهاتف الأردني: ${formData.jordanPhone}\nواتساب/هاتف: ${formData.whatsappPhone}\nالغرض: ${formData.purpose || 'غير محدد'}`,
+          admin_notes: `[DRAFT]\nخدمة: زيارة الأردن لمدة شهر\nاسم الحساب: ${accountName || 'غير محدد'}\nالهاتف الأردني: ${formData.jordanPhone}\nواتساب سوري (اختياري): ${formData.whatsappPhone || 'غير مدخل'}\nالغرض: ${formData.purpose || 'غير محدد'}`,
         })
         .select()
         .single()
@@ -343,16 +345,18 @@ export default function JordanVisitForm() {
                     className="w-full px-3 sm:px-4 py-2.5 sm:py-3 text-sm sm:text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" 
                     placeholder="07XXXXXXXX" 
                   />
+                  <p className="mt-1 text-xs text-gray-500">
+                    يتم تعبئته تلقائياً من رقم الحساب إذا كان موجوداً، ويمكنك تعديله.
+                  </p>
                 </div>
 
                 <div>
                   <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1.5 sm:mb-2 flex items-center gap-2">
                     <MessageCircle className="w-4 h-4 text-gray-500" />
-                    واتساب / هاتف (يُحفظ في حسابك) *
+                    رقم الهاتف / واتساب السوري (اختياري) — يُحفظ في حسابك
                   </label>
                   <input 
                     type="tel" 
-                    required 
                     value={formData.whatsappPhone} 
                     onChange={(e) => setFormData({ ...formData, whatsappPhone: e.target.value })} 
                     className="w-full px-3 sm:px-4 py-2.5 sm:py-3 text-sm sm:text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" 
