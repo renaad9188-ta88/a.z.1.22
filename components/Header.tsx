@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { createSupabaseBrowserClient } from '@/lib/supabase'
-import { LogOut, User, ChevronDown, LayoutDashboard, FileText, Settings, Shield } from 'lucide-react'
+import { ArrowLeft, LogOut, User, ChevronDown, LayoutDashboard, FileText, Settings, Shield } from 'lucide-react'
 import toast from 'react-hot-toast'
 import NotificationsDropdown from './NotificationsDropdown'
 
@@ -88,39 +88,65 @@ export default function Header() {
     toast.success('تم تسجيل الخروج بنجاح')
   }
 
+  const handleBack = () => {
+    if (typeof window !== 'undefined' && window.history.length > 1) {
+      router.back()
+      return
+    }
+    if (user) {
+      router.push(isAdmin ? '/admin' : '/dashboard')
+      return
+    }
+    router.push('/')
+  }
+
   return (
     <header className="bg-white/95 backdrop-blur-sm shadow-sm fixed top-0 left-0 right-0 z-50">
       <div className="container mx-auto px-2 sm:px-3 md:px-4 py-1">
         <div className="flex justify-between items-center gap-2">
-          <Link href="/" className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0 group">
-            {/* شعار جميل - أيقونة تمثل الوحدة والخدمات */}
-            <div className="relative w-8 h-8 sm:w-9 sm:h-9 md:w-10 md:h-10 flex items-center justify-center">
-              {/* خلفية متدرجة بألوان علم سوريا مع تأثير ثلاثي الأبعاد */}
-              <div className="absolute inset-0 bg-gradient-to-br from-red-600 via-red-500 to-red-700 rounded-xl shadow-lg group-hover:shadow-xl transition-all duration-300 group-hover:scale-105"></div>
-              {/* طبقة بيضاء في الوسط */}
-              <div className="absolute inset-[2px] bg-gradient-to-br from-white to-gray-50 rounded-lg"></div>
-              {/* طبقة خضراء في الأسفل */}
-              <div className="absolute bottom-0 left-0 right-0 h-[30%] bg-gradient-to-b from-green-600 to-green-700 rounded-b-xl"></div>
-              {/* نجمة بيضاء تمثل الوحدة */}
-              <div className="relative z-10 flex items-center justify-center">
-                <svg 
-                  className="w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6 text-red-600 drop-shadow-lg animate-pulse" 
-                  viewBox="0 0 24 24" 
-                  fill="currentColor"
-                >
-                  <path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z" />
-                </svg>
+          <div className="flex flex-col items-start gap-1 flex-shrink-0">
+            <Link href="/" className="flex items-center gap-1.5 sm:gap-2 group">
+              {/* شعار جميل - أيقونة تمثل الوحدة والخدمات */}
+              <div className="relative w-8 h-8 sm:w-9 sm:h-9 md:w-10 md:h-10 flex items-center justify-center">
+                {/* خلفية متدرجة بألوان علم سوريا مع تأثير ثلاثي الأبعاد */}
+                <div className="absolute inset-0 bg-gradient-to-br from-red-600 via-red-500 to-red-700 rounded-xl shadow-lg group-hover:shadow-xl transition-all duration-300 group-hover:scale-105"></div>
+                {/* طبقة بيضاء في الوسط */}
+                <div className="absolute inset-[2px] bg-gradient-to-br from-white to-gray-50 rounded-lg"></div>
+                {/* طبقة خضراء في الأسفل */}
+                <div className="absolute bottom-0 left-0 right-0 h-[30%] bg-gradient-to-b from-green-600 to-green-700 rounded-b-xl"></div>
+                {/* نجمة بيضاء تمثل الوحدة */}
+                <div className="relative z-10 flex items-center justify-center">
+                  <svg 
+                    className="w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6 text-red-600 drop-shadow-lg animate-pulse" 
+                    viewBox="0 0 24 24" 
+                    fill="currentColor"
+                  >
+                    <path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z" />
+                  </svg>
+                </div>
+                {/* حلقة خارجية ذهبية */}
+                <div className="absolute -inset-0.5 border-2 border-yellow-400/50 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity"></div>
               </div>
-              {/* حلقة خارجية ذهبية */}
-              <div className="absolute -inset-0.5 border-2 border-yellow-400/50 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity"></div>
-            </div>
-            <div className="flex flex-col">
-              <h1 className="text-[10px] sm:text-xs md:text-sm font-bold bg-gradient-to-r from-red-600 via-gray-800 to-green-600 bg-clip-text text-transparent leading-tight group-hover:from-red-500 group-hover:to-green-500 transition-all">
-                منصة خدمات السوريين
-              </h1>
-              <div className="h-0.5 bg-gradient-to-r from-red-500 via-yellow-400 to-green-600 rounded-full mt-0.5 opacity-60 group-hover:opacity-100 transition-opacity"></div>
-            </div>
-          </Link>
+              <div className="flex flex-col">
+                <h1 className="text-[10px] sm:text-xs md:text-sm font-bold bg-gradient-to-r from-red-600 via-gray-800 to-green-600 bg-clip-text text-transparent leading-tight group-hover:from-red-500 group-hover:to-green-500 transition-all">
+                  منصة خدمات السوريين
+                </h1>
+                <div className="h-0.5 bg-gradient-to-r from-red-500 via-yellow-400 to-green-600 rounded-full mt-0.5 opacity-60 group-hover:opacity-100 transition-opacity"></div>
+              </div>
+            </Link>
+
+            {/* زر الرجوع داخل الهيدر (أسفل العنوان) */}
+            <button
+              type="button"
+              onClick={handleBack}
+              className="inline-flex items-center gap-2 text-sm sm:text-base font-bold text-gray-700 hover:text-blue-700 transition px-3 py-1.5 rounded-xl hover:bg-blue-50 border border-transparent hover:border-blue-100"
+              aria-label="رجوع"
+              title="رجوع"
+            >
+              <ArrowLeft className="w-5 h-5 sm:w-5.5 sm:h-5.5" />
+              <span>رجوع</span>
+            </button>
+          </div>
           
           <div className="flex items-center gap-1 sm:gap-1.5 md:gap-2 min-w-0 flex-1 justify-end">
             {loading ? (
