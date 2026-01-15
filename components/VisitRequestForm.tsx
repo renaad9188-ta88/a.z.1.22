@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { createSupabaseBrowserClient } from '@/lib/supabase'
 import toast from 'react-hot-toast'
 import { Upload, Save, Edit, Trash2, X, Check } from 'lucide-react'
+import { notifyAdminNewRequest, createNotification } from '@/lib/notifications'
 
 const DEPARTURE_CITIES = [
   'الشام',
@@ -139,6 +140,56 @@ export default function VisitRequestForm() {
         .single()
 
       if (error) throw error
+
+      // الحصول على معلومات المستخدم لإرسالها في الإشعار
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('full_name, phone')
+        .eq('user_id', user.id)
+        .single()
+
+      const userName = profile?.full_name || user.email?.split('@')[0] || 'مستخدم'
+      const userPhone = profile?.phone || ''
+
+      // إرسال إشعار للمستخدم (تم إرسال الطلب بنجاح)
+      console.log('🔔 [NEW REQUEST] Preparing to notify user about request submission:', {
+        requestId: data.id,
+        userId: user.id,
+        visitorName: formData.fullName
+      })
+      
+      createNotification({
+        userId: user.id,
+        title: 'تم إرسال الطلب بنجاح',
+        message: `تم إرسال طلب الزيارة لـ ${formData.fullName} بنجاح. سيتم مراجعته من قبل الإدارة قريباً.`,
+        type: 'success',
+        relatedType: 'request',
+        relatedId: data.id,
+      }).then(() => {
+        console.log('✅ [NEW REQUEST] User notification sent successfully')
+      }).catch(error => {
+        console.error('❌ [NEW REQUEST] Error sending user notification:', error)
+      })
+
+      // إرسال إشعار للإدمن (بشكل غير متزامن حتى لا يؤثر على سرعة الاستجابة)
+      console.log('🔔 [NEW REQUEST] Preparing to notify admins about new request:', {
+        requestId: data.id,
+        visitorName: formData.fullName,
+        userName: userName,
+        city: finalDepartureCity
+      })
+      
+      notifyAdminNewRequest(
+        data.id,
+        formData.fullName,
+        userName,
+        finalDepartureCity
+      ).then(() => {
+        console.log('✅ [NEW REQUEST] Admin notification sent successfully')
+      }).catch(error => {
+        console.error('❌ [NEW REQUEST] Error sending admin notification:', error)
+        // لا نوقف العملية إذا فشل الإشعار
+      })
 
       toast.success('تم حفظ الطلب بنجاح!')
       router.push('/dashboard')

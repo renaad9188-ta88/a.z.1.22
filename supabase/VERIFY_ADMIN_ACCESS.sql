@@ -40,3 +40,4 @@ WHERE tablename IN ('profiles', 'visit_requests');
 -- SELECT * FROM profiles WHERE role = 'admin';
 
 
+

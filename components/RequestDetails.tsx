@@ -79,7 +79,7 @@ export default function RequestDetails({ requestId, userId }: { requestId: strin
         .select('*')
         .eq('id', requestId)
         .eq('user_id', userId)
-        .single()
+        .maybeSingle()
 
       if (error) throw error
       if (!data) {

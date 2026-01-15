@@ -68,3 +68,4 @@ LEFT JOIN auth.users u ON u.id = p.user_id
 WHERE p.role = 'admin';
 
 
+

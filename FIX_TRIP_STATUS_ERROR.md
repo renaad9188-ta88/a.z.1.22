@@ -42,3 +42,4 @@ new row for relation "visit_requests" violates check constraint "visit_requests_
 - بعد تنفيذ SQL scripts، يجب أن يعمل النظام بشكل صحيح
 - إذا استمرت المشكلة، تحقق من أن constraint تم حذفه وإضافته بشكل صحيح
 
+

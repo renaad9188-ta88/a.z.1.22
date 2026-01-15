@@ -142,3 +142,4 @@ FROM pg_tables
 WHERE tablename IN ('profiles', 'visit_requests');
 
 
+

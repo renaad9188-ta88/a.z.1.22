@@ -8,6 +8,15 @@ import { getSignedImageUrl } from '../request-details/utils'
 import { formatDate } from '@/lib/date-utils'
 import { createSupabaseBrowserClient } from '@/lib/supabase'
 import toast from 'react-hot-toast'
+import { 
+  notifyRequestApproved, 
+  notifyRequestRejected, 
+  notifyAdminResponse,
+  notifyRequestUnderReview,
+  notifyCustomMessage,
+  notifyAllAdmins,
+  createNotification
+} from '@/lib/notifications'
 
 interface RequestDetailsModalProps {
   request: VisitRequest | null
@@ -188,6 +197,81 @@ export default function RequestDetailsModal({
         .eq('id', request.id)
 
       if (error) throw error
+
+      // إنشاء إشعارات حسب الحالة
+      try {
+        const oldStatus = request.status
+        if (oldStatus !== status) {
+          // إشعار عند تغيير الحالة إلى "قيد المراجعة"
+          if (status === 'under_review' && oldStatus !== 'under_review') {
+            console.log('Sending under review notification to user...')
+            await notifyRequestUnderReview(request.user_id, request.id, request.visitor_name)
+            console.log('Under review notification sent successfully')
+          }
+          
+          // إشعار عند الموافقة
+          if (status === 'approved') {
+            console.log('Sending request approval notification to user...')
+            await notifyRequestApproved(request.user_id, request.id, request.visitor_name)
+            console.log('Request approval notification sent successfully')
+            
+            // إشعار للإدمن (تأكيد الموافقة)
+            const { data: { user: adminUser } } = await supabase.auth.getUser()
+            if (adminUser) {
+              const { data: adminProfile } = await supabase
+                .from('profiles')
+                .select('full_name')
+                .eq('user_id', adminUser.id)
+                .single()
+              
+              const adminName = adminProfile?.full_name || 'الإدارة'
+              await notifyAllAdmins({
+                title: 'تم الموافقة على طلب',
+                message: `تم الموافقة على طلب ${request.visitor_name} من قبل ${adminName}.`,
+                type: 'success',
+                relatedType: 'request',
+                relatedId: request.id,
+              })
+            }
+          } 
+          // إشعار عند الرفض
+          else if (status === 'rejected') {
+            console.log('Sending request rejection notification to user...')
+            await notifyRequestRejected(request.user_id, request.id, request.visitor_name, rejectionReason || undefined)
+            console.log('Request rejection notification sent successfully')
+            
+            // إشعار للإدمن (تأكيد الرفض)
+            const { data: { user: adminUser } } = await supabase.auth.getUser()
+            if (adminUser) {
+              const { data: adminProfile } = await supabase
+                .from('profiles')
+                .select('full_name')
+                .eq('user_id', adminUser.id)
+                .single()
+              
+              const adminName = adminProfile?.full_name || 'الإدارة'
+              await notifyAllAdmins({
+                title: 'تم رفض طلب',
+                message: `تم رفض طلب ${request.visitor_name} من قبل ${adminName}.${rejectionReason ? ` السبب: ${rejectionReason}` : ''}`,
+                type: 'error',
+                relatedType: 'request',
+                relatedId: request.id,
+              })
+            }
+          }
+        }
+
+        // إنشاء إشعار عند وجود رد مخصص من الإدارة
+        if (adminResponse.trim()) {
+          console.log('Sending custom admin message notification to user...')
+          // استخدام الرسالة المخصصة مباشرة
+          await notifyCustomMessage(request.user_id, request.id, adminResponse.trim())
+          console.log('Custom admin message notification sent successfully')
+        }
+      } catch (notifyError) {
+        console.error('Error sending notifications:', notifyError)
+        // لا نوقف العملية إذا فشل الإشعار
+      }
 
       toast.success('تم تحديث الطلب بنجاح')
       onUpdate()

@@ -61,3 +61,4 @@ CREATE POLICY "Admins can view all profiles"
 CREATE INDEX IF NOT EXISTS idx_profiles_role ON profiles(role) WHERE role = 'admin';
 
 
+

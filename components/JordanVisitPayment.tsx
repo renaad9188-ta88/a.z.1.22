@@ -32,9 +32,14 @@ export default function JordanVisitPayment({ requestId, userId }: { requestId: s
         .select('*')
         .eq('id', requestId)
         .eq('user_id', userId)
-        .single()
+        .maybeSingle()
 
       if (error) throw error
+      if (!data) {
+        toast.error('الطلب غير موجود أو ليس لديك صلاحية لعرضه')
+        router.push('/dashboard')
+        return
+      }
       setRequest(data)
       
       // تحميل بيانات الأشخاص
@@ -295,6 +300,7 @@ export default function JordanVisitPayment({ requestId, userId }: { requestId: s
     </div>
   )
 }
+
 
 
 

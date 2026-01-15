@@ -73,3 +73,4 @@ CREATE INDEX IF NOT EXISTS idx_profiles_role ON profiles(role) WHERE role = 'adm
 -- ON CONFLICT (user_id) DO UPDATE SET role = 'admin';
 
 
+

@@ -27,3 +27,4 @@ CHECK (
 ALTER TABLE visit_requests 
 ALTER COLUMN trip_status SET DEFAULT 'pending_arrival';
 
+

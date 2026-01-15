@@ -6,6 +6,7 @@ import { VisitRequest } from './types'
 import { createSupabaseBrowserClient } from '@/lib/supabase'
 import { formatDate } from '@/lib/date-utils'
 import toast from 'react-hot-toast'
+import { notifyTripApproved, notifyTripRejected, notifyAdminTripRequest } from '@/lib/notifications'
 
 interface TripSchedulingModalProps {
   request: VisitRequest | null
@@ -194,7 +195,73 @@ export default function TripSchedulingModal({
 
       if (isAdmin) {
         toast.success('تم حجز موعد الرحلة بنجاح')
+        // إشعار عند الموافقة المباشرة من الإدمن
+        await notifyTripApproved(request.user_id, request.id, arrivalDate.toISOString().split('T')[0])
       } else {
+        // إرسال إشعار للمستخدم (تم إرسال طلب الحجز)
+        try {
+          const { createNotification } = await import('@/lib/notifications')
+          const arrivalDateStr = arrivalDate.toISOString().split('T')[0]
+          
+          let formattedDate = arrivalDateStr
+          try {
+            const { formatDate } = await import('@/lib/date-utils')
+            formattedDate = formatDate(arrivalDateStr)
+          } catch (formatError) {
+            console.warn('Could not format date, using raw date:', formatError)
+          }
+          
+          await createNotification({
+            userId: request.user_id,
+            title: 'تم إرسال طلب حجز الموعد',
+            message: `تم إرسال طلب حجز موعد القدوم في ${formattedDate}. سيتم مراجعته من قبل الإدارة قريباً.`,
+            type: 'info',
+            relatedType: 'trip',
+            relatedId: request.id,
+          })
+          
+          console.log('✅ [TRIP SCHEDULING] User notification sent successfully')
+        } catch (notifyError) {
+          console.error('❌ [TRIP SCHEDULING] Error sending user notification:', notifyError)
+        }
+
+        // إرسال إشعار للإدمن عند طلب حجز موعد
+        try {
+          console.log('🔔 [TRIP SCHEDULING] User requested trip booking, preparing notification...')
+          
+          const { data: profile, error: profileError } = await supabase
+            .from('profiles')
+            .select('full_name')
+            .eq('user_id', request.user_id)
+            .single()
+
+          if (profileError) {
+            console.warn('⚠️ [TRIP SCHEDULING] Could not fetch user profile:', profileError)
+          }
+
+          const arrivalDateStr = arrivalDate.toISOString().split('T')[0]
+          const userName = profile?.full_name || 'مستخدم'
+          
+          console.log('🔔 [TRIP SCHEDULING] Calling notifyAdminTripRequest with:', {
+            requestId: request.id,
+            visitorName: request.visitor_name,
+            userName: userName,
+            arrivalDate: arrivalDateStr
+          })
+          
+          await notifyAdminTripRequest(
+            request.id,
+            request.visitor_name,
+            userName,
+            arrivalDateStr
+          )
+          
+          console.log('✅ [TRIP SCHEDULING] Trip request notification sent successfully')
+        } catch (notifyError) {
+          console.error('❌ [TRIP SCHEDULING] Error sending trip request notification:', notifyError)
+          // لا نوقف العملية إذا فشل الإشعار
+        }
+
         toast.success('تم إرسال طلب حجز الموعد. سيتم مراجعته من قبل الإدارة')
       }
       onUpdate()
@@ -221,10 +288,27 @@ export default function TripSchedulingModal({
 
       if (error) throw error
 
+      // إرسال إشعار للمستخدم بالموافقة على الحجز
+      try {
+        if (request.arrival_date) {
+          console.log('Sending trip approval notification to user...')
+          await notifyTripApproved(
+            request.user_id,
+            request.id,
+            request.arrival_date
+          )
+          console.log('Trip approval notification sent successfully')
+        }
+      } catch (notifyError) {
+        console.error('Error sending trip approval notification:', notifyError)
+        // لا نوقف العملية إذا فشل الإشعار
+      }
+
       toast.success('تم الموافقة على حجز الموعد')
       onUpdate()
       onClose()
     } catch (error: any) {
+      console.error('Error approving trip:', error)
       toast.error(error.message || 'حدث خطأ أثناء الموافقة')
     } finally {
       setLoading(false)
@@ -247,6 +331,9 @@ export default function TripSchedulingModal({
         .eq('id', request.id)
 
       if (error) throw error
+
+      // إنشاء إشعار للمستخدم
+      await notifyTripRejected(request.user_id, request.id)
 
       toast.success('تم رفض حجز الموعد')
       onUpdate()

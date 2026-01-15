@@ -54,13 +54,16 @@ export default function DashboardContent({ userId }: { userId: string }) {
   const loadData = async () => {
     try {
       // Load user profile
-      const { data: profile } = await supabase
+      const { data: profile, error: profileError } = await supabase
         .from('profiles')
         .select('*')
         .eq('user_id', userId)
-        .single()
+        .maybeSingle()
 
-      setUserProfile(profile)
+      if (profileError) {
+        console.error('Error loading profile:', profileError)
+      }
+      setUserProfile(profile || null)
 
       // Load visit requests
       const { data: visitRequests, error } = await supabase
@@ -155,60 +158,7 @@ export default function DashboardContent({ userId }: { userId: string }) {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-white">
-      {/* Header */}
-      <header className="bg-white shadow-md">
-        <div className="container mx-auto px-3 sm:px-4 py-3 sm:py-4">
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 sm:gap-4">
-            <div className="flex items-center gap-2 sm:gap-4">
-              <Link href="/" className="flex items-center gap-1.5 sm:gap-2 group">
-                {/* شعار جميل - نفس الشعار من Header */}
-                <div className="relative w-8 h-8 sm:w-9 sm:h-9 md:w-10 md:h-10 flex items-center justify-center">
-                  {/* خلفية متدرجة بألوان علم سوريا مع تأثير ثلاثي الأبعاد */}
-                  <div className="absolute inset-0 bg-gradient-to-br from-red-600 via-red-500 to-red-700 rounded-xl shadow-lg group-hover:shadow-xl transition-all duration-300 group-hover:scale-105"></div>
-                  {/* طبقة بيضاء في الوسط */}
-                  <div className="absolute inset-[2px] bg-gradient-to-br from-white to-gray-50 rounded-lg"></div>
-                  {/* طبقة خضراء في الأسفل */}
-                  <div className="absolute bottom-0 left-0 right-0 h-[30%] bg-gradient-to-b from-green-600 to-green-700 rounded-b-xl"></div>
-                  {/* نجمة بيضاء تمثل الوحدة */}
-                  <div className="relative z-10 flex items-center justify-center">
-                    <svg 
-                      className="w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6 text-red-600 drop-shadow-lg" 
-                      viewBox="0 0 24 24" 
-                      fill="currentColor"
-                    >
-                      <path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z" />
-                    </svg>
-                  </div>
-                  {/* حلقة خارجية ذهبية */}
-                  <div className="absolute -inset-0.5 border-2 border-yellow-400/50 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity"></div>
-                </div>
-                <div className="flex flex-col">
-                  <h1 className="text-sm sm:text-base md:text-lg lg:text-xl font-bold bg-gradient-to-r from-red-600 via-gray-800 to-green-600 bg-clip-text text-transparent leading-tight group-hover:from-red-500 group-hover:to-green-500 transition-all">
-                    منصة خدمات السوريين
-                  </h1>
-                  <p className="text-xs sm:text-sm text-gray-600">لوحة التحكم</p>
-                  <div className="h-0.5 bg-gradient-to-r from-red-500 via-yellow-400 to-green-600 rounded-full mt-0.5 opacity-60 group-hover:opacity-100 transition-opacity"></div>
-                </div>
-              </Link>
-            </div>
-            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-4 w-full sm:w-auto">
-              <div className="text-right">
-                <p className="text-sm sm:text-base font-semibold break-words">{userProfile?.full_name || 'المستخدم'}</p>
-                <p className="text-xs sm:text-sm text-gray-600 break-words">{userProfile?.phone || ''}</p>
-              </div>
-              <button
-                onClick={handleLogout}
-                className="flex items-center gap-2 px-3 sm:px-4 py-1.5 sm:py-2 text-red-600 hover:bg-red-50 rounded-lg transition text-sm sm:text-base"
-              >
-                <LogOut className="w-4 h-4 sm:w-5 sm:h-5" />
-                <span>تسجيل الخروج</span>
-              </button>
-            </div>
-          </div>
-        </div>
-      </header>
-
-      <div className="container mx-auto px-3 sm:px-4 py-4 sm:py-6 md:py-8">
+      <div className="container mx-auto px-2 sm:px-3 md:px-4 py-3 sm:py-4 md:py-6 max-w-full overflow-x-hidden">
         {/* Stats Cards */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4 md:gap-6 mb-6 sm:mb-8">
           <div className="bg-white p-3 sm:p-4 md:p-6 rounded-lg shadow-md">

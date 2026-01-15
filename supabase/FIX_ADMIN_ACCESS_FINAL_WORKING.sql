@@ -171,3 +171,4 @@ SELECT 'الطلبات:' as check_type, COUNT(*) as total_requests
 FROM visit_requests;
 
 
+

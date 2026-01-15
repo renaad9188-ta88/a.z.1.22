@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import { createSupabaseBrowserClient } from '@/lib/supabase'
 import { LogOut, User } from 'lucide-react'
 import toast from 'react-hot-toast'
+import NotificationsDropdown from './NotificationsDropdown'
 
 export default function Header() {
   const router = useRouter()
@@ -38,13 +39,17 @@ export default function Header() {
         setUser(currentUser)
         
         // Load user profile
-        const { data: profile } = await supabase
+        const { data: profile, error: profileError } = await supabase
           .from('profiles')
           .select('*')
           .eq('user_id', currentUser.id)
-          .single()
+          .maybeSingle()
         
-        setUserProfile(profile)
+        if (profileError) {
+          console.error('Error loading profile:', profileError)
+        }
+        
+        setUserProfile(profile || null)
       } else {
         setUser(null)
         setUserProfile(null)
@@ -109,11 +114,12 @@ export default function Header() {
                   className="flex items-center gap-1 sm:gap-1.5 px-1.5 sm:px-2 md:px-3 py-0.5 sm:py-1 text-xs sm:text-sm text-gray-700 hover:text-blue-600 transition min-w-0"
                 >
                   <User className="w-3 h-3 sm:w-4 sm:h-4 flex-shrink-0" />
-                  <span className="truncate max-w-[120px] sm:max-w-[140px] md:max-w-[180px] lg:max-w-[220px]">
+                  <span className="truncate max-w-[100px] sm:max-w-[120px] md:max-w-[160px] lg:max-w-[200px]">
                     <span className="sm:hidden">حسابي: </span>
                     {userProfile?.full_name || 'المستخدم'}
                   </span>
                 </Link>
+                <NotificationsDropdown userId={user.id} />
                 <button
                   onClick={handleLogout}
                   className="px-1.5 sm:px-2 md:px-2.5 py-0.5 text-xs text-red-600 hover:text-red-700 hover:bg-red-50 rounded transition flex-shrink-0"

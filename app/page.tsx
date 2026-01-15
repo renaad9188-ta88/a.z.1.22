@@ -1,14 +1,11 @@
 import Link from 'next/link'
 import { Phone, Mail, Globe, MessageCircle } from 'lucide-react'
 import HeroCarousel from '@/components/HeroCarousel'
-import Header from '@/components/Header'
 import ServicesSection from '@/components/ServicesSection'
 
 export default function HomePage() {
   return (
     <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white">
-      {/* Header with user authentication */}
-      <Header />
 
       {/* Hero Carousel - Starts from top */}
       <div className="pt-6">
@@ -19,7 +16,7 @@ export default function HomePage() {
       <ServicesSection />
 
       {/* Contact Section - أنيق ومدمج */}
-      <section className="container mx-auto px-4 py-6 sm:py-8 md:py-10">
+      <section className="container mx-auto px-2 sm:px-3 md:px-4 py-4 sm:py-6 md:py-8 max-w-full overflow-x-hidden">
         <div className="text-center mb-5 sm:mb-6">
           <h2 className="text-xl sm:text-2xl md:text-3xl font-bold text-gray-800 mb-2">تواصل معنا</h2>
           <div className="w-20 sm:w-24 h-0.5 bg-blue-600 rounded-full mx-auto"></div>

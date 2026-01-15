@@ -85,3 +85,4 @@ SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
 3. يجب أن تعمل لوحة الإدارة الآن!
 
 
+

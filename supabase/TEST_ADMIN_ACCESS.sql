@@ -46,3 +46,4 @@ WHERE tablename = 'visit_requests'
 AND policyname LIKE '%Admin%';
 
 
+

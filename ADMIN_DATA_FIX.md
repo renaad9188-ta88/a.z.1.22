@@ -104,3 +104,4 @@ SELECT is_admin() as is_admin_result;
 `SECURITY DEFINER` يعني أن الـ function تعمل بصلاحيات المالك (postgres)، وليس بصلاحيات المستخدم الحالي، مما يسمح لها بالتحقق من `profiles` بدون مشاكل RLS.
 
 
+

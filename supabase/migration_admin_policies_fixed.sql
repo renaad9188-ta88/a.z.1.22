@@ -86,3 +86,4 @@ CREATE INDEX IF NOT EXISTS idx_profiles_role ON profiles(role) WHERE role = 'adm
 -- SELECT user_id, full_name, role FROM profiles WHERE role = 'admin';
 
 
+

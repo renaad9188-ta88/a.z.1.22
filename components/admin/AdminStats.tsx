@@ -52,21 +52,21 @@ export default function AdminStats({ stats }: AdminStatsProps) {
   ]
 
   return (
-    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4 mb-6">
+    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 sm:gap-3 md:gap-4 mb-4 sm:mb-6">
       {statCards.map((stat, index) => {
         const Icon = stat.icon
         return (
           <div
             key={index}
-            className={`${stat.bgColor} rounded-xl p-3 sm:p-4 shadow-md hover:shadow-lg transition-all duration-300 transform hover:scale-105`}
+            className={`${stat.bgColor} rounded-lg sm:rounded-xl p-2 sm:p-3 md:p-4 shadow-md hover:shadow-lg transition-all duration-300 transform hover:scale-105`}
           >
-            <div className="flex items-center justify-between mb-2">
-              <div className={`${stat.iconBg} p-2 sm:p-2.5 rounded-lg`}>
-                <Icon className={`w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6 ${stat.color}`} />
+            <div className="flex items-center justify-between mb-1 sm:mb-2">
+              <div className={`${stat.iconBg} p-1.5 sm:p-2 md:p-2.5 rounded-lg`}>
+                <Icon className={`w-3.5 h-3.5 sm:w-4 sm:h-4 md:w-5 md:h-5 lg:w-6 lg:h-6 ${stat.color}`} />
               </div>
             </div>
-            <p className="text-gray-600 text-xs sm:text-sm mb-1 font-medium">{stat.label}</p>
-            <p className={`text-xl sm:text-2xl md:text-3xl font-bold ${stat.color}`}>
+            <p className="text-gray-600 text-[10px] sm:text-xs md:text-sm mb-0.5 sm:mb-1 font-medium truncate">{stat.label}</p>
+            <p className={`text-lg sm:text-xl md:text-2xl lg:text-3xl font-bold ${stat.color}`}>
               {stat.value}
             </p>
           </div>

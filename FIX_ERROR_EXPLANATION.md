@@ -47,3 +47,4 @@ SELECT is_admin() as is_admin_result;
 **ملاحظة:** الملف الجديد `FIX_ADMIN_ACCESS_FINAL_WORKING.sql` يحل المشكلة بشكل كامل.
 
 
+
