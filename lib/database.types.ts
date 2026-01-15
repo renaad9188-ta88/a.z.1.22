@@ -7,6 +7,8 @@ export type Database = {
           user_id: string
           full_name: string | null
           phone: string | null
+          jordan_phone: string | null
+          whatsapp_phone: string | null
           created_at: string
           updated_at: string
         }
@@ -15,6 +17,8 @@ export type Database = {
           user_id: string
           full_name?: string | null
           phone?: string | null
+          jordan_phone?: string | null
+          whatsapp_phone?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -23,6 +27,8 @@ export type Database = {
           user_id?: string
           full_name?: string | null
           phone?: string | null
+          jordan_phone?: string | null
+          whatsapp_phone?: string | null
           created_at?: string
           updated_at?: string
         }

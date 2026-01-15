@@ -6,6 +6,7 @@ import { createSupabaseBrowserClient } from '@/lib/supabase'
 import toast from 'react-hot-toast'
 import { Upload, Save, DollarSign, Phone, MessageCircle, CheckCircle, X } from 'lucide-react'
 import Link from 'next/link'
+import { createNotification, notifyAdminNewRequest, notifyAllAdmins } from '@/lib/notifications'
 
 interface Person {
   name: string
@@ -15,11 +16,14 @@ interface Person {
 export default function JordanVisitPayment({ requestId, userId }: { requestId: string; userId: string }) {
   const router = useRouter()
   const supabase = createSupabaseBrowserClient()
-  const [loading, setLoading] = useState(false)
+  const [savingImages, setSavingImages] = useState(false)
+  const [submitting, setSubmitting] = useState(false)
   const [request, setRequest] = useState<any>(null)
   const [persons, setPersons] = useState<Person[]>([])
   const [paymentImages, setPaymentImages] = useState<File[]>([])
   const [paymentPreviews, setPaymentPreviews] = useState<string[]>([])
+  const [paymentSaved, setPaymentSaved] = useState(false)
+  const [savedPaymentUrls, setSavedPaymentUrls] = useState<string[]>([])
 
   useEffect(() => {
     loadRequest()
@@ -41,6 +45,15 @@ export default function JordanVisitPayment({ requestId, userId }: { requestId: s
         return
       }
       setRequest(data)
+
+      // اكتشاف هل تم حفظ صور الدفعات سابقاً
+      const notes = (data.admin_notes || '') as string
+      const match = notes.match(/صور الدفعات:\s*([^\n]+)/)
+      const urls = match?.[1]
+        ? match[1].split(',').map(s => s.trim()).filter(Boolean)
+        : []
+      setSavedPaymentUrls(urls)
+      setPaymentSaved(Boolean(data.deposit_paid) || urls.length > 0)
       
       // تحميل بيانات الأشخاص
       if (data.companions_data && Array.isArray(data.companions_data)) {
@@ -108,17 +121,22 @@ export default function JordanVisitPayment({ requestId, userId }: { requestId: s
     return uploadedUrls
   }
 
-  const handleSubmitPayment = async () => {
+  const handleSavePaymentImages = async () => {
     if (paymentImages.length === 0) {
       toast.error('يرجى رفع صور الدفعات')
       return
     }
 
-    setLoading(true)
+    setSavingImages(true)
 
     try {
       const paymentImageUrls = await uploadPaymentImages(paymentImages)
       const totalAmount = persons.length * 10 // 10 دنانير لكل شخص
+      const currentNotes = (request?.admin_notes || '') as string
+
+      const combinedUrls = [...savedPaymentUrls, ...paymentImageUrls].filter(Boolean)
+      const notesWithoutOldLine = currentNotes.replace(/\n*صور الدفعات:\s*[^\n]*\n*/g, '\n')
+      const nextNotes = `${notesWithoutOldLine.trim()}\n\nصور الدفعات: ${combinedUrls.join(', ')}`.trim()
 
       const { error } = await supabase
         .from('visit_requests')
@@ -126,19 +144,102 @@ export default function JordanVisitPayment({ requestId, userId }: { requestId: s
           deposit_paid: true,
           deposit_amount: totalAmount,
           total_amount: totalAmount,
-          admin_notes: `${request.admin_notes || ''}\n\nصور الدفعات: ${paymentImageUrls.join(', ')}`,
+          // لا نزيل [DRAFT] هنا — الإرسال يتم بزر منفصل
+          admin_notes: nextNotes,
         })
         .eq('id', requestId)
 
       if (error) throw error
 
-      toast.success('تم رفع صور الدفعات بنجاح!')
-      router.push('/dashboard')
-      router.refresh()
+      setSavedPaymentUrls(combinedUrls)
+      setPaymentSaved(true)
+      setPaymentImages([])
+      setPaymentPreviews([])
+
+      // إشعار للإدمن: تم رفع صور الدفعات (لكن لم يتم إرسال الطلب بعد)
+      try {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('full_name')
+          .eq('user_id', userId)
+          .maybeSingle()
+        const userName = profile?.full_name || 'مستخدم'
+
+        await notifyAllAdmins({
+          title: 'تم رفع صور الدفعات',
+          message: `قام ${userName} برفع صور دفعات لطلب ${request?.visitor_name || 'زائر'} (بانتظار الضغط على زر إرسال الطلب).`,
+          type: 'warning',
+          relatedType: 'request',
+          relatedId: requestId,
+        })
+      } catch (notifyErr) {
+        console.error('Notification error after saving payment images:', notifyErr)
+      }
+
+      toast.success('تم حفظ صور الدفعات بنجاح. يمكنك الآن إرسال الطلب.')
     } catch (error: any) {
       toast.error(error.message || 'حدث خطأ أثناء رفع صور الدفعات')
     } finally {
-      setLoading(false)
+      setSavingImages(false)
+    }
+  }
+
+  const handleSubmitRequest = async () => {
+    if (!paymentSaved) {
+      toast.error('يرجى حفظ صور الدفعات أولاً')
+      return
+    }
+
+    setSubmitting(true)
+    try {
+      const totalAmount = persons.length * 10
+      const currentNotes = (request?.admin_notes || '') as string
+      const cleanedNotes = currentNotes.replace(/^\[DRAFT\]\s*\n?/i, '')
+
+      const { error } = await supabase
+        .from('visit_requests')
+        .update({
+          status: 'pending',
+          deposit_paid: true,
+          deposit_amount: totalAmount,
+          total_amount: totalAmount,
+          admin_notes: cleanedNotes,
+        })
+        .eq('id', requestId)
+
+      if (error) throw error
+
+      // إشعار للمستخدم: تم إرسال الطلب + (معلومة أنه قيد الإجراء بعد الاستلام)
+      try {
+        await createNotification({
+          userId,
+          title: 'تم إرسال الطلب',
+          message: 'تم إرسال طلبك للإدارة بنجاح. سيتم إشعارك عند استلامه وتحويله لقيد الإجراء.',
+          type: 'success',
+          relatedType: 'request',
+          relatedId: requestId,
+        })
+
+        // إشعار للإدمن: طلب جديد جاهز للمراجعة
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('full_name')
+          .eq('user_id', userId)
+          .maybeSingle()
+        const userName = profile?.full_name || 'مستخدم'
+
+        await notifyAdminNewRequest(requestId, request?.visitor_name || 'زائر', userName, request?.city || '')
+      } catch (notifyErr) {
+        console.error('Notification error after submit:', notifyErr)
+      }
+
+      toast.success('تم إرسال الطلب بنجاح!')
+      router.push('/dashboard')
+      router.refresh()
+    } catch (e: any) {
+      toast.error(e?.message || 'حدث خطأ أثناء إرسال الطلب')
+    } finally {
+      setSubmitting(false)
     }
   }
 
@@ -204,6 +305,9 @@ export default function JordanVisitPayment({ requestId, userId }: { requestId: s
                 <p className="text-sm sm:text-base text-gray-600 mb-1">المبلغ الإجمالي</p>
                 <p className="text-3xl sm:text-4xl font-bold text-green-600">{totalAmount} د.أ</p>
               </div>
+            </div>
+            <div className="mt-3 text-xs sm:text-sm text-gray-600">
+              رسوم تقديم الطلب: <span className="font-bold text-gray-800">10 دنانير لكل شخص</span>
             </div>
           </div>
 
@@ -281,12 +385,20 @@ export default function JordanVisitPayment({ requestId, userId }: { requestId: s
           {/* أزرار الإجراءات */}
           <div className="flex flex-col sm:flex-row gap-3">
             <button
-              onClick={handleSubmitPayment}
-              disabled={loading || paymentImages.length === 0}
+              onClick={handleSavePaymentImages}
+              disabled={savingImages || paymentImages.length === 0}
               className="flex-1 flex items-center justify-center gap-2 px-4 sm:px-6 py-2.5 sm:py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition disabled:opacity-50 disabled:cursor-not-allowed text-sm sm:text-base font-semibold"
             >
               <Save className="w-4 h-4 sm:w-5 sm:h-5" />
-              {loading ? 'جاري الحفظ...' : 'حفظ صور الدفعات'}
+              {savingImages ? 'جاري الحفظ...' : 'حفظ صور الدفعات'}
+            </button>
+            <button
+              onClick={handleSubmitRequest}
+              disabled={submitting || !paymentSaved}
+              className="flex-1 flex items-center justify-center gap-2 px-4 sm:px-6 py-2.5 sm:py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition disabled:opacity-50 disabled:cursor-not-allowed text-sm sm:text-base font-semibold"
+            >
+              <CheckCircle className="w-4 h-4 sm:w-5 sm:h-5" />
+              {submitting ? 'جاري الإرسال...' : 'إرسال الطلب'}
             </button>
             <Link
               href="/dashboard"
@@ -295,6 +407,9 @@ export default function JordanVisitPayment({ requestId, userId }: { requestId: s
               العودة للوحة التحكم
             </Link>
           </div>
+          <p className="text-xs sm:text-sm text-gray-500 mt-3">
+            - أولاً احفظ صور الدفعات، ثم اضغط <span className="font-semibold">إرسال الطلب</span> ليصل للإدارة وتبدأ المتابعة.
+          </p>
         </div>
       </div>
     </div>

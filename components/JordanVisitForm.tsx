@@ -1,10 +1,10 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createSupabaseBrowserClient } from '@/lib/supabase'
 import toast from 'react-hot-toast'
-import { Calendar, Upload, Save, Edit, Trash2, X, Plus, Phone, MessageCircle } from 'lucide-react'
+import { Calendar, Upload, Trash2, X, Plus, User, Phone, MessageCircle, Lock } from 'lucide-react'
 
 const DEPARTURE_CITIES = [
   'الشام', 'درعا', 'حلب', 'حمص', 'حماة', 'اللاذقية', 'طرطوس', 
@@ -22,18 +22,71 @@ export default function JordanVisitForm() {
   const router = useRouter()
   const supabase = createSupabaseBrowserClient()
   const [loading, setLoading] = useState(false)
+  const [profileLoading, setProfileLoading] = useState(true)
+  const [accountName, setAccountName] = useState<string>('')
   const [persons, setPersons] = useState<Person[]>([
     { id: '1', name: '', passportImages: [], passportPreviews: [] }
   ])
 
   const [formData, setFormData] = useState({
-    fullName: '',
     jordanPhone: '',
-    syrianPhone: '',
+    whatsappPhone: '',
     departureCity: '',
     otherCity: '',
     purpose: '',
   })
+
+  useEffect(() => {
+    const loadProfile = async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser()
+        if (!user) {
+          router.push('/auth/login')
+          return
+        }
+
+        // قد تكون أعمدة jordan_phone/whatsapp_phone غير موجودة إذا لم يتم تنفيذ سكربت SQL بعد
+        let profile: any = null
+        let error: any = null
+
+        ;({ data: profile, error } = await supabase
+          .from('profiles')
+          .select('full_name, phone, jordan_phone, whatsapp_phone')
+          .eq('user_id', user.id)
+          .maybeSingle())
+
+        if (error?.code === '42703') {
+          // fallback: الأعمدة غير موجودة
+          console.warn('Profile contact columns not found yet; falling back to base fields.')
+          ;({ data: profile, error } = await supabase
+            .from('profiles')
+            .select('full_name, phone')
+            .eq('user_id', user.id)
+            .maybeSingle())
+        }
+
+        if (error) {
+          console.error('Error loading profile:', error)
+        }
+
+        const name = profile?.full_name || user.email?.split('@')[0] || ''
+        setAccountName(name)
+
+        // Prefill phones from profile (if available)
+        setFormData(prev => ({
+          ...prev,
+          jordanPhone: prev.jordanPhone || profile?.jordan_phone || '',
+          whatsappPhone: prev.whatsappPhone || profile?.whatsapp_phone || profile?.phone || '',
+        }))
+      } catch (e) {
+        console.error('Error loading profile:', e)
+      } finally {
+        setProfileLoading(false)
+      }
+    }
+
+    loadProfile()
+  }, [router, supabase])
 
   const addPerson = () => {
     if (persons.length >= 10) {
@@ -140,8 +193,8 @@ export default function JordanVisitForm() {
 
   const handleSave = async () => {
     // التحقق من البيانات
-    if (!formData.fullName || !formData.jordanPhone || !formData.syrianPhone || !formData.departureCity) {
-      toast.error('يرجى إدخال جميع البيانات المطلوبة')
+    if (!formData.jordanPhone || !formData.whatsappPhone || !formData.departureCity) {
+      toast.error('يرجى إدخال أرقام التواصل ومكان الانطلاق')
       return
     }
 
@@ -175,6 +228,25 @@ export default function JordanVisitForm() {
         ? formData.otherCity 
         : formData.departureCity
 
+      // حفظ أرقام التواصل في حساب المستخدم (إن أمكن)
+      try {
+        const { error: updateErr } = await supabase
+          .from('profiles')
+          .update({
+            jordan_phone: formData.jordanPhone,
+            whatsapp_phone: formData.whatsappPhone,
+          })
+          .eq('user_id', user.id)
+        if (updateErr?.code === '42703') {
+          // الأعمدة غير موجودة بعد - تجاهل
+          console.warn('Profile contact columns not found yet; skipping profile update.')
+        } else if (updateErr) {
+          console.warn('Could not update profile contact fields:', updateErr)
+        }
+      } catch (profileUpdateErr) {
+        console.warn('Could not update profile contact fields (may require DB columns):', profileUpdateErr)
+      }
+
       // رفع صور جميع الأشخاص
       const personsData = await Promise.all(
         persons.map(async (person) => {
@@ -186,12 +258,13 @@ export default function JordanVisitForm() {
         })
       )
 
-      // حفظ الطلب
+      // حفظ الطلب كـ Draft (لا يظهر للإدمن قبل الدفع)
+      const primaryVisitorName = personsData[0]?.name || 'زائر'
       const { data: requestData, error } = await supabase
         .from('visit_requests')
         .insert({
           user_id: user.id,
-          visitor_name: formData.fullName,
+          visitor_name: primaryVisitorName,
           city: finalDepartureCity,
           passport_image_url: personsData[0]?.passportImages[0] || null,
           status: 'pending',
@@ -203,14 +276,14 @@ export default function JordanVisitForm() {
           passport_expiry: new Date().toISOString().split('T')[0],
           companions_count: persons.length,
           companions_data: personsData,
-          admin_notes: `خدمة: زيارة الأردن لمدة شهر\nالهاتف الأردني: ${formData.jordanPhone}\nالهاتف السوري/واتساب: ${formData.syrianPhone}\nالغرض: ${formData.purpose || 'غير محدد'}`,
+          admin_notes: `[DRAFT]\nخدمة: زيارة الأردن لمدة شهر\nاسم الحساب: ${accountName || 'غير محدد'}\nالهاتف الأردني: ${formData.jordanPhone}\nواتساب/هاتف: ${formData.whatsappPhone}\nالغرض: ${formData.purpose || 'غير محدد'}`,
         })
         .select()
         .single()
 
       if (error) throw error
 
-      toast.success('تم حفظ الطلب بنجاح!')
+      toast.success('تم حفظ بيانات الزوار. أكمل دفع الرسوم لإرسال الطلب.')
       router.push(`/services/jordan-visit/payment/${requestData.id}`)
       router.refresh()
     } catch (error: any) {
@@ -239,19 +312,26 @@ export default function JordanVisitForm() {
               
               <div className="space-y-4">
                 <div>
-                  <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1.5 sm:mb-2">الاسم الكامل *</label>
-                  <input 
-                    type="text" 
-                    required 
-                    value={formData.fullName} 
-                    onChange={(e) => setFormData({ ...formData, fullName: e.target.value })} 
-                    className="w-full px-3 sm:px-4 py-2.5 sm:py-3 text-sm sm:text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" 
-                    placeholder="أدخل اسمك الكامل" 
-                  />
+                  <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1.5 sm:mb-2">اسم الحساب</label>
+                  <div className="w-full px-3 sm:px-4 py-2.5 sm:py-3 text-sm sm:text-base border border-gray-200 rounded-lg bg-white flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <User className="w-4 h-4 text-gray-500 flex-shrink-0" />
+                      <span className="truncate text-gray-800">
+                        {profileLoading ? 'جاري التحميل...' : (accountName || 'غير متوفر')}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-1 text-xs text-gray-500 flex-shrink-0">
+                      <Lock className="w-3.5 h-3.5" />
+                      من الحساب
+                    </div>
+                  </div>
                 </div>
 
                 <div>
-                  <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1.5 sm:mb-2">رقم الهاتف الأردني *</label>
+                  <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1.5 sm:mb-2 flex items-center gap-2">
+                    <Phone className="w-4 h-4 text-gray-500" />
+                    رقم الهاتف الأردني (يُحفظ في حسابك) *
+                  </label>
                   <input 
                     type="tel" 
                     required 
@@ -263,12 +343,15 @@ export default function JordanVisitForm() {
                 </div>
 
                 <div>
-                  <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1.5 sm:mb-2">رقم الهاتف السوري / واتساب *</label>
+                  <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1.5 sm:mb-2 flex items-center gap-2">
+                    <MessageCircle className="w-4 h-4 text-gray-500" />
+                    واتساب / هاتف (يُحفظ في حسابك) *
+                  </label>
                   <input 
                     type="tel" 
                     required 
-                    value={formData.syrianPhone} 
-                    onChange={(e) => setFormData({ ...formData, syrianPhone: e.target.value })} 
+                    value={formData.whatsappPhone} 
+                    onChange={(e) => setFormData({ ...formData, whatsappPhone: e.target.value })} 
                     className="w-full px-3 sm:px-4 py-2.5 sm:py-3 text-sm sm:text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" 
                     placeholder="09XXXXXXXX أو +963XXXXXXXX" 
                   />

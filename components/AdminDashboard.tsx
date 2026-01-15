@@ -115,8 +115,14 @@ export default function AdminDashboard() {
         return
       }
 
+      // إخفاء الطلبات غير المرسلة (Draft) من لوحة الإدارة
+      const visibleRequests = (requestsData || []).filter((r: any) => {
+        const notes = (r?.admin_notes || '') as string
+        return !notes.startsWith('[DRAFT]')
+      })
+
       // تحميل ملفات المستخدمين
-      const userIds = Array.from(new Set((requestsData || []).map(r => r.user_id)))
+      const userIds = Array.from(new Set((visibleRequests || []).map((r: any) => r.user_id)))
       let profilesMap: { [key: string]: UserProfile } = {}
       
       if (userIds.length > 0) {
@@ -135,7 +141,7 @@ export default function AdminDashboard() {
         }
       }
 
-      setRequests(requestsData || [])
+      setRequests(visibleRequests || [])
       setUserProfiles(profilesMap)
     } catch (error: any) {
       console.error('Error in loadRequests:', error)
