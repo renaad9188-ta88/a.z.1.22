@@ -244,7 +244,7 @@ export default function NotificationsDropdown({ userId }: NotificationsDropdownP
             className="fixed inset-0 z-40"
             onClick={() => setIsOpen(false)}
           />
-          <div className="absolute right-0 top-full mt-2 w-[calc(100vw-1rem)] max-w-[24rem] bg-white rounded-lg shadow-xl border border-gray-200 z-50 max-h-[500px] flex flex-col">
+          <div className="fixed left-2 right-2 top-14 mt-2 bg-white rounded-lg shadow-xl border border-gray-200 z-50 max-h-[70vh] flex flex-col sm:absolute sm:left-auto sm:right-0 sm:top-full sm:mt-2 sm:w-[24rem] sm:max-h-[500px]">
             {/* Header */}
             <div className="p-4 border-b border-gray-200 flex items-center justify-between">
               <h3 className="font-bold text-gray-800">الإشعارات</h3>

@@ -330,9 +330,10 @@ export default function JordanVisitForm() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-white py-4 sm:py-6 md:py-8 px-3 sm:px-4">
-      <div className="max-w-3xl mx-auto">
-        <div className="bg-white rounded-lg shadow-xl p-4 sm:p-6 md:p-8">
+    <div className="page">
+      <div className="page-container">
+        <div className="max-w-3xl mx-auto">
+          <div className="card">
           <div className="text-center mb-6 sm:mb-8">
             <div className="w-16 h-16 sm:w-20 sm:h-20 bg-blue-50 rounded-2xl flex items-center justify-center mx-auto mb-4">
               <Calendar className="w-8 h-8 sm:w-10 sm:h-10 text-blue-600" />
@@ -597,6 +598,7 @@ export default function JordanVisitForm() {
               {loading ? 'جاري الحفظ...' : 'حفظ والمتابعة للدفع'}
             </button>
           </form>
+          </div>
         </div>
       </div>
     </div>

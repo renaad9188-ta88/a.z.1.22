@@ -128,7 +128,7 @@ export default function Header() {
                   <button
                     type="button"
                     onClick={() => setMenuOpen(v => !v)}
-                    className="flex items-center gap-1 sm:gap-1.5 px-1.5 sm:px-2 md:px-3 py-0.5 sm:py-1 text-xs sm:text-sm text-gray-700 hover:text-blue-600 hover:bg-gray-100 rounded-lg transition min-w-0"
+                    className="flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2 md:px-3 py-1.5 sm:py-1.5 text-xs sm:text-sm text-gray-700 hover:text-blue-600 hover:bg-gray-100 rounded-lg transition min-w-0"
                     aria-haspopup="menu"
                     aria-expanded={menuOpen}
                   >

@@ -202,8 +202,8 @@ export default function RequestDetails({ requestId, userId }: { requestId: strin
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-white">
-      <div className="container mx-auto px-3 sm:px-4 md:px-6 py-4 sm:py-6 md:py-8">
+    <div className="page">
+      <div className="page-container">
         {/* زر العودة */}
         <Link
           href="/dashboard"
@@ -213,7 +213,7 @@ export default function RequestDetails({ requestId, userId }: { requestId: strin
           <span>العودة للوحة التحكم</span>
         </Link>
 
-        <div className="bg-white rounded-lg shadow-xl p-4 sm:p-6 md:p-8">
+        <div className="card">
           <RequestHeader requestId={request.id} status={request.status} />
           
           <RequestInfo request={request} adminInfo={adminInfo} />

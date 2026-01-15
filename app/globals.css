@@ -111,10 +111,9 @@ html, body {
 }
 
 /* Responsive text wrapping */
-h1, h2, h3, h4, h5, h6, p, span, div {
-  word-wrap: break-word;
-  overflow-wrap: break-word;
-  hyphens: auto;
+h1, h2, h3, h4, h5, h6, p, a, button, label, input, textarea {
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 /* Prevent horizontal scroll */
@@ -122,5 +121,57 @@ body {
   position: relative;
   width: 100%;
   overflow-x: hidden;
+}
+
+@layer components {
+  /* Unified page layout */
+  .page {
+    @apply min-h-screen bg-gradient-to-br from-blue-50 to-white overflow-x-hidden;
+  }
+  .page-container {
+    @apply container mx-auto px-3 sm:px-4 md:px-6 py-4 sm:py-6;
+  }
+  .card {
+    @apply bg-white rounded-xl shadow-xl p-4 sm:p-6;
+  }
+  .card-soft {
+    @apply bg-gray-50 rounded-lg p-3 sm:p-4 border border-gray-200;
+  }
+
+  /* Unified form controls */
+  .input {
+    @apply w-full px-3 sm:px-4 py-2.5 sm:py-3 text-sm sm:text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent;
+  }
+  .select {
+    @apply w-full px-3 sm:px-4 py-2.5 sm:py-3 text-sm sm:text-base border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent;
+  }
+  .textarea {
+    @apply w-full px-3 sm:px-4 py-2.5 sm:py-3 text-sm sm:text-base border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none;
+  }
+
+  /* Unified buttons */
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-lg font-semibold transition disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+  .btn-primary {
+    @apply btn px-4 py-2.5 sm:py-3 bg-blue-600 text-white hover:bg-blue-700;
+  }
+  .btn-secondary {
+    @apply btn px-4 py-2.5 sm:py-3 bg-gray-200 text-gray-800 hover:bg-gray-300;
+  }
+  .btn-danger {
+    @apply btn px-4 py-2.5 sm:py-3 bg-red-600 text-white hover:bg-red-700;
+  }
+}
+
+@layer utilities {
+  .break-anywhere {
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
+  .ltr {
+    direction: ltr;
+    unicode-bidi: plaintext;
+  }
 }
 
