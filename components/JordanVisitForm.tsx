@@ -259,14 +259,16 @@ export default function JordanVisitForm() {
       )
 
       // حفظ الطلب كـ Draft (لا يظهر للإدمن قبل الدفع)
-      const primaryVisitorName = personsData[0]?.name || 'زائر'
+      const primary = personsData[0]
+      const primaryVisitorName = primary?.name || 'زائر'
+      const companionsOnly = personsData.slice(1) // المرافقين فقط (بدون الزائر الرئيسي)
       const { data: requestData, error } = await supabase
         .from('visit_requests')
         .insert({
           user_id: user.id,
           visitor_name: primaryVisitorName,
           city: finalDepartureCity,
-          passport_image_url: personsData[0]?.passportImages[0] || null,
+          passport_image_url: primary?.passportImages?.[0] || null,
           status: 'pending',
           visit_type: 'visit',
           travel_date: new Date().toISOString().split('T')[0],
@@ -274,8 +276,9 @@ export default function JordanVisitForm() {
           nationality: 'سوري',
           passport_number: 'N/A',
           passport_expiry: new Date().toISOString().split('T')[0],
-          companions_count: persons.length,
-          companions_data: personsData,
+          // companions_count/companions_data تمثل المرافقين فقط (الزائر الرئيسي يُحسب منفصل)
+          companions_count: companionsOnly.length,
+          companions_data: companionsOnly,
           admin_notes: `[DRAFT]\nخدمة: زيارة الأردن لمدة شهر\nاسم الحساب: ${accountName || 'غير محدد'}\nالهاتف الأردني: ${formData.jordanPhone}\nواتساب/هاتف: ${formData.whatsappPhone}\nالغرض: ${formData.purpose || 'غير محدد'}`,
         })
         .select()

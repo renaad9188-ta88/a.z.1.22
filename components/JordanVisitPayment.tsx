@@ -56,15 +56,15 @@ export default function JordanVisitPayment({ requestId, userId }: { requestId: s
       setPaymentSaved(Boolean(data.deposit_paid) || urls.length > 0)
       
       // تحميل بيانات الأشخاص
-      if (data.companions_data && Array.isArray(data.companions_data)) {
-        setPersons(data.companions_data)
-      } else {
-        // إذا لم تكن هناك بيانات أشخاص، نستخدم البيانات الأساسية
-        setPersons([{
-          name: data.visitor_name,
-          passportImages: data.passport_image_url ? [data.passport_image_url] : []
-        }])
+      // في النظام: visitor_name هو الزائر الرئيسي، companions_data هم المرافقون فقط
+      const list: Person[] = [{
+        name: data.visitor_name,
+        passportImages: data.passport_image_url ? [data.passport_image_url] : []
+      }]
+      if (data.companions_data && Array.isArray(data.companions_data) && data.companions_data.length > 0) {
+        list.push(...data.companions_data)
       }
+      setPersons(list)
     } catch (error: any) {
       toast.error('حدث خطأ أثناء تحميل البيانات')
       router.push('/dashboard')

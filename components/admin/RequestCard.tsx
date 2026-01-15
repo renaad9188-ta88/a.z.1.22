@@ -85,6 +85,24 @@ export default function RequestCard({ request, userProfile, onClick, onScheduleT
     ? request.companions_data.length 
     : request.companions_count || 0
 
+  // حساب عدد الأشخاص بشكل صحيح
+  // - الافتراضي: (الزائر الرئيسي = 1) + عدد المرافقين
+  // - طلبات الأردن القديمة كانت تخزّن "كل الأشخاص" داخل companions_data (بما فيهم الرئيسي)
+  //   نكتشف ذلك إذا كان أي عنصر في companions_data يحتوي passport_image_url الخاص بالرئيسي
+  const companionsData: any[] = request.companions_data && Array.isArray(request.companions_data)
+    ? (request.companions_data as any[])
+    : []
+  const primaryPassportUrl = request.passport_image_url
+  const companionsContainPrimaryPassport =
+    Boolean(isJordanVisit && primaryPassportUrl) &&
+    companionsData.some((c: any) =>
+      Array.isArray(c?.passportImages) && c.passportImages.includes(primaryPassportUrl)
+    )
+
+  const totalPeople = companionsContainPrimaryPassport
+    ? companionsData.length // بيانات قديمة: companions_data يحتوي الرئيسي بالفعل
+    : companionsCount + 1   // بيانات صحيحة: companions_count/companions_data = مرافقين فقط
+
   const isApproved = request.status === 'approved'
   const hasArrivalDate = request.arrival_date !== null
   const isCompleted = request.status === 'completed' || request.trip_status === 'completed'
@@ -133,7 +151,7 @@ export default function RequestCard({ request, userProfile, onClick, onScheduleT
                 )}
                 <h3 className={`text-base sm:text-lg font-bold ${
                   isNewRequest ? 'text-blue-700' : 'text-gray-800'
-                }`}>
+                } break-words max-w-full leading-snug`}>
                   {request.visitor_name}
                 </h3>
                 {isNewRequest && (
@@ -193,7 +211,7 @@ export default function RequestCard({ request, userProfile, onClick, onScheduleT
               <div>
                 <p className="text-xs text-gray-500">عدد الأشخاص</p>
                 <span className="text-xs sm:text-sm font-medium">
-                  {companionsCount + 1} {companionsCount > 0 ? 'أشخاص' : 'شخص'}
+                  {totalPeople} {totalPeople > 1 ? 'أشخاص' : 'شخص'}
                 </span>
               </div>
             </div>
