@@ -6,7 +6,15 @@ import { createSupabaseBrowserClient } from '@/lib/supabase'
 import toast from 'react-hot-toast'
 import { Save, User, Phone, MessageCircle } from 'lucide-react'
 
-export default function ProfileSettings({ userId }: { userId: string }) {
+export default function ProfileSettings({
+  userId,
+  backHref = '/dashboard',
+  backLabel = 'العودة للوحة التحكم',
+}: {
+  userId: string
+  backHref?: string
+  backLabel?: string
+}) {
   const supabase = createSupabaseBrowserClient()
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -89,8 +97,8 @@ export default function ProfileSettings({ userId }: { userId: string }) {
         <div className="bg-white rounded-xl shadow-xl p-4 sm:p-6 max-w-2xl mx-auto">
           <div className="flex items-center justify-between mb-4">
             <h1 className="text-lg sm:text-xl font-bold text-gray-800">تعديل المعلومات</h1>
-            <Link href="/dashboard" className="text-sm text-blue-600 hover:text-blue-700 font-semibold">
-              العودة للوحة التحكم
+            <Link href={backHref} className="text-sm text-blue-600 hover:text-blue-700 font-semibold">
+              {backLabel}
             </Link>
           </div>
 

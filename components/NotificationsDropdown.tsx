@@ -51,7 +51,7 @@ export default function NotificationsDropdown({ userId }: NotificationsDropdownP
             console.error('Error checking admin role for notifications:', error)
             setIsAdmin(false)
           } else {
-            setIsAdmin(profile?.role === 'admin')
+            setIsAdmin((profile?.role || '').toLowerCase() === 'admin')
           }
         } catch (e) {
           console.error('Error checking admin role for notifications:', e)

@@ -24,7 +24,7 @@ export default async function AdminPage() {
     console.error('Admin role check error:', profileError)
   }
 
-  if (!profile || profile.role !== 'admin') {
+  if (!profile || (profile.role || '').toLowerCase() !== 'admin') {
     redirect('/dashboard')
   }
 

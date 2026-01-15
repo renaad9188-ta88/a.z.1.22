@@ -84,7 +84,7 @@ export default function AdminDashboard() {
         return
       }
 
-      if (!profile || profile.role !== 'admin') {
+      if (!profile || (profile.role || '').toLowerCase() !== 'admin') {
         toast.error('ليس لديك صلاحية للوصول إلى لوحة الإدارة')
         console.error('User is not admin:', { 
           userId: user.id, 
@@ -249,10 +249,10 @@ export default function AdminDashboard() {
             </div>
             <div className="flex flex-row items-center gap-1.5 sm:gap-2 md:gap-3 w-full sm:w-auto justify-end sm:justify-start">
               <Link
-                href="/dashboard"
+                href="/admin/profile"
                 className="px-2 sm:px-3 md:px-4 py-1 sm:py-1.5 md:py-2 text-xs sm:text-sm md:text-base text-gray-700 hover:text-blue-600 transition whitespace-nowrap"
               >
-                لوحة المستخدم
+                إعدادات الإدمن
               </Link>
               {currentUserId && (
                 <NotificationsDropdown userId={currentUserId} />

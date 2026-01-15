@@ -1,8 +1,8 @@
 import { createSupabaseServerClient } from '@/lib/supabase-server'
 import { redirect } from 'next/navigation'
-import DashboardContent from '@/components/DashboardContent'
+import ProfileSettings from '@/components/ProfileSettings'
 
-export default async function DashboardPage() {
+export default async function AdminProfilePage() {
   const supabase = createSupabaseServerClient()
   const { data: { user } } = await supabase.auth.getUser()
 
@@ -10,7 +10,6 @@ export default async function DashboardPage() {
     redirect('/auth/login')
   }
 
-  // إذا كان المستخدم إدمن، لا نعرض لوحة المستخدم لتجنب الخلط
   const { data: profile, error: profileError } = await supabase
     .from('profiles')
     .select('role')
@@ -20,13 +19,20 @@ export default async function DashboardPage() {
     .maybeSingle()
 
   if (profileError) {
-    console.error('Dashboard role check error:', profileError)
+    console.error('Admin profile role check error:', profileError)
   }
 
-  if ((profile?.role || '').toLowerCase() === 'admin') {
-    redirect('/admin')
+  if (!profile || (profile.role || '').toLowerCase() !== 'admin') {
+    redirect('/dashboard')
   }
 
-  return <DashboardContent userId={user.id} />
+  return (
+    <ProfileSettings
+      userId={user.id}
+      backHref="/admin"
+      backLabel="العودة للوحة الإدارة"
+    />
+  )
 }
+
 

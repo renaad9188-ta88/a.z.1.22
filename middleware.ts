@@ -51,13 +51,48 @@ export async function middleware(req: NextRequest) {
   } = await supabase.auth.getUser()
 
   // Protect dashboard routes
-  if (req.nextUrl.pathname.startsWith('/dashboard') && !user) {
-    return NextResponse.redirect(new URL('/auth/login', req.url))
+  if (req.nextUrl.pathname.startsWith('/dashboard')) {
+    if (!user) {
+      return NextResponse.redirect(new URL('/auth/login', req.url))
+    }
+
+    // Enforce separation: admins should not land in user dashboard routes
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('user_id', user.id)
+      .order('updated_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+
+    if (!profileError && (profile?.role || '').toLowerCase() === 'admin') {
+      return NextResponse.redirect(new URL('/admin', req.url))
+    }
   }
 
   // Protect admin routes
-  if (req.nextUrl.pathname.startsWith('/admin') && !user) {
-    return NextResponse.redirect(new URL('/auth/login', req.url))
+  if (req.nextUrl.pathname.startsWith('/admin')) {
+    if (!user) {
+      return NextResponse.redirect(new URL('/auth/login', req.url))
+    }
+
+    // Enforce role separation: only admins can access /admin
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('user_id', user.id)
+      .order('updated_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+
+    if (profileError) {
+      // If we can't verify role, default to safest behavior: block access
+      return NextResponse.redirect(new URL('/dashboard', req.url))
+    }
+
+    if ((profile?.role || '').toLowerCase() !== 'admin') {
+      return NextResponse.redirect(new URL('/dashboard', req.url))
+    }
   }
 
   // Protect request-visit route

@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { createSupabaseBrowserClient } from '@/lib/supabase'
-import { LogOut, User, ChevronDown, LayoutDashboard, FileText, Settings } from 'lucide-react'
+import { LogOut, User, ChevronDown, LayoutDashboard, FileText, Settings, Shield } from 'lucide-react'
 import toast from 'react-hot-toast'
 import NotificationsDropdown from './NotificationsDropdown'
 
@@ -13,6 +13,7 @@ export default function Header() {
   const supabase = createSupabaseBrowserClient()
   const [user, setUser] = useState<any>(null)
   const [userProfile, setUserProfile] = useState<any>(null)
+  const [isAdmin, setIsAdmin] = useState(false)
   const [loading, setLoading] = useState(true)
   const [menuOpen, setMenuOpen] = useState(false)
   const menuRef = useRef<HTMLDivElement | null>(null)
@@ -55,7 +56,7 @@ export default function Header() {
         // Load user profile
         const { data: profile, error: profileError } = await supabase
           .from('profiles')
-          .select('*')
+          .select('full_name, role')
           .eq('user_id', currentUser.id)
           .maybeSingle()
         
@@ -64,9 +65,11 @@ export default function Header() {
         }
         
         setUserProfile(profile || null)
+        setIsAdmin((profile?.role || '').toLowerCase() === 'admin')
       } else {
         setUser(null)
         setUserProfile(null)
+        setIsAdmin(false)
       }
     } catch (error) {
       console.error('Error checking user:', error)
@@ -134,7 +137,7 @@ export default function Header() {
                   >
                     <User className="w-3 h-3 sm:w-4 sm:h-4 flex-shrink-0" />
                     <span className="truncate max-w-[90px] sm:max-w-[120px] md:max-w-[160px] lg:max-w-[200px]">
-                      <span className="sm:hidden">حسابي: </span>
+                      <span className="sm:hidden">{isAdmin ? 'إدمن: ' : 'حسابي: '}</span>
                       {userProfile?.full_name || 'المستخدم'}
                     </span>
                     <ChevronDown className={`w-3 h-3 sm:w-4 sm:h-4 flex-shrink-0 transition-transform ${menuOpen ? 'rotate-180' : ''}`} />
@@ -145,30 +148,53 @@ export default function Header() {
                       className="absolute right-0 mt-2 w-56 sm:w-64 bg-white rounded-xl shadow-xl border border-gray-200 overflow-hidden z-50"
                       role="menu"
                     >
-                      <Link
-                        href="/dashboard"
-                        onClick={() => setMenuOpen(false)}
-                        className="flex items-center gap-2 px-4 py-3 text-sm text-gray-700 hover:bg-gray-50"
-                      >
-                        <LayoutDashboard className="w-4 h-4 text-blue-600" />
-                        لوحة التحكم
-                      </Link>
-                      <Link
-                        href="/dashboard/requests"
-                        onClick={() => setMenuOpen(false)}
-                        className="flex items-center gap-2 px-4 py-3 text-sm text-gray-700 hover:bg-gray-50"
-                      >
-                        <FileText className="w-4 h-4 text-purple-600" />
-                        طلباتي
-                      </Link>
-                      <Link
-                        href="/dashboard/profile"
-                        onClick={() => setMenuOpen(false)}
-                        className="flex items-center gap-2 px-4 py-3 text-sm text-gray-700 hover:bg-gray-50"
-                      >
-                        <Settings className="w-4 h-4 text-gray-700" />
-                        تعديل المعلومات
-                      </Link>
+                      {isAdmin ? (
+                        <>
+                          <Link
+                            href="/admin"
+                            onClick={() => setMenuOpen(false)}
+                            className="flex items-center gap-2 px-4 py-3 text-sm text-gray-700 hover:bg-gray-50"
+                          >
+                            <Shield className="w-4 h-4 text-amber-600" />
+                            لوحة الإدارة
+                          </Link>
+                          <Link
+                            href="/admin/profile"
+                            onClick={() => setMenuOpen(false)}
+                            className="flex items-center gap-2 px-4 py-3 text-sm text-gray-700 hover:bg-gray-50"
+                          >
+                            <Settings className="w-4 h-4 text-gray-700" />
+                            إعدادات الإدمن
+                          </Link>
+                        </>
+                      ) : (
+                        <>
+                          <Link
+                            href="/dashboard"
+                            onClick={() => setMenuOpen(false)}
+                            className="flex items-center gap-2 px-4 py-3 text-sm text-gray-700 hover:bg-gray-50"
+                          >
+                            <LayoutDashboard className="w-4 h-4 text-blue-600" />
+                            لوحة التحكم
+                          </Link>
+                          <Link
+                            href="/dashboard/requests"
+                            onClick={() => setMenuOpen(false)}
+                            className="flex items-center gap-2 px-4 py-3 text-sm text-gray-700 hover:bg-gray-50"
+                          >
+                            <FileText className="w-4 h-4 text-purple-600" />
+                            طلباتي
+                          </Link>
+                          <Link
+                            href="/dashboard/profile"
+                            onClick={() => setMenuOpen(false)}
+                            className="flex items-center gap-2 px-4 py-3 text-sm text-gray-700 hover:bg-gray-50"
+                          >
+                            <Settings className="w-4 h-4 text-gray-700" />
+                            تعديل المعلومات
+                          </Link>
+                        </>
+                      )}
                       <div className="h-px bg-gray-200" />
                       <button
                         onClick={handleLogout}
