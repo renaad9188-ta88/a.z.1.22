@@ -28,7 +28,7 @@ export default function RequestHeader({ requestId, status }: RequestHeaderProps)
   }
 
   return (
-    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 sm:gap-4 mb-4 sm:mb-6 md:mb-8 pb-4 sm:pb-6 border-b border-gray-200">
+    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 sm:gap-4 mb-3 sm:mb-5 pb-3 sm:pb-5 border-b border-gray-200">
       <div>
         <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-gray-800 mb-1 sm:mb-2">تفاصيل الطلب</h1>
         <p className="text-xs sm:text-sm text-gray-600">رقم الطلب: {requestId.slice(0, 8)}</p>

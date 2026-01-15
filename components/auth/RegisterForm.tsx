@@ -7,8 +7,10 @@ import toast from 'react-hot-toast'
 
 export default function RegisterForm() {
   const [formData, setFormData] = useState({
-    fullName: '',
     phone: '',
+    firstName: '',
+    lastName: '',
+    password: '',
   })
   const [loading, setLoading] = useState(false)
   const router = useRouter()
@@ -17,7 +19,7 @@ export default function RegisterForm() {
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault()
 
-    if (!formData.phone || !formData.fullName) {
+    if (!formData.phone || !formData.firstName || !formData.lastName || !formData.password) {
       toast.error('يرجى إدخال جميع البيانات المطلوبة')
       return
     }
@@ -43,19 +45,19 @@ export default function RegisterForm() {
     try {
       // استخدام رقم الهاتف كـ email (Supabase يتطلب email)
       // تنسيق صحيح: phone_XXXXXXXXXX@maidaa.local
-      const defaultPassword = '123456'
       const phoneEmail = `phone_${cleanPhone}@maidaa.local`
+      const fullName = `${formData.firstName.trim()} ${formData.lastName.trim()}`.trim()
 
       // Register user
       // ملاحظة: قد تحتاج إلى تعطيل email confirmation في Supabase Dashboard
       // Settings > Authentication > Email Auth > Enable email confirmations (إيقاف)
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: phoneEmail,
-        password: defaultPassword,
+        password: formData.password,
         options: {
           data: {
             phone: cleanPhone,
-            full_name: formData.fullName,
+            full_name: fullName,
           },
         }
       })
@@ -92,7 +94,7 @@ export default function RegisterForm() {
           .from('profiles')
           .insert({
             user_id: authData.user.id,
-            full_name: formData.fullName,
+            full_name: fullName,
             phone: cleanPhone,
           })
 
@@ -132,7 +134,7 @@ export default function RegisterForm() {
           const phoneEmail = `phone_${cleanPhoneForLogin}@maidaa.local`
           const { error: loginError } = await supabase.auth.signInWithPassword({
             email: phoneEmail,
-            password: defaultPassword,
+            password: formData.password,
           })
           if (!loginError) {
             toast.success('تم تسجيل الدخول بنجاح')
@@ -165,18 +167,29 @@ export default function RegisterForm() {
 
         <form onSubmit={handleRegister} className="space-y-4 sm:space-y-6">
           <div>
-            <label htmlFor="fullName" className="block text-sm font-medium text-gray-700 mb-2">
-              الاسم الكامل *
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              الاسم (مقطعين) *
             </label>
-            <input
-              id="fullName"
-              type="text"
-              value={formData.fullName}
-              onChange={(e) => setFormData({ ...formData, fullName: e.target.value })}
-              required
-              className="w-full px-3 sm:px-4 py-2.5 sm:py-3 text-sm sm:text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              placeholder="أدخل اسمك الكامل"
-            />
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <input
+                id="firstName"
+                type="text"
+                value={formData.firstName}
+                onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
+                required
+                className="w-full px-3 sm:px-4 py-2.5 sm:py-3 text-sm sm:text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                placeholder="الاسم الأول"
+              />
+              <input
+                id="lastName"
+                type="text"
+                value={formData.lastName}
+                onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
+                required
+                className="w-full px-3 sm:px-4 py-2.5 sm:py-3 text-sm sm:text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                placeholder="اسم العائلة"
+              />
+            </div>
           </div>
 
           <div>
@@ -193,6 +206,21 @@ export default function RegisterForm() {
               placeholder="+966XXXXXXXXX أو 05XXXXXXXX"
             />
             <p className="mt-1 text-xs text-gray-500">سيتم استخدام رقم الهاتف لتسجيل الدخول</p>
+          </div>
+
+          <div>
+            <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-2">
+              كلمة المرور *
+            </label>
+            <input
+              id="password"
+              type="password"
+              value={formData.password}
+              onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+              required
+              className="w-full px-3 sm:px-4 py-2.5 sm:py-3 text-sm sm:text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              placeholder="أدخل كلمة مرور قوية"
+            />
           </div>
 
           <button

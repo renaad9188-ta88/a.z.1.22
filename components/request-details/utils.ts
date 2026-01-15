@@ -24,16 +24,40 @@ export const parseAdminNotes = (notes: string): AdminInfo | null => {
   }
   
   lines.forEach(line => {
+    const trimmed = line.trim()
+    if (!trimmed) return
+
+    if (trimmed.startsWith('اسم الحساب:')) {
+      info.accountName = trimmed.split('اسم الحساب:')[1]?.trim()
+    }
     if (line.includes('الهاتف الأردني:')) {
       info.jordanPhone = line.split('الهاتف الأردني:')[1]?.trim().split('\n')[0].split(' ')[0]
     }
-    if (line.includes('الهاتف السوري / واتساب')) {
-      const parts = line.split('الهاتف السوري / واتساب')
-      if (parts[1]) {
-        const phonePart = parts[1].trim().split(' ')[0]
-        info.syrianPhone = phonePart
-      }
+    // صيغ مختلفة للهاتف السوري/الواتساب
+    if (trimmed.includes('الهاتف السوري / واتساب')) {
+      const parts = trimmed.split('الهاتف السوري / واتساب')
+      if (parts[1]) info.syrianPhone = parts[1].replace(':', '').trim()
     }
+    if (trimmed.startsWith('واتساب سوري (اختياري):')) {
+      const v = trimmed.split('واتساب سوري (اختياري):')[1]?.trim()
+      if (v && v !== 'غير مدخل') info.syrianPhone = v
+    }
+    if (trimmed.startsWith('واتساب/هاتف:')) {
+      const v = trimmed.split('واتساب/هاتف:')[1]?.trim()
+      if (v && v !== 'غير مدخل') info.syrianPhone = v
+    }
+
+    // اختيارات الشركات (خدمة الأردن)
+    if (trimmed.startsWith('الشركة المقدّم لها:')) {
+      info.tourismCompany = trimmed.split('الشركة المقدّم لها:')[1]?.trim()
+    }
+    if (trimmed.startsWith('شركة النقل:')) {
+      info.transportCompany = trimmed.split('شركة النقل:')[1]?.trim()
+    }
+    if (trimmed.startsWith('ملاحظة:')) {
+      info.note = trimmed.split('ملاحظة:')[1]?.trim()
+    }
+
     if (line.includes('الغرض:')) {
       const purposePart = line.split('الغرض:')[1]?.trim()
       if (purposePart && !purposePart.startsWith('http')) {

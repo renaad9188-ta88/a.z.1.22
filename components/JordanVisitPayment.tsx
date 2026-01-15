@@ -365,19 +365,19 @@ export default function JordanVisitPayment({ requestId, userId }: { requestId: s
             <h2 className="text-base sm:text-lg font-bold text-gray-800 mb-3 sm:mb-4">معلومات التواصل</h2>
             <div className="space-y-2 sm:space-y-3">
               <a 
-                href="tel:+966541700017" 
+                href="tel:0798905595" 
                 className="flex items-center gap-2 sm:gap-3 p-2 sm:p-3 bg-white rounded-lg hover:bg-blue-100 transition"
               >
                 <Phone className="w-4 h-4 sm:w-5 sm:h-5 text-blue-600" />
-                <span className="text-xs sm:text-sm font-semibold text-gray-800">+966541700017</span>
+                <span className="text-xs sm:text-sm font-semibold text-gray-800">0798905595</span>
               </a>
               <a 
-                href="https://wa.me/966541700017" 
+                href="https://wa.me/962798905595" 
                 target="_blank"
                 className="flex items-center gap-2 sm:gap-3 p-2 sm:p-3 bg-white rounded-lg hover:bg-green-100 transition"
               >
                 <MessageCircle className="w-4 h-4 sm:w-5 sm:h-5 text-green-600" />
-                <span className="text-xs sm:text-sm font-semibold text-gray-800">واتساب: +966541700017</span>
+                <span className="text-xs sm:text-sm font-semibold text-gray-800">واتساب: 00962798905595</span>
               </a>
             </div>
           </div>

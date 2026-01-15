@@ -1,10 +1,10 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { createSupabaseBrowserClient } from '@/lib/supabase'
-import { LogOut, User } from 'lucide-react'
+import { LogOut, User, ChevronDown, LayoutDashboard, FileText, Settings } from 'lucide-react'
 import toast from 'react-hot-toast'
 import NotificationsDropdown from './NotificationsDropdown'
 
@@ -14,6 +14,8 @@ export default function Header() {
   const [user, setUser] = useState<any>(null)
   const [userProfile, setUserProfile] = useState<any>(null)
   const [loading, setLoading] = useState(true)
+  const [menuOpen, setMenuOpen] = useState(false)
+  const menuRef = useRef<HTMLDivElement | null>(null)
 
   useEffect(() => {
     checkUser()
@@ -30,6 +32,18 @@ export default function Header() {
 
     return () => subscription.unsubscribe()
   }, [])
+
+  useEffect(() => {
+    const onClickOutside = (e: MouseEvent) => {
+      if (!menuOpen) return
+      const target = e.target as Node
+      if (menuRef.current && !menuRef.current.contains(target)) {
+        setMenuOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', onClickOutside)
+    return () => document.removeEventListener('mousedown', onClickOutside)
+  }, [menuOpen])
 
   const checkUser = async () => {
     try {
@@ -65,6 +79,7 @@ export default function Header() {
     await supabase.auth.signOut()
     setUser(null)
     setUserProfile(null)
+    setMenuOpen(false)
     router.push('/')
     router.refresh()
     toast.success('تم تسجيل الخروج بنجاح')
@@ -109,24 +124,64 @@ export default function Header() {
               <div className="w-16 h-6 bg-gray-200 animate-pulse rounded"></div>
             ) : user ? (
               <>
-                <Link
-                  href="/dashboard"
-                  className="flex items-center gap-1 sm:gap-1.5 px-1.5 sm:px-2 md:px-3 py-0.5 sm:py-1 text-xs sm:text-sm text-gray-700 hover:text-blue-600 transition min-w-0"
-                >
-                  <User className="w-3 h-3 sm:w-4 sm:h-4 flex-shrink-0" />
-                  <span className="truncate max-w-[100px] sm:max-w-[120px] md:max-w-[160px] lg:max-w-[200px]">
-                    <span className="sm:hidden">حسابي: </span>
-                    {userProfile?.full_name || 'المستخدم'}
-                  </span>
-                </Link>
+                <div className="relative" ref={menuRef}>
+                  <button
+                    type="button"
+                    onClick={() => setMenuOpen(v => !v)}
+                    className="flex items-center gap-1 sm:gap-1.5 px-1.5 sm:px-2 md:px-3 py-0.5 sm:py-1 text-xs sm:text-sm text-gray-700 hover:text-blue-600 hover:bg-gray-100 rounded-lg transition min-w-0"
+                    aria-haspopup="menu"
+                    aria-expanded={menuOpen}
+                  >
+                    <User className="w-3 h-3 sm:w-4 sm:h-4 flex-shrink-0" />
+                    <span className="truncate max-w-[90px] sm:max-w-[120px] md:max-w-[160px] lg:max-w-[200px]">
+                      <span className="sm:hidden">حسابي: </span>
+                      {userProfile?.full_name || 'المستخدم'}
+                    </span>
+                    <ChevronDown className={`w-3 h-3 sm:w-4 sm:h-4 flex-shrink-0 transition-transform ${menuOpen ? 'rotate-180' : ''}`} />
+                  </button>
+
+                  {menuOpen && (
+                    <div
+                      className="absolute right-0 mt-2 w-56 sm:w-64 bg-white rounded-xl shadow-xl border border-gray-200 overflow-hidden z-50"
+                      role="menu"
+                    >
+                      <Link
+                        href="/dashboard"
+                        onClick={() => setMenuOpen(false)}
+                        className="flex items-center gap-2 px-4 py-3 text-sm text-gray-700 hover:bg-gray-50"
+                      >
+                        <LayoutDashboard className="w-4 h-4 text-blue-600" />
+                        لوحة التحكم
+                      </Link>
+                      <Link
+                        href="/dashboard/requests"
+                        onClick={() => setMenuOpen(false)}
+                        className="flex items-center gap-2 px-4 py-3 text-sm text-gray-700 hover:bg-gray-50"
+                      >
+                        <FileText className="w-4 h-4 text-purple-600" />
+                        طلباتي
+                      </Link>
+                      <Link
+                        href="/dashboard/profile"
+                        onClick={() => setMenuOpen(false)}
+                        className="flex items-center gap-2 px-4 py-3 text-sm text-gray-700 hover:bg-gray-50"
+                      >
+                        <Settings className="w-4 h-4 text-gray-700" />
+                        تعديل المعلومات
+                      </Link>
+                      <div className="h-px bg-gray-200" />
+                      <button
+                        onClick={handleLogout}
+                        className="w-full flex items-center gap-2 px-4 py-3 text-sm text-red-600 hover:bg-red-50"
+                        role="menuitem"
+                      >
+                        <LogOut className="w-4 h-4" />
+                        تسجيل الخروج
+                      </button>
+                    </div>
+                  )}
+                </div>
                 <NotificationsDropdown userId={user.id} />
-                <button
-                  onClick={handleLogout}
-                  className="px-1.5 sm:px-2 md:px-2.5 py-0.5 text-xs text-red-600 hover:text-red-700 hover:bg-red-50 rounded transition flex-shrink-0"
-                  title="تسجيل الخروج"
-                >
-                  <LogOut className="w-3 h-3 sm:w-4 sm:h-4" />
-                </button>
               </>
             ) : (
               <>

@@ -38,6 +38,10 @@ export interface AdminInfo {
   syrianPhone?: string
   purpose?: string
   paymentImages?: string[]
+  accountName?: string
+  tourismCompany?: string
+  transportCompany?: string
+  note?: string
 }
 
 

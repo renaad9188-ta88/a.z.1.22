@@ -21,7 +21,7 @@ export default function LoginForm() {
       return
     }
 
-    if (loginType === 'email' && !password) {
+    if (!password) {
       toast.error('يرجى إدخال كلمة المرور')
       return
     }
@@ -37,7 +37,7 @@ export default function LoginForm() {
         email = phone.trim()
         userPassword = password
       } else {
-        // تسجيل دخول برقم الهاتف - كلمة المرور افتراضية
+        // تسجيل دخول برقم الهاتف - كلمة المرور من المستخدم
         // تنظيف رقم الهاتف
         let cleanPhone = phone.replace(/\s+/g, '').replace(/[^\d+]/g, '')
         // إزالة الأصفار في البداية و + إذا كان موجوداً
@@ -47,7 +47,7 @@ export default function LoginForm() {
           cleanPhone = cleanPhone.substring(2)
         }
         email = `phone_${cleanPhone}@maidaa.local`
-        userPassword = password || '123456' // كلمة المرور الافتراضية للمستخدمين العاديين
+        userPassword = password
       }
 
       const { data, error } = await supabase.auth.signInWithPassword({
@@ -60,11 +60,17 @@ export default function LoginForm() {
       toast.success('تم تسجيل الدخول بنجاح')
       
       // التحقق من role وإعادة التوجيه
-      const { data: profile } = await supabase
+      const { data: profile, error: roleError } = await supabase
         .from('profiles')
         .select('role')
         .eq('user_id', data.user.id)
-        .single()
+        .order('updated_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+
+      if (roleError) {
+        console.error('Error loading role:', roleError)
+      }
 
       if (profile?.role === 'admin') {
         router.push('/admin')
@@ -143,45 +149,20 @@ export default function LoginForm() {
           </div>
 
           {/* حقل كلمة المرور - يظهر فقط عند تسجيل الدخول بالإيميل */}
-          {loginType === 'email' && (
-            <div>
-              <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-2">
-                كلمة المرور *
-              </label>
-              <input
-                id="password"
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                className="w-full px-3 sm:px-4 py-2.5 sm:py-3 text-sm sm:text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                placeholder="أدخل كلمة المرور"
-              />
-              <p className="mt-1 text-xs text-gray-500">
-                أدخل كلمة المرور المسجلة في Supabase Dashboard
-              </p>
-            </div>
-          )}
-
-          {/* حقل كلمة المرور اختياري للمستخدمين العاديين */}
-          {loginType === 'phone' && (
-            <div>
-              <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-2">
-                كلمة المرور (اختياري)
-              </label>
-              <input
-                id="password"
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="w-full px-3 sm:px-4 py-2.5 sm:py-3 text-sm sm:text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                placeholder="123456 (افتراضي)"
-              />
-              <p className="mt-1 text-xs text-gray-500">
-                إذا تركتها فارغة، سيتم استخدام كلمة المرور الافتراضية: 123456
-              </p>
-            </div>
-          )}
+          <div>
+            <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-2">
+              كلمة المرور *
+            </label>
+            <input
+              id="password"
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+              className="w-full px-3 sm:px-4 py-2.5 sm:py-3 text-sm sm:text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              placeholder="أدخل كلمة المرور"
+            />
+          </div>
 
           <button
             type="submit"
