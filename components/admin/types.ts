@@ -6,7 +6,7 @@ export interface VisitRequest {
   passport_number: string
   passport_expiry: string
   passport_image_url: string | null
-  visit_type: 'visit' | 'umrah' | 'tourism'
+  visit_type: 'visit' | 'umrah' | 'tourism' | 'goethe' | 'embassy'
   travel_date: string
   days_count: number
   city: string
@@ -47,10 +47,14 @@ export interface UserProfile {
 
 export interface AdminStats {
   total: number
-  pending: number
+  newRequests: number
+  received: number
+  underReview: number
+  inProgress: number
+  bookings: number
   approved: number
   rejected: number
-  underReview: number
+  completed: number
 }
 
 

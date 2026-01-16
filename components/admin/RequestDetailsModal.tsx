@@ -14,6 +14,7 @@ import {
   notifyRequestRejected, 
   notifyAdminResponse,
   notifyRequestUnderReview,
+  notifyRequestCompleted,
   notifyCustomMessage,
   notifyAllAdmins,
   createNotification
@@ -38,6 +39,7 @@ export default function RequestDetailsModal({
   const [rejectionReason, setRejectionReason] = useState('')
   const [adminNotes, setAdminNotes] = useState('')
   const [adminResponse, setAdminResponse] = useState('')
+  const [initialAdminResponse, setInitialAdminResponse] = useState('')
   const [passportImages, setPassportImages] = useState<string[]>([])
   const [paymentImages, setPaymentImages] = useState<string[]>([])
   const [imagesLoading, setImagesLoading] = useState(true)
@@ -55,8 +57,16 @@ export default function RequestDetailsModal({
         const lines = request.admin_notes.split('\n')
         const responseIndex = lines.findIndex(line => line.includes('=== رد الإدارة ==='))
         if (responseIndex !== -1) {
-          setAdminResponse(lines.slice(responseIndex + 1).join('\n'))
+          const prev = lines.slice(responseIndex + 1).join('\n').trim()
+          setAdminResponse(prev)
+          setInitialAdminResponse(prev)
+        } else {
+          setAdminResponse('')
+          setInitialAdminResponse('')
         }
+      } else {
+        setAdminResponse('')
+        setInitialAdminResponse('')
       }
 
       // تحميل الصور
@@ -174,9 +184,13 @@ export default function RequestDetailsModal({
     try {
       let updatedNotes = adminNotes
 
-      // إضافة الرد الجديد
-      if (adminResponse.trim()) {
-        const responseSection = `\n\n=== رد الإدارة ===\n${adminResponse}\nتاريخ الرد: ${formatDate(new Date())}`
+      const trimmedResponse = adminResponse.trim()
+      const trimmedInitialResponse = initialAdminResponse.trim()
+      const hasNewResponse = Boolean(trimmedResponse) && trimmedResponse !== trimmedInitialResponse
+
+      // إضافة الرد الجديد فقط إذا كان مختلفاً عن الرد السابق
+      if (hasNewResponse) {
+        const responseSection = `\n\n=== رد الإدارة ===\n${trimmedResponse}\nتاريخ الرد: ${formatDate(new Date())}`
         updatedNotes = adminNotes ? adminNotes + responseSection : responseSection
       }
 
@@ -260,13 +274,19 @@ export default function RequestDetailsModal({
               })
             }
           }
+          // إشعار عند الإكمال
+          else if (status === 'completed') {
+            console.log('Sending request completed notification to user...')
+            await notifyRequestCompleted(request.user_id, request.id, request.visitor_name)
+            console.log('Request completed notification sent successfully')
+          }
         }
 
-        // إنشاء إشعار عند وجود رد مخصص من الإدارة
-        if (adminResponse.trim()) {
+        // إنشاء إشعار عند وجود رد مخصص جديد من الإدارة
+        if (hasNewResponse) {
           console.log('Sending custom admin message notification to user...')
           // استخدام الرسالة المخصصة مباشرة
-          await notifyCustomMessage(request.user_id, request.id, adminResponse.trim())
+          await notifyCustomMessage(request.user_id, request.id, trimmedResponse)
           console.log('Custom admin message notification sent successfully')
         }
       } catch (notifyError) {
@@ -518,10 +538,11 @@ export default function RequestDetailsModal({
                   onChange={(e) => setStatus(e.target.value)}
                   className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm sm:text-base"
                 >
-                  <option value="pending">قيد المراجعة</option>
-                  <option value="under_review">بانتظار الموافقة</option>
-                  <option value="approved">تم القبول</option>
-                  <option value="rejected">تم الرفض</option>
+                  <option value="pending">جديد / مستلم</option>
+                  <option value="under_review">قيد المراجعة</option>
+                  <option value="approved">مقبول</option>
+                  <option value="rejected">مرفوض</option>
+                  <option value="completed">مكتمل</option>
                 </select>
               </div>
 

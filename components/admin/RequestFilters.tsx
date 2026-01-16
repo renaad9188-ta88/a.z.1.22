@@ -46,10 +46,14 @@ export default function RequestFilters({
           className="px-3 sm:px-4 py-2 sm:py-2.5 md:py-3 text-xs sm:text-sm md:text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white min-w-0"
         >
           <option value="all">جميع الحالات</option>
-          <option value="pending">قيد المراجعة</option>
-          <option value="under_review">بانتظار الموافقة</option>
-          <option value="approved">مقبولة</option>
+          <option value="new">طلبات جديدة (آخر 24 ساعة)</option>
+          <option value="received">مستلمة (بانتظار البدء)</option>
+          <option value="under_review">قيد المراجعة</option>
+          <option value="in_progress">قيد الإجراء</option>
+          <option value="approved">موافق عليها</option>
+          <option value="bookings">الحجوزات</option>
           <option value="rejected">مرفوضة</option>
+          <option value="completed">مكتملة</option>
         </select>
 
         {/* تصفية النوع */}
@@ -62,6 +66,8 @@ export default function RequestFilters({
           <option value="visit">زيارة</option>
           <option value="umrah">عمرة</option>
           <option value="tourism">سياحة</option>
+          <option value="goethe">امتحان جوته</option>
+          <option value="embassy">موعد سفارة</option>
         </select>
 
         {/* مسح التصفية */}

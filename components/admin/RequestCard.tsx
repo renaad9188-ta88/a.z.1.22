@@ -25,37 +25,44 @@ export default function RequestCard({ request, userProfile, onClick, onScheduleT
 
   // تحديد إذا كان الطلب جديد (أقل من 24 ساعة)
   const requestAge = getRequestAge()
-  const isNewRequest = requestAge.hours < 24
+  const isNewRequest = request.status === 'pending' && requestAge.hours < 24
 
   const getStatusBadge = (status: string) => {
     const statusMap: Record<string, { text: string; color: string; bgColor: string; borderColor: string; icon: any }> = {
       pending: { 
-        text: 'قيد المراجعة', 
-        color: 'text-yellow-800', 
-        bgColor: 'bg-yellow-100',
-        borderColor: 'border-yellow-300',
+        text: 'مستلم', 
+        color: 'text-amber-800', 
+        bgColor: 'bg-amber-100',
+        borderColor: 'border-amber-300',
         icon: Clock
       },
       under_review: { 
-        text: 'بانتظار الموافقة', 
-        color: 'text-blue-800', 
-        bgColor: 'bg-blue-100',
-        borderColor: 'border-blue-300',
+        text: 'قيد المراجعة', 
+        color: 'text-purple-800', 
+        bgColor: 'bg-purple-100',
+        borderColor: 'border-purple-300',
         icon: Eye
       },
       approved: { 
-        text: 'تم القبول', 
+        text: 'مقبول', 
         color: 'text-green-800', 
         bgColor: 'bg-green-100',
         borderColor: 'border-green-300',
         icon: CheckCircle
       },
       rejected: { 
-        text: 'تم الرفض', 
+        text: 'مرفوض', 
         color: 'text-red-800', 
         bgColor: 'bg-red-100',
         borderColor: 'border-red-300',
         icon: XCircle
+      },
+      completed: {
+        text: 'مكتمل',
+        color: 'text-gray-800',
+        bgColor: 'bg-gray-100',
+        borderColor: 'border-gray-300',
+        icon: CheckCircle,
       },
     }
 
@@ -75,6 +82,8 @@ export default function RequestCard({ request, userProfile, onClick, onScheduleT
       visit: 'زيارة',
       umrah: 'عمرة',
       tourism: 'سياحة',
+      goethe: 'امتحان جوته',
+      embassy: 'موعد سفارة',
     }
     return types[type] || type
   }

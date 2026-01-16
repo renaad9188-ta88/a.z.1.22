@@ -1,6 +1,6 @@
 'use client'
 
-import { FileText, Clock, CheckCircle, XCircle, Eye } from 'lucide-react'
+import { FileText, Clock, CheckCircle, XCircle, Eye, Calendar, Layers } from 'lucide-react'
 import { AdminStats as StatsType } from './types'
 
 interface AdminStatsProps {
@@ -18,15 +18,23 @@ export default function AdminStats({ stats }: AdminStatsProps) {
       iconBg: 'bg-blue-100',
     },
     {
-      label: 'قيد المراجعة',
-      value: stats.pending,
-      icon: Clock,
-      color: 'text-yellow-600',
-      bgColor: 'bg-yellow-50',
-      iconBg: 'bg-yellow-100',
+      label: 'طلبات جديدة (24 ساعة)',
+      value: stats.newRequests,
+      icon: Calendar,
+      color: 'text-sky-600',
+      bgColor: 'bg-sky-50',
+      iconBg: 'bg-sky-100',
     },
     {
-      label: 'بانتظار الموافقة',
+      label: 'مستلمة',
+      value: stats.received,
+      icon: Clock,
+      color: 'text-amber-600',
+      bgColor: 'bg-amber-50',
+      iconBg: 'bg-amber-100',
+    },
+    {
+      label: 'قيد المراجعة',
       value: stats.underReview,
       icon: Eye,
       color: 'text-purple-600',
@@ -34,12 +42,28 @@ export default function AdminStats({ stats }: AdminStatsProps) {
       iconBg: 'bg-purple-100',
     },
     {
-      label: 'مقبولة',
+      label: 'قيد الإجراء',
+      value: stats.inProgress,
+      icon: Layers,
+      color: 'text-indigo-600',
+      bgColor: 'bg-indigo-50',
+      iconBg: 'bg-indigo-100',
+    },
+    {
+      label: 'موافق عليها',
       value: stats.approved,
       icon: CheckCircle,
       color: 'text-green-600',
       bgColor: 'bg-green-50',
       iconBg: 'bg-green-100',
+    },
+    {
+      label: 'الحجوزات',
+      value: stats.bookings,
+      icon: Calendar,
+      color: 'text-teal-600',
+      bgColor: 'bg-teal-50',
+      iconBg: 'bg-teal-100',
     },
     {
       label: 'مرفوضة',
@@ -52,7 +76,7 @@ export default function AdminStats({ stats }: AdminStatsProps) {
   ]
 
   return (
-    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 sm:gap-3 md:gap-4 mb-4 sm:mb-6">
+    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-2 sm:gap-3 md:gap-4 mb-4 sm:mb-6">
       {statCards.map((stat, index) => {
         const Icon = stat.icon
         return (

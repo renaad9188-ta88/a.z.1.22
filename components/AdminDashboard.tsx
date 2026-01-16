@@ -14,6 +14,7 @@ import TripSchedulingModal from './admin/TripSchedulingModal'
 import RouteManagement from './admin/RouteManagement'
 import NotificationsDropdown from './NotificationsDropdown'
 import { VisitRequest, UserProfile, AdminStats as StatsType } from './admin/types'
+import { ChevronDown, Layers } from 'lucide-react'
 
 export default function AdminDashboard() {
   const router = useRouter()
@@ -30,6 +31,7 @@ export default function AdminDashboard() {
   const [typeFilter, setTypeFilter] = useState('all')
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
   const [showRouteManagement, setShowRouteManagement] = useState(false)
+  const [collapsedTypes, setCollapsedTypes] = useState<Record<string, boolean>>({})
 
   useEffect(() => {
     loadRequests()
@@ -191,19 +193,61 @@ export default function AdminDashboard() {
       request.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
       request.city.toLowerCase().includes(searchQuery.toLowerCase())
 
-    const matchesStatus = statusFilter === 'all' || request.status === statusFilter
+    const isNew = request.status === 'pending' && (Date.now() - new Date(request.created_at).getTime()) < 24 * 60 * 60 * 1000
+    const isReceived = request.status === 'pending'
+    const isInProgress = request.status === 'approved' && (request.trip_status === 'pending_arrival' || request.trip_status === 'arrived')
+    const isBooking = Boolean(request.trip_status) || Boolean(request.arrival_date) || Boolean(request.departure_date)
+
+    const matchesStatus =
+      statusFilter === 'all'
+        ? true
+        : statusFilter === 'new'
+          ? isNew
+          : statusFilter === 'received'
+            ? isReceived
+            : statusFilter === 'in_progress'
+              ? isInProgress
+              : statusFilter === 'bookings'
+                ? isBooking
+                : request.status === statusFilter
     const matchesType = typeFilter === 'all' || request.visit_type === typeFilter
 
     return matchesSearch && matchesStatus && matchesType
   })
 
+  const typeLabel = (t: string) => {
+    const map: Record<string, string> = {
+      visit: 'الزيارات',
+      umrah: 'العمرة',
+      tourism: 'السياحة',
+      goethe: 'امتحان جوته',
+      embassy: 'موعد سفارة',
+    }
+    return map[t] || t
+  }
+
+  const typeOrder = ['visit', 'goethe', 'embassy', 'umrah', 'tourism']
+  const groupedByType = (list: VisitRequest[]) => {
+    const groups: Record<string, VisitRequest[]> = {}
+    for (const r of list) {
+      const t = (r.visit_type || 'visit') as any
+      if (!groups[t]) groups[t] = []
+      groups[t].push(r)
+    }
+    return groups
+  }
+
   // حساب الإحصائيات
   const stats: StatsType = {
     total: requests.length,
-    pending: requests.filter(r => r.status === 'pending').length,
+    newRequests: requests.filter(r => r.status === 'pending' && (Date.now() - new Date(r.created_at).getTime()) < 24 * 60 * 60 * 1000).length,
+    received: requests.filter(r => r.status === 'pending').length,
     underReview: requests.filter(r => r.status === 'under_review').length,
+    inProgress: requests.filter(r => r.status === 'approved' && (r.trip_status === 'pending_arrival' || r.trip_status === 'arrived')).length,
+    bookings: requests.filter(r => Boolean(r.trip_status) || Boolean(r.arrival_date) || Boolean(r.departure_date)).length,
     approved: requests.filter(r => r.status === 'approved').length,
     rejected: requests.filter(r => r.status === 'rejected').length,
+    completed: requests.filter(r => r.status === 'completed' || r.trip_status === 'completed').length,
   }
 
   if (loading) {
@@ -338,16 +382,69 @@ export default function AdminDashboard() {
                   انقر على أي طلب لعرض التفاصيل والرد
                 </p>
               </div>
-              {filteredRequests.map((request, index) => (
-                <RequestCard
-                  key={request.id}
-                  request={request}
-                  userProfile={userProfiles[request.user_id]}
-                  onClick={() => handleRequestClick(request)}
-                  onScheduleTrip={() => handleScheduleTrip(request)}
-                  index={index}
-                />
-              ))}
+
+              {/* Grouped view when typeFilter == all (easier when there are many requests) */}
+              {typeFilter === 'all' ? (
+                <div className="space-y-4">
+                  {(() => {
+                    const groups = groupedByType(filteredRequests)
+                    const types = [
+                      ...typeOrder.filter(t => (groups[t] || []).length > 0),
+                      ...Object.keys(groups).filter(t => !typeOrder.includes(t)).sort(),
+                    ]
+                    return types.map((t) => {
+                      const list = groups[t] || []
+                      const isCollapsed = Boolean(collapsedTypes[t])
+                      return (
+                        <div key={t} className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+                          <button
+                            type="button"
+                            onClick={() => setCollapsedTypes(prev => ({ ...prev, [t]: !prev[t] }))}
+                            className="w-full flex items-center justify-between gap-3 px-4 py-3 hover:bg-gray-50 transition"
+                          >
+                            <div className="flex items-center gap-2 min-w-0">
+                              <Layers className="w-4 h-4 text-blue-600 flex-shrink-0" />
+                              <span className="font-extrabold text-gray-800 truncate">
+                                {typeLabel(t)}
+                              </span>
+                              <span className="text-xs font-bold tabular-nums px-2 py-0.5 rounded-full bg-blue-50 border border-blue-100 text-blue-700 flex-shrink-0">
+                                {list.length}
+                              </span>
+                            </div>
+                            <ChevronDown className={`w-4 h-4 text-gray-500 transition-transform ${isCollapsed ? 'rotate-180' : ''}`} />
+                          </button>
+
+                          {!isCollapsed && (
+                            <div className="p-3 sm:p-4 space-y-3">
+                              {list.map((request, idx) => (
+                                <RequestCard
+                                  key={request.id}
+                                  request={request}
+                                  userProfile={userProfiles[request.user_id]}
+                                  onClick={() => handleRequestClick(request)}
+                                  onScheduleTrip={() => handleScheduleTrip(request)}
+                                  index={idx}
+                                />
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )
+                    })
+                  })()}
+                </div>
+              ) : (
+                filteredRequests.map((request, index) => (
+                  <RequestCard
+                    key={request.id}
+                    request={request}
+                    userProfile={userProfiles[request.user_id]}
+                    onClick={() => handleRequestClick(request)}
+                    onScheduleTrip={() => handleScheduleTrip(request)}
+                    index={index}
+                  />
+                ))
+              )}
             </>
           )}
         </div>

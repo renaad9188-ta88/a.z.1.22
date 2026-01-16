@@ -91,6 +91,20 @@ export async function notifyRequestRejected(userId: string, requestId: string, v
 }
 
 /**
+ * إشعار للمستخدم: تم إكمال الطلب
+ */
+export async function notifyRequestCompleted(userId: string, requestId: string, visitorName: string) {
+  return createNotification({
+    userId,
+    title: 'تم إكمال طلبك',
+    message: `تم إكمال طلب ${visitorName}. شكراً لاستخدامك منصتنا.`,
+    type: 'success',
+    relatedType: 'request',
+    relatedId: requestId,
+  })
+}
+
+/**
  * إنشاء إشعار عند وجود رد من الإدارة
  */
 export async function notifyAdminResponse(userId: string, requestId: string) {
