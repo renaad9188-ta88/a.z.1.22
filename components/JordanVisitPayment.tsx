@@ -172,6 +172,19 @@ export default function JordanVisitPayment({ requestId, userId }: { requestId: s
           relatedType: 'request',
           relatedId: requestId,
         })
+
+        // إشعار للمشرف المعيّن (إن وجد)
+        const assignedTo = (request as any)?.assigned_to as string | null | undefined
+        if (assignedTo) {
+          await createNotification({
+            userId: assignedTo,
+            title: 'تم رفع صور الدفعة',
+            message: `قام ${userName} برفع صور الدفعة لطلب ${request?.visitor_name || 'زائر'}. يرجى المتابعة والتأكد.`,
+            type: 'warning',
+            relatedType: 'request',
+            relatedId: requestId,
+          })
+        }
       } catch (notifyErr) {
         console.error('Notification error after saving payment images:', notifyErr)
       }
@@ -229,6 +242,19 @@ export default function JordanVisitPayment({ requestId, userId }: { requestId: s
         const userName = profile?.full_name || 'مستخدم'
 
         await notifyAdminNewRequest(requestId, request?.visitor_name || 'زائر', userName, request?.city || '')
+
+        // إشعار للمشرف المعيّن (إن وجد) أن الطلب تم إرساله مع الدفعة
+        const assignedTo = (request as any)?.assigned_to as string | null | undefined
+        if (assignedTo) {
+          await createNotification({
+            userId: assignedTo,
+            title: 'تم إرسال الطلب مع الدفعة',
+            message: `تم إرسال الطلب ${request?.visitor_name || 'زائر'} بعد رفع الدفعة. يرجى المتابعة.`,
+            type: 'info',
+            relatedType: 'request',
+            relatedId: requestId,
+          })
+        }
       } catch (notifyErr) {
         console.error('Notification error after submit:', notifyErr)
       }

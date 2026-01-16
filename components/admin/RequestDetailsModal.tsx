@@ -17,7 +17,9 @@ import {
   notifyRequestCompleted,
   notifyCustomMessage,
   notifyAllAdmins,
-  createNotification
+  createNotification,
+  notifySupervisorAssigned,
+  notifyPaymentVerified
 } from '@/lib/notifications'
 
 interface RequestDetailsModalProps {
@@ -40,6 +42,9 @@ export default function RequestDetailsModal({
   const [adminNotes, setAdminNotes] = useState('')
   const [adminResponse, setAdminResponse] = useState('')
   const [initialAdminResponse, setInitialAdminResponse] = useState('')
+  const [assignedTo, setAssignedTo] = useState<string>('')
+  const [supervisors, setSupervisors] = useState<Array<{ user_id: string; full_name: string | null; phone: string | null }>>([])
+  const [paymentVerified, setPaymentVerified] = useState<boolean>(false)
   const [passportImages, setPassportImages] = useState<string[]>([])
   const [paymentImages, setPaymentImages] = useState<string[]>([])
   const [imagesLoading, setImagesLoading] = useState(true)
@@ -51,6 +56,8 @@ export default function RequestDetailsModal({
       setStatus(request.status)
       setRejectionReason(request.rejection_reason || '')
       setAdminNotes(request.admin_notes || '')
+      setAssignedTo((request as any)?.assigned_to || '')
+      setPaymentVerified(Boolean((request as any)?.payment_verified))
       
       // استخراج الرد السابق من admin_notes
       if (request.admin_notes) {
@@ -73,6 +80,25 @@ export default function RequestDetailsModal({
       loadImages()
     }
   }, [request])
+
+  useEffect(() => {
+    // تحميل قائمة المشرفين (للتعيين)
+    ;(async () => {
+      try {
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('user_id, full_name, phone')
+          .eq('role', 'supervisor')
+          .order('updated_at', { ascending: false })
+        if (error) throw error
+        setSupervisors((data || []) as any)
+      } catch (e) {
+        console.warn('Could not load supervisors list:', e)
+        setSupervisors([])
+      }
+    })()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const loadImages = async () => {
     if (!request) return
@@ -200,6 +226,27 @@ export default function RequestDetailsModal({
         admin_notes: updatedNotes,
       }
 
+      // تعيين مشرف (اختياري)
+      const prevAssignedTo = ((request as any)?.assigned_to || '') as string
+      const trimmedAssignedTo = assignedTo.trim()
+      const assignedChanged = trimmedAssignedTo !== (prevAssignedTo || '')
+      if (assignedChanged) {
+        updateData.assigned_to = trimmedAssignedTo || null
+        updateData.assigned_at = trimmedAssignedTo ? new Date().toISOString() : null
+        const { data: { user: adminUser } } = await supabase.auth.getUser()
+        updateData.assigned_by = trimmedAssignedTo && adminUser ? adminUser.id : null
+      }
+
+      // تأكيد الدفعة (بوابة الحجز)
+      const prevPaymentVerified = Boolean((request as any)?.payment_verified)
+      const paymentVerifiedChanged = paymentVerified !== prevPaymentVerified
+      if (paymentVerifiedChanged) {
+        updateData.payment_verified = paymentVerified
+        updateData.payment_verified_at = paymentVerified ? new Date().toISOString() : null
+        const { data: { user: adminUser } } = await supabase.auth.getUser()
+        updateData.payment_verified_by = paymentVerified && adminUser ? adminUser.id : null
+      }
+
       if (status === 'rejected' && rejectionReason) {
         updateData.rejection_reason = rejectionReason
       } else if (status !== 'rejected') {
@@ -288,6 +335,16 @@ export default function RequestDetailsModal({
           // استخدام الرسالة المخصصة مباشرة
           await notifyCustomMessage(request.user_id, request.id, trimmedResponse)
           console.log('Custom admin message notification sent successfully')
+        }
+
+        // إشعار للمشرف عند التعيين/إعادة التعيين
+        if (assignedChanged && trimmedAssignedTo) {
+          await notifySupervisorAssigned(trimmedAssignedTo, request.id, request.visitor_name)
+        }
+
+        // إشعار للمستخدم عند تأكيد الدفعة (فتح الحجز)
+        if (paymentVerifiedChanged && paymentVerified) {
+          await notifyPaymentVerified(request.user_id, request.id)
         }
       } catch (notifyError) {
         console.error('Error sending notifications:', notifyError)
@@ -531,6 +588,45 @@ export default function RequestDetailsModal({
           <div className="bg-yellow-50 rounded-lg p-4 border border-yellow-200">
             <h3 className="text-base sm:text-lg font-bold text-gray-800 mb-4">تحديث حالة الطلب</h3>
             <div className="space-y-4">
+              {/* تعيين المشرف */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">تعيين مشرف للطلب</label>
+                <select
+                  value={assignedTo}
+                  onChange={(e) => setAssignedTo(e.target.value)}
+                  className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm sm:text-base"
+                >
+                  <option value="">بدون تعيين</option>
+                  {supervisors.map((s) => (
+                    <option key={s.user_id} value={s.user_id}>
+                      {s.full_name || s.phone || s.user_id.slice(0, 8)}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-[11px] text-gray-600 mt-1">
+                  المشرف سيشاهد هذا الطلب فقط داخل لوحة المشرف.
+                </p>
+              </div>
+
+              {/* بوابة الدفع -> فتح الحجز */}
+              <div className="flex items-start gap-3 p-3 rounded-lg bg-white border border-yellow-200">
+                <input
+                  id="paymentVerified"
+                  type="checkbox"
+                  checked={paymentVerified}
+                  onChange={(e) => setPaymentVerified(e.target.checked)}
+                  className="mt-1"
+                />
+                <div className="min-w-0">
+                  <label htmlFor="paymentVerified" className="block text-sm font-bold text-gray-800">
+                    تم تأكيد الدفعة (فتح الحجز للمستخدم)
+                  </label>
+                  <p className="text-xs text-gray-600 mt-0.5">
+                    عند التفعيل: يظهر للمستخدم زر “حجز موعد الرحلة”.
+                  </p>
+                </div>
+              </div>
+
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">الحالة</label>
                 <select

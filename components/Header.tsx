@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { createSupabaseBrowserClient } from '@/lib/supabase'
-import { ArrowLeft, LogOut, User, ChevronDown, LayoutDashboard, FileText, Settings, Shield } from 'lucide-react'
+import { ArrowLeft, LogOut, User, ChevronDown, LayoutDashboard, FileText, Settings, Shield, Users } from 'lucide-react'
 import toast from 'react-hot-toast'
 import NotificationsDropdown from './NotificationsDropdown'
 
@@ -15,6 +15,7 @@ export default function Header() {
   const [userProfile, setUserProfile] = useState<any>(null)
   const [isAdmin, setIsAdmin] = useState(false)
   const [isDriver, setIsDriver] = useState(false)
+  const [isSupervisor, setIsSupervisor] = useState(false)
   const [loading, setLoading] = useState(true)
   const [menuOpen, setMenuOpen] = useState(false)
   const menuRef = useRef<HTMLDivElement | null>(null)
@@ -69,10 +70,12 @@ export default function Header() {
         const userRole = (profile?.role || '').toLowerCase()
         setIsAdmin(userRole === 'admin')
         setIsDriver(userRole === 'driver')
+        setIsSupervisor(userRole === 'supervisor')
       } else {
         setUser(null)
         setUserProfile(null)
         setIsAdmin(false)
+        setIsSupervisor(false)
       }
     } catch (error) {
       console.error('Error checking user:', error)
@@ -98,6 +101,7 @@ export default function Header() {
     }
     if (user) {
       if (isAdmin) router.push('/admin')
+      else if (isSupervisor) router.push('/admin')
       else if (isDriver) router.push('/driver')
       else router.push('/dashboard')
       return
@@ -169,7 +173,7 @@ export default function Header() {
                     <User className="w-3 h-3 sm:w-4 sm:h-4 flex-shrink-0" />
                     <span className="truncate max-w-[90px] sm:max-w-[120px] md:max-w-[160px] lg:max-w-[200px]">
                       <span className="sm:hidden">
-                        {isAdmin ? 'إدمن: ' : isDriver ? 'سائق: ' : 'حسابي: '}
+                        {isAdmin ? 'إدمن: ' : isSupervisor ? 'مشرف: ' : isDriver ? 'سائق: ' : 'حسابي: '}
                       </span>
                       {userProfile?.full_name || 'المستخدم'}
                     </span>
@@ -198,6 +202,25 @@ export default function Header() {
                           >
                             <Settings className="w-4 h-4 text-gray-700" />
                             إعدادات الإدمن
+                          </Link>
+                        </>
+                      ) : isSupervisor ? (
+                        <>
+                          <Link
+                            href="/admin"
+                            onClick={() => setMenuOpen(false)}
+                            className="flex items-center gap-2 px-4 py-3 text-sm text-gray-700 hover:bg-gray-50"
+                          >
+                            <Users className="w-4 h-4 text-blue-600" />
+                            لوحة المشرف
+                          </Link>
+                          <Link
+                            href="/admin/profile"
+                            onClick={() => setMenuOpen(false)}
+                            className="flex items-center gap-2 px-4 py-3 text-sm text-gray-700 hover:bg-gray-50"
+                          >
+                            <Settings className="w-4 h-4 text-gray-700" />
+                            إعدادات المشرف
                           </Link>
                         </>
                       ) : isDriver ? (

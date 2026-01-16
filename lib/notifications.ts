@@ -430,3 +430,31 @@ export async function notifyCustomMessage(userId: string, requestId: string, mes
   })
 }
 
+/**
+ * إشعار للمشرف: تم تعيين طلب له
+ */
+export async function notifySupervisorAssigned(supervisorUserId: string, requestId: string, visitorName: string) {
+  return createNotification({
+    userId: supervisorUserId,
+    title: 'تم تعيين طلب جديد لك',
+    message: `تم تعيين طلب ${visitorName} لك. يرجى فتح لوحة المشرف لمتابعته.`,
+    type: 'info',
+    relatedType: 'request',
+    relatedId: requestId,
+  })
+}
+
+/**
+ * إشعار للمستخدم: تم تأكيد الدفعة ويمكنه الحجز
+ */
+export async function notifyPaymentVerified(userId: string, requestId: string) {
+  return createNotification({
+    userId,
+    title: 'تم تأكيد الدفعة',
+    message: 'تم تأكيد الدفعة. يمكنك الآن حجز موعد الرحلة من لوحة التحكم.',
+    type: 'success',
+    relatedType: 'request',
+    relatedId: requestId,
+  })
+}
+

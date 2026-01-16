@@ -68,7 +68,7 @@ export default function DashboardContent({ userId }: { userId: string }) {
       // Load visit requests (فقط الحقول المطلوبة لتحسين الأداء)
       const { data: visitRequests, error } = await supabase
         .from('visit_requests')
-        .select('id, visitor_name, visit_type, travel_date, status, city, days_count, arrival_date, departure_date, trip_status, created_at')
+        .select('id, visitor_name, visit_type, travel_date, status, city, days_count, arrival_date, departure_date, trip_status, created_at, deposit_paid, deposit_amount, payment_verified')
         .eq('user_id', userId)
         .order('created_at', { ascending: false })
 
@@ -119,10 +119,10 @@ export default function DashboardContent({ userId }: { userId: string }) {
     }
 
     const statusMap: Record<string, { text: string; color: string; icon: any }> = {
-      pending: { text: 'قيد المراجعة', color: 'bg-yellow-100 text-yellow-800', icon: Clock },
-      under_review: { text: 'بانتظار الموافقة', color: 'bg-blue-100 text-blue-800', icon: Clock },
-      approved: { text: 'تم القبول', color: 'bg-green-100 text-green-800', icon: CheckCircle },
-      rejected: { text: 'تم الرفض', color: 'bg-red-100 text-red-800', icon: XCircle },
+      pending: { text: 'تم الاستلام', color: 'bg-amber-100 text-amber-900', icon: Clock },
+      under_review: { text: 'قيد المراجعة', color: 'bg-purple-100 text-purple-900', icon: Clock },
+      approved: { text: 'مقبول', color: 'bg-green-100 text-green-800', icon: CheckCircle },
+      rejected: { text: 'مرفوض', color: 'bg-red-100 text-red-800', icon: XCircle },
     }
 
     const statusInfo = statusMap[status] || statusMap.pending
@@ -408,11 +408,13 @@ export default function DashboardContent({ userId }: { userId: string }) {
                           onClick={() => setSchedulingRequest(request)}
                           disabled={
                             request.status !== 'approved' || 
+                            !(request as any).payment_verified ||
                             request.trip_status === 'completed' ||
                             request.trip_status === 'arrived'
                           }
                           className={`w-full sm:w-auto px-4 py-2 rounded-lg transition text-xs sm:text-sm font-semibold flex items-center justify-center gap-2 ${
                             request.status === 'approved' && 
+                            (request as any).payment_verified &&
                             request.trip_status !== 'completed' && 
                             request.trip_status !== 'arrived'
                               ? 'bg-green-600 text-white hover:bg-green-700'
@@ -421,6 +423,8 @@ export default function DashboardContent({ userId }: { userId: string }) {
                           title={
                             request.status !== 'approved'
                               ? 'يجب الموافقة على الطلب أولاً'
+                              : !(request as any).payment_verified
+                              ? 'بانتظار تأكيد الدفعة لفتح الحجز'
                               : request.trip_status === 'completed' || request.trip_status === 'arrived'
                               ? 'الرحلة منتهية أو بدأت'
                               : 'حجز موعد الرحلة'

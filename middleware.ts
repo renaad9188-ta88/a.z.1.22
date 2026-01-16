@@ -69,6 +69,9 @@ export async function middleware(req: NextRequest) {
     if (!profileError && userRole === 'admin') {
       return NextResponse.redirect(new URL('/admin', req.url))
     }
+    if (!profileError && userRole === 'supervisor') {
+      return NextResponse.redirect(new URL('/admin', req.url))
+    }
     if (!profileError && userRole === 'driver') {
       return NextResponse.redirect(new URL('/driver', req.url))
     }
@@ -80,7 +83,7 @@ export async function middleware(req: NextRequest) {
       return NextResponse.redirect(new URL('/auth/login', req.url))
     }
 
-    // Enforce role separation: only admins can access /admin
+    // Enforce role separation: only admins/supervisors can access /admin
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
       .select('role')
@@ -94,7 +97,8 @@ export async function middleware(req: NextRequest) {
       return NextResponse.redirect(new URL('/dashboard', req.url))
     }
 
-    if ((profile?.role || '').toLowerCase() !== 'admin') {
+    const role = (profile?.role || '').toLowerCase()
+    if (role !== 'admin' && role !== 'supervisor') {
       return NextResponse.redirect(new URL('/dashboard', req.url))
     }
   }

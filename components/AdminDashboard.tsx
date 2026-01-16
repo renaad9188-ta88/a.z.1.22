@@ -12,6 +12,7 @@ import RequestCard from './admin/RequestCard'
 import RequestDetailsModal from './admin/RequestDetailsModal'
 import TripSchedulingModal from './admin/TripSchedulingModal'
 import RouteManagement from './admin/RouteManagement'
+import SupervisorsManagement from './admin/SupervisorsManagement'
 import NotificationsDropdown from './NotificationsDropdown'
 import { VisitRequest, UserProfile, AdminStats as StatsType } from './admin/types'
 import { ChevronDown, Layers } from 'lucide-react'
@@ -30,7 +31,9 @@ export default function AdminDashboard() {
   const [statusFilter, setStatusFilter] = useState('all')
   const [typeFilter, setTypeFilter] = useState('all')
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
+  const [currentRole, setCurrentRole] = useState<'admin' | 'supervisor' | 'other'>('other')
   const [showRouteManagement, setShowRouteManagement] = useState(false)
+  const [showSupervisorsManagement, setShowSupervisorsManagement] = useState(false)
   const [collapsedTypes, setCollapsedTypes] = useState<Record<string, boolean>>({})
 
   useEffect(() => {
@@ -88,9 +91,14 @@ export default function AdminDashboard() {
         return
       }
 
-      if (!profile || (profile.role || '').toLowerCase() !== 'admin') {
+      const role = ((profile?.role || '') as string).toLowerCase()
+      const isAdmin = role === 'admin'
+      const isSupervisor = role === 'supervisor'
+      setCurrentRole(isAdmin ? 'admin' : isSupervisor ? 'supervisor' : 'other')
+
+      if (!profile || (!isAdmin && !isSupervisor)) {
         toast.error('ليس لديك صلاحية للوصول إلى لوحة الإدارة')
-        console.error('User is not admin:', { 
+        console.error('User is not admin/supervisor:', { 
           userId: user.id, 
           email: user.email,
           profile: profile 
@@ -102,7 +110,7 @@ export default function AdminDashboard() {
       // تحميل جميع الطلبات (فقط الحقول المطلوبة لتحسين الأداء)
       const { data: requestsData, error: requestsError } = await supabase
         .from('visit_requests')
-        .select('id, user_id, visitor_name, visit_type, travel_date, status, city, days_count, arrival_date, departure_date, trip_status, created_at, updated_at, admin_notes, companions_data, companions_count')
+        .select('id, user_id, visitor_name, visit_type, travel_date, status, city, days_count, arrival_date, departure_date, trip_status, created_at, updated_at, admin_notes, companions_data, companions_count, deposit_paid, deposit_amount, total_amount, remaining_amount, payment_verified, payment_verified_at, payment_verified_by, assigned_to, assigned_by, assigned_at')
         .order('created_at', { ascending: false })
 
       if (requestsError) {
@@ -145,7 +153,11 @@ export default function AdminDashboard() {
         }
       }
 
-      setRequests(visibleRequests || [])
+      const scoped = isSupervisor
+        ? (visibleRequests || []).filter((r: any) => (r?.assigned_to || null) === user.id)
+        : (visibleRequests || [])
+
+      setRequests(scoped || [])
       setUserProfiles(profilesMap)
     } catch (error: any) {
       console.error('Error in loadRequests:', error)
@@ -288,23 +300,35 @@ export default function AdminDashboard() {
                   <h1 className="text-xs sm:text-sm md:text-base lg:text-lg xl:text-xl font-bold bg-gradient-to-r from-red-600 via-gray-800 to-green-600 bg-clip-text text-transparent leading-tight group-hover:from-red-500 group-hover:to-green-500 transition-all truncate">
                     منصة خدمات السوريين
                   </h1>
-                  <p className="text-[10px] sm:text-xs md:text-sm text-gray-600 truncate">لوحة تحكم الإدارة</p>
+                  <p className="text-[10px] sm:text-xs md:text-sm text-gray-600 truncate">
+                    {currentRole === 'supervisor' ? 'لوحة المشرف' : 'لوحة تحكم الإدارة'}
+                  </p>
                   <div className="h-0.5 bg-gradient-to-r from-red-500 via-yellow-400 to-green-600 rounded-full mt-0.5 opacity-60 group-hover:opacity-100 transition-opacity"></div>
                 </div>
               </Link>
             </div>
             <div className="flex flex-row items-center gap-1.5 sm:gap-2 md:gap-3 w-full sm:w-auto justify-end sm:justify-start">
-              <button
-                onClick={() => setShowRouteManagement(!showRouteManagement)}
-                className="px-2 sm:px-3 md:px-4 py-1 sm:py-1.5 md:py-2 text-xs sm:text-sm md:text-base text-gray-700 hover:text-blue-600 transition whitespace-nowrap"
-              >
-                إدارة الخطوط
-              </button>
+              {currentRole === 'admin' && (
+                <button
+                  onClick={() => setShowRouteManagement(!showRouteManagement)}
+                  className="px-2 sm:px-3 md:px-4 py-1 sm:py-1.5 md:py-2 text-xs sm:text-sm md:text-base text-gray-700 hover:text-blue-600 transition whitespace-nowrap"
+                >
+                  إدارة الخطوط
+                </button>
+              )}
+              {currentRole === 'admin' && (
+                <button
+                  onClick={() => setShowSupervisorsManagement(!showSupervisorsManagement)}
+                  className="px-2 sm:px-3 md:px-4 py-1 sm:py-1.5 md:py-2 text-xs sm:text-sm md:text-base text-gray-700 hover:text-blue-600 transition whitespace-nowrap"
+                >
+                  المشرفين
+                </button>
+              )}
               <Link
                 href="/admin/profile"
                 className="px-2 sm:px-3 md:px-4 py-1 sm:py-1.5 md:py-2 text-xs sm:text-sm md:text-base text-gray-700 hover:text-blue-600 transition whitespace-nowrap"
               >
-                إعدادات الإدمن
+                {currentRole === 'supervisor' ? 'إعدادات المشرف' : 'إعدادات الإدمن'}
               </Link>
               {currentUserId && (
                 <NotificationsDropdown userId={currentUserId} />
@@ -335,6 +359,19 @@ export default function AdminDashboard() {
               </button>
             </div>
             <RouteManagement />
+          </div>
+        ) : showSupervisorsManagement ? (
+          <div className="mb-6">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-xl font-bold">إدارة المشرفين</h2>
+              <button
+                onClick={() => setShowSupervisorsManagement(false)}
+                className="px-4 py-2 bg-gray-200 rounded-lg hover:bg-gray-300"
+              >
+                العودة للطلبات
+              </button>
+            </div>
+            <SupervisorsManagement />
           </div>
         ) : (
           <>

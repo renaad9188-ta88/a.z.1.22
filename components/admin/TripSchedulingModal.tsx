@@ -6,7 +6,7 @@ import { VisitRequest } from './types'
 import { createSupabaseBrowserClient } from '@/lib/supabase'
 import { formatDate } from '@/lib/date-utils'
 import toast from 'react-hot-toast'
-import { notifyTripApproved, notifyTripRejected, notifyAdminTripRequest } from '@/lib/notifications'
+import { notifyTripApproved, notifyTripRejected, notifyAdminTripRequest, createNotification } from '@/lib/notifications'
 import DropoffPointSelector from '@/components/DropoffPointSelector'
 
 interface TripSchedulingModalProps {
@@ -267,7 +267,6 @@ export default function TripSchedulingModal({
       } else {
         // إرسال إشعار للمستخدم (تم إرسال طلب الحجز)
         try {
-          const { createNotification } = await import('@/lib/notifications')
           const arrivalDateStr = arrivalDate.toISOString().split('T')[0]
           
           let formattedDate = arrivalDateStr
@@ -290,6 +289,23 @@ export default function TripSchedulingModal({
           console.log('✅ [TRIP SCHEDULING] User notification sent successfully')
         } catch (notifyError) {
           console.error('❌ [TRIP SCHEDULING] Error sending user notification:', notifyError)
+        }
+
+        // إشعار للمشرف المعيّن (إن وجد) عند طلب حجز موعد
+        try {
+          const assignedTo = (request as any)?.assigned_to as string | null | undefined
+          if (assignedTo) {
+            await createNotification({
+              userId: assignedTo,
+              title: 'طلب حجز موعد جديد',
+              message: `المستخدم طلب حجز موعد للطلب ${request.visitor_name}. يرجى المراجعة.`,
+              type: 'warning',
+              relatedType: 'trip',
+              relatedId: request.id,
+            })
+          }
+        } catch (e) {
+          console.warn('Could not notify assigned supervisor about booking request:', e)
         }
 
         // إرسال إشعار للإدمن عند طلب حجز موعد

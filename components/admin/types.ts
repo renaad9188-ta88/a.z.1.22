@@ -29,6 +29,12 @@ export interface VisitRequest {
   deposit_amount: number | null
   total_amount: number | null
   remaining_amount: number | null
+  payment_verified?: boolean | null
+  payment_verified_at?: string | null
+  payment_verified_by?: string | null
+  assigned_to?: string | null
+  assigned_by?: string | null
+  assigned_at?: string | null
   admin_notes: string | null
   arrival_date: string | null
   departure_date: string | null
