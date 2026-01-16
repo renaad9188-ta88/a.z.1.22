@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Plane, Calendar, ArrowLeftRight, ChevronDown, CalendarDays } from 'lucide-react'
 import { createSupabaseBrowserClient } from '@/lib/supabase'
 import { formatDate } from '@/lib/date-utils'
@@ -113,6 +113,8 @@ export default function HomeTripStatusRow() {
   const [openDepartures, setOpenDepartures] = useState(false)
   const [arrivalsList, setArrivalsList] = useState<Array<{ trip_date: string; trip_time: string | null; people_count: number }>>([])
   const [departuresList, setDeparturesList] = useState<Array<{ trip_date: string; trip_time: string | null; people_count: number }>>([])
+  const arrivalsWrapRef = useRef<HTMLDivElement | null>(null)
+  const departuresWrapRef = useRef<HTMLDivElement | null>(null)
 
   useEffect(() => {
     let mounted = true
@@ -189,6 +191,29 @@ export default function HomeTripStatusRow() {
     }
   }, [openDepartures, supabase])
 
+  // Close dropdowns on outside click / tap
+  useEffect(() => {
+    if (!openArrivals && !openDepartures) return
+
+    const onPointerDown = (e: MouseEvent | TouchEvent) => {
+      const target = e.target as Node | null
+      if (!target) return
+
+      const inArrivals = arrivalsWrapRef.current?.contains(target)
+      const inDepartures = departuresWrapRef.current?.contains(target)
+
+      if (!inArrivals) setOpenArrivals(false)
+      if (!inDepartures) setOpenDepartures(false)
+    }
+
+    document.addEventListener('mousedown', onPointerDown, { capture: true })
+    document.addEventListener('touchstart', onPointerDown, { capture: true })
+    return () => {
+      document.removeEventListener('mousedown', onPointerDown, { capture: true } as any)
+      document.removeEventListener('touchstart', onPointerDown, { capture: true } as any)
+    }
+  }, [openArrivals, openDepartures])
+
   const routeLabel = useMemo(() => {
     const name = row?.default_route_name
     const start = row?.default_route_start
@@ -202,7 +227,7 @@ export default function HomeTripStatusRow() {
     <div className="max-w-6xl mx-auto">
       {/* Always side-by-side (even on mobile) */}
       <div className="grid grid-cols-2 gap-2 sm:gap-4 overflow-visible">
-        <div className="relative overflow-visible">
+        <div ref={arrivalsWrapRef} className="relative overflow-visible">
             <TripMiniCard
               variant="arrivals"
               loading={loading}
@@ -268,7 +293,7 @@ export default function HomeTripStatusRow() {
           )}
         </div>
 
-        <div className="relative overflow-visible">
+        <div ref={departuresWrapRef} className="relative overflow-visible">
             <TripMiniCard
               variant="departures"
               loading={loading}
