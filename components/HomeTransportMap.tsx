@@ -62,9 +62,19 @@ export default function HomeTransportMap() {
       mapRef.current = new googleMaps.Map(mapElRef.current, {
         center: BORDER_CENTER,
         zoom: 10,
-        mapTypeControl: false,
+        mapTypeId: googleMaps.MapTypeId.ROADMAP,
+        mapTypeControl: true, // Satellite / Map
+        mapTypeControlOptions: {
+          position: googleMaps.ControlPosition.TOP_LEFT,
+        },
+        zoomControl: true,
+        zoomControlOptions: {
+          position: googleMaps.ControlPosition.LEFT_CENTER,
+        },
         streetViewControl: false,
         fullscreenControl: true,
+        gestureHandling: 'greedy', // mobile-friendly pan/zoom
+        scrollwheel: true,
       })
     }
 

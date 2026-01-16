@@ -89,9 +89,16 @@ export default function DropoffPointSelector({
       mapObjRef.current = new googleMaps.Map(mapRef.current, {
         center: defaultCenter,
         zoom: 13,
-        mapTypeControl: false,
+        mapTypeId: googleMaps.MapTypeId.ROADMAP,
+        mapTypeControl: true,
+        mapTypeControlOptions: {
+          position: googleMaps.ControlPosition.TOP_LEFT,
+        },
+        zoomControl: true,
         fullscreenControl: true,
         streetViewControl: false,
+        gestureHandling: 'greedy',
+        scrollwheel: true,
       })
 
       // Add click listener to map

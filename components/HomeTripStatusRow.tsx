@@ -231,14 +231,21 @@ export default function HomeTripStatusRow() {
             />
 
           {openArrivals && (
-            <div className="absolute z-30 top-full mt-2 left-1/2 -translate-x-1/2 w-[min(30rem,calc(100vw-1.5rem))] bg-white rounded-xl border border-gray-100 shadow-xl p-3 text-xs text-gray-700">
+            <div
+              className="
+                absolute z-30 top-full mt-2
+                left-0 right-0 w-auto
+                sm:right-auto sm:w-[min(30rem,calc(100vw-1.5rem))]
+                bg-white rounded-xl border border-gray-100 shadow-xl p-3 text-xs text-gray-700
+              "
+            >
               {arrivalsList.length === 0 ? (
                 <div className="text-gray-500">لا توجد رحلات قادمة</div>
               ) : (
                 <div className="space-y-2">
-                  <div className="flex items-center justify-between text-[10px] text-gray-500 pb-1 border-b border-gray-100">
-                    <span>التاريخ والوقت</span>
-                    <span>عدد الأشخاص</span>
+                  <div className="flex items-center justify-between gap-3 text-[10px] sm:text-[11px] text-gray-500 pb-1 border-b border-gray-100">
+                    <span className="min-w-0 truncate">التاريخ والوقت</span>
+                    <span className="flex-shrink-0 whitespace-nowrap">عدد الأشخاص</span>
                   </div>
                   {arrivalsList.map((x, idx) => (
                     <div key={idx} className="flex items-center justify-between gap-2">
@@ -252,7 +259,7 @@ export default function HomeTripStatusRow() {
                           </span>
                         )}
                       </div>
-                      <span className="font-extrabold tabular-nums text-gray-900">{x.people_count}</span>
+                      <span className="font-extrabold tabular-nums text-gray-900 flex-shrink-0">{x.people_count}</span>
                     </div>
                   ))}
                 </div>
@@ -290,14 +297,21 @@ export default function HomeTripStatusRow() {
             />
 
           {openDepartures && (
-            <div className="absolute z-30 top-full mt-2 left-1/2 -translate-x-1/2 w-[min(30rem,calc(100vw-1.5rem))] bg-white rounded-xl border border-gray-100 shadow-xl p-3 text-xs text-gray-700">
+            <div
+              className="
+                absolute z-30 top-full mt-2
+                left-0 right-0 w-auto
+                sm:left-auto sm:right-0 sm:w-[min(30rem,calc(100vw-1.5rem))]
+                bg-white rounded-xl border border-gray-100 shadow-xl p-3 text-xs text-gray-700
+              "
+            >
               {departuresList.length === 0 ? (
                 <div className="text-gray-500">لا توجد رحلات قادمة</div>
               ) : (
                 <div className="space-y-2">
-                  <div className="flex items-center justify-between text-[10px] text-gray-500 pb-1 border-b border-gray-100">
-                    <span>التاريخ والوقت</span>
-                    <span>عدد الأشخاص</span>
+                  <div className="flex items-center justify-between gap-3 text-[10px] sm:text-[11px] text-gray-500 pb-1 border-b border-gray-100">
+                    <span className="min-w-0 truncate">التاريخ والوقت</span>
+                    <span className="flex-shrink-0 whitespace-nowrap">عدد الأشخاص</span>
                   </div>
                   {departuresList.map((x, idx) => (
                     <div key={idx} className="flex items-center justify-between gap-2">
@@ -311,7 +325,7 @@ export default function HomeTripStatusRow() {
                           </span>
                         )}
                       </div>
-                      <span className="font-extrabold tabular-nums text-gray-900">{x.people_count}</span>
+                      <span className="font-extrabold tabular-nums text-gray-900 flex-shrink-0">{x.people_count}</span>
                     </div>
                   ))}
                 </div>

@@ -8,9 +8,7 @@ export default function HomePage() {
     <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white">
 
       {/* Hero Carousel - Starts from top */}
-      <div className="pt-6">
-        <HeroCarousel />
-      </div>
+      <HeroCarousel />
 
       {/* Services Section - بعد البنر مباشرة */}
       <ServicesSection />
