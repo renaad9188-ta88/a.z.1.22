@@ -95,10 +95,10 @@ export default function AdminDashboard() {
         return
       }
       
-      // تحميل جميع الطلبات
+      // تحميل جميع الطلبات (فقط الحقول المطلوبة لتحسين الأداء)
       const { data: requestsData, error: requestsError } = await supabase
         .from('visit_requests')
-        .select('*')
+        .select('id, user_id, visitor_name, visit_type, travel_date, status, city, days_count, arrival_date, departure_date, trip_status, created_at, updated_at, admin_notes, companions_data, companions_count')
         .order('created_at', { ascending: false })
 
       if (requestsError) {
@@ -128,7 +128,7 @@ export default function AdminDashboard() {
       if (userIds.length > 0) {
         const { data: profilesData, error: profilesError } = await supabase
           .from('profiles')
-          .select('*')
+          .select('user_id, full_name, phone, jordan_phone, whatsapp_phone')
           .in('user_id', userIds)
 
         if (profilesError) {

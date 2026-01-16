@@ -53,7 +53,7 @@ export default function Header() {
       if (currentUser) {
         setUser(currentUser)
         
-        // Load user profile
+        // Load user profile (فقط الحقول المطلوبة)
         const { data: profile, error: profileError } = await supabase
           .from('profiles')
           .select('full_name, role')

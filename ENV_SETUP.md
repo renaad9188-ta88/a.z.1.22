@@ -11,7 +11,7 @@
 NEXT_PUBLIC_SUPABASE_URL=https://dcnywvixlcysalzfchye.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRjbnl3dml4bGN5c2FsemZjaHllIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjgyMTgxMzAsImV4cCI6MjA4Mzc5NDEzMH0.IpOCivcWhnDwTTNVs7PcCVLP6x7W9FIc26Ue32-lqSA
 
-# Google Maps API Key
+# Google Maps API Key (مشترك ومفعّل)
 NEXT_PUBLIC_GOOGLE_MAPS_API_KEY=AIzaSyBA7deUC6nBRAtMfMrjZvjOqRnAlrEeVy4
 ```
 

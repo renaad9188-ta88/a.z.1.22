@@ -214,7 +214,7 @@ export default function RequestDetails({ requestId, userId }: { requestId: strin
         </Link>
 
         <div className="card">
-          <RequestHeader requestId={request.id} status={request.status} />
+          <RequestHeader requestId={request.id} status={request.status} trackingHref={`/dashboard/request/${request.id}/track`} />
           
           <RequestInfo request={request} adminInfo={adminInfo} />
 

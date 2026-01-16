@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import { Calendar, Building2, GraduationCap, Plus, ArrowLeft, Plane, Bus, Car } from 'lucide-react'
+import HomeTransportMap from './HomeTransportMap'
 
 const services = [
   {
@@ -125,6 +126,11 @@ export default function ServicesSection() {
               <div className="h-1 bg-gradient-to-r from-green-500 to-green-600" />
             </div>
           </div>
+        </div>
+
+        {/* Map under counters */}
+        <div className="mb-6 sm:mb-8">
+          <HomeTransportMap />
         </div>
 
         {/* Header - أنيق ومدمج */}

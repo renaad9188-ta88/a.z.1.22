@@ -65,10 +65,10 @@ export default function DashboardContent({ userId }: { userId: string }) {
       }
       setUserProfile(profile || null)
 
-      // Load visit requests
+      // Load visit requests (فقط الحقول المطلوبة لتحسين الأداء)
       const { data: visitRequests, error } = await supabase
         .from('visit_requests')
-        .select('*')
+        .select('id, visitor_name, visit_type, travel_date, status, city, days_count, arrival_date, departure_date, trip_status, created_at')
         .eq('user_id', userId)
         .order('created_at', { ascending: false })
 

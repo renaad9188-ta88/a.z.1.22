@@ -61,10 +61,7 @@ export default function NotificationsDropdown({ userId }: NotificationsDropdownP
 
       loadNotifications()
       
-      // تحديث الإشعارات كل 30 ثانية
-      const interval = setInterval(loadNotifications, 30000)
-      
-      // الاستماع للتغييرات في الوقت الفعلي
+      // الاستماع للتغييرات في الوقت الفعلي فقط (بدون interval polling لتحسين الأداء)
       const channel = supabase
         .channel('notifications')
         .on(
@@ -82,7 +79,6 @@ export default function NotificationsDropdown({ userId }: NotificationsDropdownP
         .subscribe()
 
       return () => {
-        clearInterval(interval)
         supabase.removeChannel(channel)
       }
     }

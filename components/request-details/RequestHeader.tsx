@@ -1,13 +1,15 @@
 'use client'
 
-import { Clock, CheckCircle, XCircle } from 'lucide-react'
+import Link from 'next/link'
+import { Clock, CheckCircle, XCircle, MapPin } from 'lucide-react'
 
 interface RequestHeaderProps {
   requestId: string
   status: string
+  trackingHref?: string
 }
 
-export default function RequestHeader({ requestId, status }: RequestHeaderProps) {
+export default function RequestHeader({ requestId, status, trackingHref }: RequestHeaderProps) {
   const getStatusBadge = (status: string) => {
     const statusMap: Record<string, { text: string; color: string; icon: any }> = {
       pending: { text: 'قيد المراجعة', color: 'bg-yellow-100 text-yellow-800', icon: Clock },
@@ -29,11 +31,22 @@ export default function RequestHeader({ requestId, status }: RequestHeaderProps)
 
   return (
     <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 sm:gap-4 mb-3 sm:mb-5 pb-3 sm:pb-5 border-b border-gray-200">
-      <div>
+      <div className="min-w-0">
         <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-gray-800 mb-1 sm:mb-2">تفاصيل الطلب</h1>
         <p className="text-xs sm:text-sm text-gray-600">رقم الطلب: {requestId.slice(0, 8)}</p>
       </div>
-      {getStatusBadge(status)}
+      <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2">
+        {trackingHref && (
+          <Link
+            href={trackingHref}
+            className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-gray-200 bg-white hover:bg-gray-50 text-sm font-semibold text-gray-800"
+          >
+            <MapPin className="w-4 h-4 text-blue-600" />
+            تتبّع على الخريطة
+          </Link>
+        )}
+        {getStatusBadge(status)}
+      </div>
     </div>
   )
 }

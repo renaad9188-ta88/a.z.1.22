@@ -17,7 +17,15 @@ const nextConfig = {
       },
     ],
     unoptimized: false,
+    // تحسينات الأداء للصور
+    formats: ['image/webp', 'image/avif'],
+    minimumCacheTTL: 60,
   },
+  // تحسينات الأداء العامة
+  compress: true,
+  poweredByHeader: false,
+  reactStrictMode: true,
+  swcMinify: true,
   env: {
     NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL,
     NEXT_PUBLIC_SUPABASE_ANON_KEY: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,

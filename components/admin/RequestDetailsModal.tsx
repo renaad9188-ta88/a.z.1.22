@@ -8,6 +8,7 @@ import { getSignedImageUrl } from '../request-details/utils'
 import { formatDate } from '@/lib/date-utils'
 import { createSupabaseBrowserClient } from '@/lib/supabase'
 import toast from 'react-hot-toast'
+import TripTrackingAdminPanel from './TripTrackingAdminPanel'
 import { 
   notifyRequestApproved, 
   notifyRequestRejected, 
@@ -378,6 +379,11 @@ export default function RequestDetailsModal({
               </div>
             )}
           </div>
+
+          {/* تتبع الرحلة (إدمن) */}
+          {request.visit_type === 'visit' && (
+            <TripTrackingAdminPanel requestId={request.id} />
+          )}
 
           {/* صور الجوازات */}
           <div>
