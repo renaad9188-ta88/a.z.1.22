@@ -236,13 +236,23 @@ export default function HomeTripStatusRow() {
                 <div className="text-gray-500">لا توجد رحلات قادمة</div>
               ) : (
                 <div className="space-y-2">
+                  <div className="flex items-center justify-between text-[10px] text-gray-500 pb-1 border-b border-gray-100">
+                    <span>التاريخ والوقت</span>
+                    <span>عدد الأشخاص</span>
+                  </div>
                   {arrivalsList.map((x, idx) => (
                     <div key={idx} className="flex items-center justify-between gap-2">
-                      <span className="tabular-nums">
-                        {formatDate(x.trip_date)}
-                        {x.trip_time ? ` · ${String(x.trip_time).slice(0, 5)}` : ''}
-                      </span>
-                      <span className="font-bold tabular-nums">{x.people_count}</span>
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className="tabular-nums whitespace-nowrap">
+                          {formatDate(x.trip_date)} · {String(x.trip_time || '10:00').slice(0, 5)}
+                        </span>
+                        {!x.trip_time && (
+                          <span className="text-[10px] px-2 py-0.5 rounded-full bg-gray-100 text-gray-600 border border-gray-200 whitespace-nowrap">
+                            تجريبي
+                          </span>
+                        )}
+                      </div>
+                      <span className="font-extrabold tabular-nums text-gray-900">{x.people_count}</span>
                     </div>
                   ))}
                 </div>
@@ -285,13 +295,23 @@ export default function HomeTripStatusRow() {
                 <div className="text-gray-500">لا توجد رحلات قادمة</div>
               ) : (
                 <div className="space-y-2">
+                  <div className="flex items-center justify-between text-[10px] text-gray-500 pb-1 border-b border-gray-100">
+                    <span>التاريخ والوقت</span>
+                    <span>عدد الأشخاص</span>
+                  </div>
                   {departuresList.map((x, idx) => (
                     <div key={idx} className="flex items-center justify-between gap-2">
-                      <span className="tabular-nums">
-                        {formatDate(x.trip_date)}
-                        {x.trip_time ? ` · ${String(x.trip_time).slice(0, 5)}` : ''}
-                      </span>
-                      <span className="font-bold tabular-nums">{x.people_count}</span>
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className="tabular-nums whitespace-nowrap">
+                          {formatDate(x.trip_date)} · {String(x.trip_time || '10:00').slice(0, 5)}
+                        </span>
+                        {!x.trip_time && (
+                          <span className="text-[10px] px-2 py-0.5 rounded-full bg-gray-100 text-gray-600 border border-gray-200 whitespace-nowrap">
+                            تجريبي
+                          </span>
+                        )}
+                      </div>
+                      <span className="font-extrabold tabular-nums text-gray-900">{x.people_count}</span>
                     </div>
                   ))}
                 </div>
