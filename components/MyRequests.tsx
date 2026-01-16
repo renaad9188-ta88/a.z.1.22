@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { createSupabaseBrowserClient } from '@/lib/supabase'
 import toast from 'react-hot-toast'
-import { FileText, Trash2, Eye, Calendar, MapPin } from 'lucide-react'
+import { FileText, Trash2, Eye, Calendar, MapPin, Navigation } from 'lucide-react'
 import { formatDate } from '@/lib/date-utils'
 
 interface VisitRequest {
@@ -55,6 +55,11 @@ export default function MyRequests({ userId }: { userId: string }) {
     // المسودة تُعرف من عدم إرسالها (مخفية للإدمن) — عادةً تحمل [DRAFT] في admin_notes
     // لا نملك admin_notes في هذا الاستعلام، لذا نسمح بالحذف فقط للمنتهي/المرفوض حالياً
     return isCompleted || isRejected
+  }
+
+  const canTrack = (r: VisitRequest) => {
+    // نعرض زر التتبع فقط عندما تكون الرحلة نشطة
+    return r.status === 'approved' && (r.trip_status === 'pending_arrival' || r.trip_status === 'arrived')
   }
 
   const handleDelete = async (id: string) => {
@@ -137,6 +142,15 @@ export default function MyRequests({ userId }: { userId: string }) {
                         <Eye className="w-4 h-4" />
                         التفاصيل
                       </Link>
+                      {canTrack(r) && (
+                        <Link
+                          href={`/dashboard/request/${r.id}/track`}
+                          className="inline-flex items-center justify-center gap-2 px-3 py-2 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 text-xs sm:text-sm font-semibold"
+                        >
+                          <Navigation className="w-4 h-4" />
+                          تتبّع
+                        </Link>
+                      )}
                       <button
                         onClick={() => handleDelete(r.id)}
                         disabled={!canDelete(r)}

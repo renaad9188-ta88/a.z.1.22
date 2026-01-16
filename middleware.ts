@@ -56,7 +56,7 @@ export async function middleware(req: NextRequest) {
       return NextResponse.redirect(new URL('/auth/login', req.url))
     }
 
-    // Enforce separation: admins should not land in user dashboard routes
+    // Enforce separation: admins and drivers should not land in user dashboard routes
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
       .select('role')
@@ -65,8 +65,12 @@ export async function middleware(req: NextRequest) {
       .limit(1)
       .maybeSingle()
 
-    if (!profileError && (profile?.role || '').toLowerCase() === 'admin') {
+    const userRole = (profile?.role || '').toLowerCase()
+    if (!profileError && userRole === 'admin') {
       return NextResponse.redirect(new URL('/admin', req.url))
+    }
+    if (!profileError && userRole === 'driver') {
+      return NextResponse.redirect(new URL('/driver', req.url))
     }
   }
 
@@ -95,6 +99,31 @@ export async function middleware(req: NextRequest) {
     }
   }
 
+  // Protect driver routes
+  if (req.nextUrl.pathname.startsWith('/driver')) {
+    if (!user) {
+      return NextResponse.redirect(new URL('/auth/login', req.url))
+    }
+
+    // Enforce role separation: only drivers can access /driver
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('user_id', user.id)
+      .order('updated_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+
+    if (profileError) {
+      // If we can't verify role, default to safest behavior: block access
+      return NextResponse.redirect(new URL('/dashboard', req.url))
+    }
+
+    if ((profile?.role || '').toLowerCase() !== 'driver') {
+      return NextResponse.redirect(new URL('/dashboard', req.url))
+    }
+  }
+
   // Protect request-visit route
   if (req.nextUrl.pathname.startsWith('/request-visit') && !user) {
     return NextResponse.redirect(new URL('/auth/login', req.url))
@@ -104,6 +133,6 @@ export async function middleware(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/dashboard/:path*', '/admin/:path*', '/request-visit/:path*'],
+  matcher: ['/dashboard/:path*', '/admin/:path*', '/driver/:path*', '/request-visit/:path*'],
 }
 

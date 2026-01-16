@@ -1,8 +1,10 @@
 'use client'
 
 import Link from 'next/link'
-import { Calendar, Building2, GraduationCap, Plus, ArrowLeft, Plane, Bus, Car } from 'lucide-react'
+import { Calendar, Building2, GraduationCap, Plus, ArrowLeft } from 'lucide-react'
 import HomeTransportMap from './HomeTransportMap'
+import HomeCounters from './HomeCounters'
+import HomeTripStatusRow from './HomeTripStatusRow'
 
 const services = [
   {
@@ -52,85 +54,20 @@ const services = [
 ]
 
 export default function ServicesSection() {
-  // لاحقاً يمكن ربطها ببيانات حقيقية من قاعدة البيانات
-  const arrivalsCount = 128
-  const departuresCount = 73
-
   return (
     <section className="bg-gradient-to-b from-white to-gray-50 py-6 sm:py-8 md:py-10">
       <div className="container mx-auto px-4">
-        {/* Counters */}
-        <div className="max-w-6xl mx-auto mb-5 sm:mb-6">
-          <div className="flex items-stretch gap-3 sm:gap-4">
-            {/* القادمون (على اليمين في RTL) */}
-            <div className="flex-1 bg-white rounded-2xl shadow-md border border-gray-100 overflow-hidden">
-              <div className="p-3 sm:p-4">
-                <div className="flex items-center justify-between gap-3">
-                  <div className="min-w-0">
-                    <p className="text-xs sm:text-sm text-gray-600 font-semibold">القادمون</p>
-                    <p className="text-[10px] sm:text-xs text-gray-500">عداد القادمين</p>
-                  </div>
-                  <div className="flex items-center gap-2 flex-shrink-0">
-                    <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-blue-50 flex items-center justify-center">
-                      <Plane className="w-5 h-5 sm:w-6 sm:h-6 text-blue-600" />
-                    </div>
-                    <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-amber-50 flex items-center justify-center">
-                      <Bus className="w-5 h-5 sm:w-6 sm:h-6 text-amber-600" />
-                    </div>
-                    <div className="hidden sm:flex w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-slate-50 items-center justify-center">
-                      <Car className="w-5 h-5 sm:w-6 sm:h-6 text-slate-700" />
-                    </div>
-                  </div>
-                </div>
-                <div className="mt-3 flex items-end justify-between">
-                  <div className="text-2xl sm:text-3xl md:text-4xl font-extrabold text-gray-900 tabular-nums tracking-tight">
-                    {arrivalsCount}
-                  </div>
-                  <span className="text-[10px] sm:text-xs text-blue-700 bg-blue-50 border border-blue-100 px-2 py-1 rounded-full font-semibold">
-                    أرقام تجريبية
-                  </span>
-                </div>
-              </div>
-              <div className="h-1 bg-gradient-to-r from-blue-500 to-blue-600" />
-            </div>
-
-            {/* المغادرون (على الشمال) */}
-            <div className="flex-1 bg-white rounded-2xl shadow-md border border-gray-100 overflow-hidden">
-              <div className="p-3 sm:p-4">
-                <div className="flex items-center justify-between gap-3">
-                  <div className="min-w-0">
-                    <p className="text-xs sm:text-sm text-gray-600 font-semibold">المغادرون</p>
-                    <p className="text-[10px] sm:text-xs text-gray-500">عداد المغادرين</p>
-                  </div>
-                  <div className="flex items-center gap-2 flex-shrink-0">
-                    <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-green-50 flex items-center justify-center">
-                      <Plane className="w-5 h-5 sm:w-6 sm:h-6 text-green-600 rotate-180" />
-                    </div>
-                    <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-amber-50 flex items-center justify-center">
-                      <Bus className="w-5 h-5 sm:w-6 sm:h-6 text-amber-600" />
-                    </div>
-                    <div className="hidden sm:flex w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-slate-50 items-center justify-center">
-                      <Car className="w-5 h-5 sm:w-6 sm:h-6 text-slate-700" />
-                    </div>
-                  </div>
-                </div>
-                <div className="mt-3 flex items-end justify-between">
-                  <div className="text-2xl sm:text-3xl md:text-4xl font-extrabold text-gray-900 tabular-nums tracking-tight">
-                    {departuresCount}
-                  </div>
-                  <span className="text-[10px] sm:text-xs text-green-700 bg-green-50 border border-green-100 px-2 py-1 rounded-full font-semibold">
-                    أرقام تجريبية
-                  </span>
-                </div>
-              </div>
-              <div className="h-1 bg-gradient-to-r from-green-500 to-green-600" />
-            </div>
-          </div>
-        </div>
+        {/* Counters above the map */}
+        <HomeCounters />
 
         {/* Map under counters */}
-        <div className="mb-6 sm:mb-8">
+        <div className="mb-2 sm:mb-3">
           <HomeTransportMap />
+        </div>
+
+        {/* Trip status row directly under the map (and above "خدماتنا") */}
+        <div className="mb-6 sm:mb-8">
+          <HomeTripStatusRow />
         </div>
 
         {/* Header - أنيق ومدمج */}

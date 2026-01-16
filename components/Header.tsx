@@ -14,6 +14,7 @@ export default function Header() {
   const [user, setUser] = useState<any>(null)
   const [userProfile, setUserProfile] = useState<any>(null)
   const [isAdmin, setIsAdmin] = useState(false)
+  const [isDriver, setIsDriver] = useState(false)
   const [loading, setLoading] = useState(true)
   const [menuOpen, setMenuOpen] = useState(false)
   const menuRef = useRef<HTMLDivElement | null>(null)
@@ -65,7 +66,9 @@ export default function Header() {
         }
         
         setUserProfile(profile || null)
-        setIsAdmin((profile?.role || '').toLowerCase() === 'admin')
+        const userRole = (profile?.role || '').toLowerCase()
+        setIsAdmin(userRole === 'admin')
+        setIsDriver(userRole === 'driver')
       } else {
         setUser(null)
         setUserProfile(null)
@@ -94,7 +97,9 @@ export default function Header() {
       return
     }
     if (user) {
-      router.push(isAdmin ? '/admin' : '/dashboard')
+      if (isAdmin) router.push('/admin')
+      else if (isDriver) router.push('/driver')
+      else router.push('/dashboard')
       return
     }
     router.push('/')
@@ -163,7 +168,9 @@ export default function Header() {
                   >
                     <User className="w-3 h-3 sm:w-4 sm:h-4 flex-shrink-0" />
                     <span className="truncate max-w-[90px] sm:max-w-[120px] md:max-w-[160px] lg:max-w-[200px]">
-                      <span className="sm:hidden">{isAdmin ? 'إدمن: ' : 'حسابي: '}</span>
+                      <span className="sm:hidden">
+                        {isAdmin ? 'إدمن: ' : isDriver ? 'سائق: ' : 'حسابي: '}
+                      </span>
                       {userProfile?.full_name || 'المستخدم'}
                     </span>
                     <ChevronDown className={`w-3 h-3 sm:w-4 sm:h-4 flex-shrink-0 transition-transform ${menuOpen ? 'rotate-180' : ''}`} />
@@ -191,6 +198,25 @@ export default function Header() {
                           >
                             <Settings className="w-4 h-4 text-gray-700" />
                             إعدادات الإدمن
+                          </Link>
+                        </>
+                      ) : isDriver ? (
+                        <>
+                          <Link
+                            href="/driver"
+                            onClick={() => setMenuOpen(false)}
+                            className="flex items-center gap-2 px-4 py-3 text-sm text-gray-700 hover:bg-gray-50"
+                          >
+                            <LayoutDashboard className="w-4 h-4 text-green-600" />
+                            لوحة السائق
+                          </Link>
+                          <Link
+                            href="/driver/profile"
+                            onClick={() => setMenuOpen(false)}
+                            className="flex items-center gap-2 px-4 py-3 text-sm text-gray-700 hover:bg-gray-50"
+                          >
+                            <Settings className="w-4 h-4 text-gray-700" />
+                            إعدادات السائق
                           </Link>
                         </>
                       ) : (

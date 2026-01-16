@@ -11,6 +11,7 @@ import RequestFilters from './admin/RequestFilters'
 import RequestCard from './admin/RequestCard'
 import RequestDetailsModal from './admin/RequestDetailsModal'
 import TripSchedulingModal from './admin/TripSchedulingModal'
+import RouteManagement from './admin/RouteManagement'
 import NotificationsDropdown from './NotificationsDropdown'
 import { VisitRequest, UserProfile, AdminStats as StatsType } from './admin/types'
 
@@ -28,6 +29,7 @@ export default function AdminDashboard() {
   const [statusFilter, setStatusFilter] = useState('all')
   const [typeFilter, setTypeFilter] = useState('all')
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
+  const [showRouteManagement, setShowRouteManagement] = useState(false)
 
   useEffect(() => {
     loadRequests()
@@ -248,6 +250,12 @@ export default function AdminDashboard() {
               </Link>
             </div>
             <div className="flex flex-row items-center gap-1.5 sm:gap-2 md:gap-3 w-full sm:w-auto justify-end sm:justify-start">
+              <button
+                onClick={() => setShowRouteManagement(!showRouteManagement)}
+                className="px-2 sm:px-3 md:px-4 py-1 sm:py-1.5 md:py-2 text-xs sm:text-sm md:text-base text-gray-700 hover:text-blue-600 transition whitespace-nowrap"
+              >
+                إدارة الخطوط
+              </button>
               <Link
                 href="/admin/profile"
                 className="px-2 sm:px-3 md:px-4 py-1 sm:py-1.5 md:py-2 text-xs sm:text-sm md:text-base text-gray-700 hover:text-blue-600 transition whitespace-nowrap"
@@ -270,8 +278,24 @@ export default function AdminDashboard() {
       </header>
 
       <div className="container mx-auto px-2 sm:px-3 md:px-4 py-3 sm:py-4 md:py-6 max-w-full">
-        {/* Stats */}
-        <AdminStats stats={stats} />
+        {/* Route Management */}
+        {showRouteManagement ? (
+          <div className="mb-6">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-xl font-bold">إدارة الخطوط والسائقين</h2>
+              <button
+                onClick={() => setShowRouteManagement(false)}
+                className="px-4 py-2 bg-gray-200 rounded-lg hover:bg-gray-300"
+              >
+                العودة للطلبات
+              </button>
+            </div>
+            <RouteManagement />
+          </div>
+        ) : (
+          <>
+            {/* Stats */}
+            <AdminStats stats={stats} />
 
         {/* Filters */}
         <RequestFilters
@@ -327,6 +351,8 @@ export default function AdminDashboard() {
             </>
           )}
         </div>
+          </>
+        )}
       </div>
 
       {/* Request Details Modal */}

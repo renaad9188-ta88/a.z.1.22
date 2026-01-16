@@ -1,12 +1,13 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { X, Calendar, Save, Clock, CheckCircle, Plane } from 'lucide-react'
+import { X, Calendar, Save, Clock, CheckCircle, Plane, MapPin } from 'lucide-react'
 import { VisitRequest } from './types'
 import { createSupabaseBrowserClient } from '@/lib/supabase'
 import { formatDate } from '@/lib/date-utils'
 import toast from 'react-hot-toast'
 import { notifyTripApproved, notifyTripRejected, notifyAdminTripRequest } from '@/lib/notifications'
+import DropoffPointSelector from '@/components/DropoffPointSelector'
 
 interface TripSchedulingModalProps {
   request: VisitRequest | null
@@ -34,6 +35,10 @@ export default function TripSchedulingModal({
   const [selectedArrivalDate, setSelectedArrivalDate] = useState<string>('')
   const [availableArrivalDates, setAvailableArrivalDates] = useState<Date[]>([])
   const [availableDepartureDates, setAvailableDepartureDates] = useState<Date[]>([])
+  const [dropoffPoint, setDropoffPoint] = useState<{ name: string; address: string; lat: number; lng: number } | null>(null)
+  const [showDropoffSelector, setShowDropoffSelector] = useState(false)
+  const [arrivalTime, setArrivalTime] = useState<string>('10:00')
+  const [departureTime, setDepartureTime] = useState<string>('10:00')
 
   useEffect(() => {
     if (request) {
@@ -45,8 +50,31 @@ export default function TripSchedulingModal({
         // احسب تواريخ القدوم المتاحة (الأسابيع القادمة)
         calculateArrivalDates()
       }
+
+      // تحميل نقطة النزول المخصصة إن وجدت
+      if (request.id) {
+        supabase
+          .from('request_dropoff_points')
+          .select('name, address, lat, lng')
+          .eq('request_id', request.id)
+          .maybeSingle()
+          .then(({ data, error }) => {
+            if (!error && data) {
+              setDropoffPoint({
+                name: data.name,
+                address: data.address || '',
+                lat: data.lat,
+                lng: data.lng,
+              })
+            }
+          })
+      }
+
+      // أوقات الرحلة (إن وجدت) أو افتراضي
+      setArrivalTime((request as any)?.arrival_time || '10:00')
+      setDepartureTime((request as any)?.departure_time || '10:00')
     }
-  }, [request])
+  }, [request, supabase])
 
   const calculateArrivalDates = () => {
     const dates: Date[] = []
@@ -170,11 +198,50 @@ export default function TripSchedulingModal({
       // إذا كان من لوحة المستخدم، ينتظر الموافقة
       const tripStatus = isAdmin ? 'pending_arrival' : 'scheduled_pending_approval'
 
+      // اختر route_id: إذا كان الطلب فيه route_id نستخدمه، وإلا نأخذ أول route نشط كافتراضي
+      let effectiveRouteId: string | null = (request as any)?.route_id || null
+      if (!effectiveRouteId) {
+        const { data: routeData } = await supabase
+          .from('routes')
+          .select('id')
+          .eq('is_active', true)
+          .order('created_at', { ascending: true })
+          .limit(1)
+          .maybeSingle()
+        effectiveRouteId = routeData?.id || null
+      }
+
+      // حفظ نقطة النزول إذا كانت محددة
+      if (dropoffPoint && request.id) {
+        try {
+          const { error: dropoffError } = await supabase
+            .from('request_dropoff_points')
+            .upsert({
+              request_id: request.id,
+              route_id: effectiveRouteId,
+              name: dropoffPoint.name,
+              address: dropoffPoint.address,
+              lat: dropoffPoint.lat,
+              lng: dropoffPoint.lng,
+            }, { onConflict: 'request_id' })
+
+          if (dropoffError) {
+            console.error('Error saving dropoff point:', dropoffError)
+            // لا نوقف العملية إذا فشل حفظ نقطة النزول
+          }
+        } catch (dropoffErr) {
+          console.error('Error in dropoff point save:', dropoffErr)
+        }
+      }
+
       // التأكد من أن القيم صحيحة
       const updateData: any = {
         arrival_date: arrivalDate.toISOString().split('T')[0],
         departure_date: finalDepartureDate.toISOString().split('T')[0],
         trip_status: tripStatus,
+        route_id: effectiveRouteId,
+        arrival_time: arrivalTime || null,
+        departure_time: departureTime || null,
         updated_at: new Date().toISOString(),
       }
 
@@ -540,6 +607,33 @@ export default function TripSchedulingModal({
             )}
           </div>
 
+          {/* وقت القدوم/المغادرة (للإدمن فقط) */}
+          {isAdmin && selectedArrivalDate && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="bg-white border border-gray-200 rounded-lg p-4">
+                <label className="block text-sm font-bold text-gray-800 mb-2">وقت القدوم</label>
+                <input
+                  type="time"
+                  value={arrivalTime}
+                  onChange={(e) => setArrivalTime(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                />
+                <p className="mt-1 text-[11px] text-gray-500">اختياري — يظهر على الصفحة الرئيسية وقائمة الرحلات.</p>
+              </div>
+
+              <div className="bg-white border border-gray-200 rounded-lg p-4">
+                <label className="block text-sm font-bold text-gray-800 mb-2">وقت المغادرة</label>
+                <input
+                  type="time"
+                  value={departureTime}
+                  onChange={(e) => setDepartureTime(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-sm"
+                />
+                <p className="mt-1 text-[11px] text-gray-500">اختياري — إذا تركته فارغاً لن يظهر وقت.</p>
+              </div>
+            </div>
+          )}
+
           {/* تاريخ المغادرة */}
           {selectedArrivalDate && (
             <div>
@@ -578,6 +672,64 @@ export default function TripSchedulingModal({
                   )}
                 </div>
               )}
+            </div>
+          )}
+
+          {/* نقطة النزول */}
+          {selectedArrivalDate && !isAdmin && (
+            <div>
+              <label className="block text-base sm:text-lg font-bold text-gray-800 mb-3 flex items-center gap-2">
+                <MapPin className="w-5 h-5 text-orange-600" />
+                نقطة النزول (اختياري)
+              </label>
+              {!showDropoffSelector && !dropoffPoint ? (
+                <button
+                  onClick={() => setShowDropoffSelector(true)}
+                  className="w-full px-4 py-3 border-2 border-dashed border-gray-300 rounded-lg hover:border-blue-500 hover:bg-blue-50 transition text-sm sm:text-base"
+                >
+                  + إضافة نقطة نزول مخصصة
+                </button>
+              ) : showDropoffSelector ? (
+                <div className="bg-white border-2 border-blue-200 rounded-lg p-4">
+                  <DropoffPointSelector
+                    requestId={request.id}
+                    onSelect={(point) => {
+                      setDropoffPoint(point)
+                      setShowDropoffSelector(false)
+                      toast.success('تم حفظ نقطة النزول')
+                    }}
+                  />
+                  <button
+                    onClick={() => {
+                      setShowDropoffSelector(false)
+                      if (!dropoffPoint) setDropoffPoint(null)
+                    }}
+                    className="mt-3 w-full px-4 py-2 bg-gray-200 rounded-lg hover:bg-gray-300 text-sm"
+                  >
+                    إلغاء
+                  </button>
+                </div>
+              ) : dropoffPoint ? (
+                <div className="bg-green-50 border-2 border-green-200 rounded-lg p-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="font-medium text-green-800">{dropoffPoint.name}</p>
+                      {dropoffPoint.address && (
+                        <p className="text-sm text-green-600 mt-1">{dropoffPoint.address}</p>
+                      )}
+                    </div>
+                    <button
+                      onClick={() => {
+                        setDropoffPoint(null)
+                        setShowDropoffSelector(false)
+                      }}
+                      className="px-3 py-1 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 text-sm"
+                    >
+                      حذف
+                    </button>
+                  </div>
+                </div>
+              ) : null}
             </div>
           )}
 

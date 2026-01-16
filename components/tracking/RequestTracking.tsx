@@ -29,6 +29,36 @@ type StopRow = {
   order_index: number
 }
 
+type RouteStopPoint = {
+  id: string
+  route_id: string
+  name: string
+  description: string | null
+  lat: number
+  lng: number
+  order_index: number
+}
+
+type Route = {
+  id: string
+  name: string
+  start_location_name: string
+  start_lat: number
+  start_lng: number
+  end_location_name: string
+  end_lat: number
+  end_lng: number
+}
+
+type DropoffPoint = {
+  id: string
+  request_id: string
+  name: string
+  address: string | null
+  lat: number
+  lng: number
+}
+
 type DriverLocationRow = {
   id: string
   request_id: string
@@ -67,18 +97,25 @@ function safeNumber(v: any, fallback: number) {
   return Number.isFinite(n) ? n : fallback
 }
 
-export default function RequestTracking({ requestId, userId }: { requestId: string; userId: string }) {
+export default function RequestTracking({ requestId, userId }: { requestId: string; userId: string | 'driver' }) {
   const supabase = createSupabaseBrowserClient()
   const mapRef = useRef<HTMLDivElement | null>(null)
   const mapObjRef = useRef<google.maps.Map | null>(null)
   const markersRef = useRef<google.maps.Marker[]>([])
   const polylineRef = useRef<google.maps.Polyline | null>(null)
+  const directionsRendererRef = useRef<google.maps.DirectionsRenderer | null>(null)
+  const directionsServiceRef = useRef<google.maps.DirectionsService | null>(null)
+  const lastEtaCalcAtRef = useRef<number>(0)
 
   const [loading, setLoading] = useState(true)
   const [mapsReady, setMapsReady] = useState(false)
   const [request, setRequest] = useState<RequestRow | null>(null)
   const [driverLocation, setDriverLocation] = useState<LatLng | null>(null)
   const [stops, setStops] = useState<StopRow[]>([])
+  const [route, setRoute] = useState<Route | null>(null)
+  const [routeStops, setRouteStops] = useState<RouteStopPoint[]>([])
+  const [dropoffPoint, setDropoffPoint] = useState<DropoffPoint | null>(null)
+  const [eta, setEta] = useState<{ durationText: string; distanceText?: string } | null>(null)
 
   const peopleCount = useMemo(() => {
     if (!request) return 0
@@ -95,6 +132,10 @@ export default function RequestTracking({ requestId, userId }: { requestId: stri
     if (polylineRef.current) {
       polylineRef.current.setMap(null)
       polylineRef.current = null
+    }
+    if (directionsRendererRef.current) {
+      directionsRendererRef.current.setMap(null)
+      directionsRendererRef.current = null
     }
   }
 
@@ -115,60 +156,244 @@ export default function RequestTracking({ requestId, userId }: { requestId: stri
     const map = mapObjRef.current
     clearMap()
 
-    // Marker: border (default reference)
-    markersRef.current.push(
-      new googleMaps.Marker({
-        position: DEFAULT_CENTER,
-        map,
-        title: 'المعبر جابر',
-        icon: { url: 'http://maps.google.com/mapfiles/ms/icons/blue-dot.png' },
-      })
-    )
+    const path: LatLng[] = []
+    const bounds = new googleMaps.LatLngBounds()
 
-    // Marker: القادم (رمزي + عدد الأشخاص)
-    if (request) {
-      const labelText = peopleCount > 1 ? `${request.visitor_name} (+${peopleCount - 1})` : request.visitor_name
+    // إذا كان هناك خط محدد (route system)
+    if (route) {
+      // نقطة الانطلاق (ساحة المرجة - دمشق)
+      const startPos: LatLng = { lat: route.start_lat, lng: route.start_lng }
+      path.push(startPos)
+      bounds.extend(startPos)
+      
       markersRef.current.push(
         new googleMaps.Marker({
-          position: DEFAULT_CENTER,
+          position: startPos,
           map,
-          title: labelText,
-          label: {
-            text: String(peopleCount),
-            color: '#111827',
-            fontWeight: '700',
-          },
+          title: route.start_location_name,
           icon: {
-            path: googleMaps.SymbolPath.CIRCLE,
-            scale: 12,
-            fillColor: '#22c55e',
-            fillOpacity: 1,
-            strokeColor: '#ffffff',
-            strokeWeight: 2,
+            url: 'http://maps.google.com/mapfiles/ms/icons/green-dot.png',
+            scaledSize: new googleMaps.Size(32, 32),
           },
         })
       )
-    }
 
-    // Marker: driver live location
-    if (driverLocation) {
+      // نقاط التوقف الثابتة (route_stop_points) - بصورة حافلة
+      const sortedRouteStops = [...routeStops].sort((a, b) => a.order_index - b.order_index)
+      for (const stop of sortedRouteStops) {
+        const pos: LatLng = { lat: stop.lat, lng: stop.lng }
+        path.push(pos)
+        bounds.extend(pos)
+        
+        // أيقونة حافلة للنقاط الثابتة
+        markersRef.current.push(
+          new googleMaps.Marker({
+            position: pos,
+            map,
+            title: stop.name,
+            icon: {
+              url: 'http://maps.google.com/mapfiles/ms/icons/bus.png',
+              scaledSize: new googleMaps.Size(40, 40),
+            },
+            label: {
+              text: String(stop.order_index + 1),
+              color: '#ffffff',
+              fontWeight: 'bold',
+              fontSize: '12px',
+            },
+          })
+        )
+      }
+
+      // نقطة الوصول (مجمع الشرق الأوسط - عمان)
+      const endPos: LatLng = { lat: route.end_lat, lng: route.end_lng }
+      path.push(endPos)
+      bounds.extend(endPos)
+      
       markersRef.current.push(
         new googleMaps.Marker({
-          position: driverLocation,
+          position: endPos,
           map,
-          title: 'موقع السائق',
-          icon: { url: 'http://maps.google.com/mapfiles/ms/icons/red-dot.png' },
+          title: route.end_location_name,
+          icon: {
+            url: 'http://maps.google.com/mapfiles/ms/icons/red-dot.png',
+            scaledSize: new googleMaps.Size(32, 32),
+          },
         })
       )
+
+      // نقطة النزول المخصصة (من المستخدم)
+      if (dropoffPoint) {
+        const dropoffPos: LatLng = { lat: dropoffPoint.lat, lng: dropoffPoint.lng }
+        bounds.extend(dropoffPos)
+        
+        markersRef.current.push(
+          new googleMaps.Marker({
+            position: dropoffPos,
+            map,
+            title: dropoffPoint.name || 'نقطة النزول',
+            icon: {
+              path: googleMaps.SymbolPath.CIRCLE,
+              scale: 10,
+              fillColor: '#f59e0b',
+              fillOpacity: 1,
+              strokeColor: '#ffffff',
+              strokeWeight: 2,
+            },
+            label: {
+              text: '📍',
+              fontSize: '20px',
+            },
+          })
+        )
+      }
+
+      // ✅ مسار طرق حقيقي على الشوارع + حساب ETA
+      if (!directionsServiceRef.current) {
+        directionsServiceRef.current = new googleMaps.DirectionsService()
+      }
+
+      const destination: LatLng = dropoffPoint
+        ? { lat: dropoffPoint.lat, lng: dropoffPoint.lng }
+        : { lat: route.end_lat, lng: route.end_lng }
+
+      const waypoints: google.maps.DirectionsWaypoint[] = [...routeStops]
+        .sort((a, b) => a.order_index - b.order_index)
+        .slice(0, 23) // حد Google للـ waypoints في أغلب الخطط
+        .map((s) => ({
+          location: { lat: s.lat, lng: s.lng },
+          stopover: true,
+        }))
+
+      if (!directionsRendererRef.current) {
+        directionsRendererRef.current = new googleMaps.DirectionsRenderer({
+          suppressMarkers: true,
+          preserveViewport: true,
+          polylineOptions: {
+            strokeColor: '#2563eb',
+            strokeOpacity: 0.9,
+            strokeWeight: 5,
+          },
+        })
+        directionsRendererRef.current.setMap(map)
+      } else {
+        directionsRendererRef.current.setMap(map)
+      }
+
+      // رسم المسار الكامل (من الانطلاق إلى الوجهة)
+      ;(async () => {
+        try {
+          const res = await directionsServiceRef.current!.route({
+            origin: startPos,
+            destination,
+            waypoints,
+            travelMode: googleMaps.TravelMode.DRIVING,
+            optimizeWaypoints: false,
+          })
+          directionsRendererRef.current?.setDirections(res)
+
+          // Fit bounds على مسار الطرق (أفضل من حدود الماركرات)
+          const routeBounds = res.routes?.[0]?.bounds
+          if (routeBounds) {
+            map.fitBounds(routeBounds, { top: 70, bottom: 70, left: 50, right: 50 })
+          }
+        } catch (e) {
+          // إذا فشل Directions لأي سبب (لا نعطل الصفحة) ونترك الـ polyline fallback
+          console.warn('Directions route failed, fallback to polyline:', e)
+        }
+      })()
+
+      // ETA من موقع السائق الحالي إلى الوجهة (يتحدث مع الـ realtime)
+      ;(async () => {
+        try {
+          if (!driverLocation) {
+            setEta(null)
+            return
+          }
+
+          const now = Date.now()
+          if (now - lastEtaCalcAtRef.current < 15000) return // throttle 15s
+          lastEtaCalcAtRef.current = now
+
+          const etaRes = await directionsServiceRef.current!.route({
+            origin: driverLocation,
+            destination,
+            travelMode: googleMaps.TravelMode.DRIVING,
+          })
+
+          const legs = etaRes.routes?.[0]?.legs || []
+          const durationSec = legs.reduce((sum, l) => sum + (l.duration?.value || 0), 0)
+          const distanceM = legs.reduce((sum, l) => sum + (l.distance?.value || 0), 0)
+
+          const durationText =
+            legs.length === 1 && legs[0].duration?.text
+              ? legs[0].duration.text
+              : durationSec > 0
+                ? `${Math.round(durationSec / 60)} دقيقة`
+                : 'غير متاح'
+
+          const distanceText =
+            legs.length === 1 && legs[0].distance?.text
+              ? legs[0].distance.text
+              : distanceM > 0
+                ? `${(distanceM / 1000).toFixed(1)} كم`
+                : undefined
+
+          setEta({ durationText, distanceText })
+        } catch (e) {
+          console.warn('ETA calculation failed:', e)
+          setEta(null)
+        }
+      })()
+    } else {
+      // Fallback: النظام القديم (بدون route system)
+      const center = driverLocation || DEFAULT_CENTER
+      path.push(center)
+      bounds.extend(center)
+      
+      markersRef.current.push(
+        new googleMaps.Marker({
+          position: center,
+          map,
+          title: 'المعبر جابر',
+          icon: { url: 'http://maps.google.com/mapfiles/ms/icons/blue-dot.png' },
+        })
+      )
+
+      // Marker: القادم (رمزي + عدد الأشخاص)
+      if (request) {
+        const labelText = peopleCount > 1 ? `${request.visitor_name} (+${peopleCount - 1})` : request.visitor_name
+        markersRef.current.push(
+          new googleMaps.Marker({
+            position: center,
+            map,
+            title: labelText,
+            label: {
+              text: String(peopleCount),
+              color: '#111827',
+              fontWeight: '700',
+            },
+            icon: {
+              path: googleMaps.SymbolPath.CIRCLE,
+              scale: 12,
+              fillColor: '#22c55e',
+              fillOpacity: 1,
+              strokeColor: '#ffffff',
+              strokeWeight: 2,
+            },
+          })
+        )
+      }
     }
 
-    // Stops markers + route polyline (border -> stops -> driver)
-    const path: LatLng[] = [DEFAULT_CENTER]
+    // نقاط التوقف المخصصة (من السائق) - trip_stops
     const sortedStops = [...stops].sort((a, b) => (a.order_index ?? 0) - (b.order_index ?? 0))
     for (const s of sortedStops) {
       const pos = { lat: safeNumber(s.lat, 0), lng: safeNumber(s.lng, 0) }
       if (!pos.lat || !pos.lng) continue
-      path.push(pos)
+      if (!route) path.push(pos) // فقط إذا ما كان في route system
+      bounds.extend(pos)
+      
       markersRef.current.push(
         new googleMaps.Marker({
           position: pos,
@@ -178,33 +403,85 @@ export default function RequestTracking({ requestId, userId }: { requestId: stri
         })
       )
     }
-    if (driverLocation) path.push(driverLocation)
 
-    polylineRef.current = new googleMaps.Polyline({
-      path,
-      geodesic: true,
-      strokeColor: '#2563eb',
-      strokeOpacity: 0.9,
-      strokeWeight: 4,
-    })
-    polylineRef.current.setMap(map)
+    // Marker: driver live location (Bus icon + small label)
+    if (driverLocation) {
+      if (!route) path.push(driverLocation) // فقط إذا ما كان في route system
+      bounds.extend(driverLocation)
+      
+      const driverMarker = new googleMaps.Marker({
+        position: driverLocation,
+        map,
+        title: 'موقع السائق',
+        icon: {
+          url: 'http://maps.google.com/mapfiles/ms/icons/bus.png',
+          scaledSize: new googleMaps.Size(42, 42),
+        },
+      })
+      markersRef.current.push(driverMarker)
+
+      // بطاقة صغيرة باسم الراكب فوق الحافلة (تظهر تلقائياً)
+      if (request?.visitor_name) {
+        const info = new googleMaps.InfoWindow({
+          content: `
+            <div style="
+              padding: 6px 10px;
+              border-radius: 12px;
+              border: 1px solid #e5e7eb;
+              background: rgba(255,255,255,0.95);
+              box-shadow: 0 8px 20px rgba(0,0,0,0.12);
+              font-family: Arial, sans-serif;
+              font-size: 12px;
+              font-weight: 800;
+              color: #111827;
+              white-space: nowrap;
+            ">
+              ${request.visitor_name}
+            </div>
+          `,
+          disableAutoPan: true,
+          pixelOffset: new googleMaps.Size(0, -44),
+        })
+        info.open({ map, anchor: driverMarker, shouldFocus: false })
+      }
+    }
+
+    // رسم خط السير
+    if (path.length > 1) {
+      polylineRef.current = new googleMaps.Polyline({
+        path,
+        geodesic: true,
+        strokeColor: '#2563eb',
+        strokeOpacity: 0.9,
+        strokeWeight: 4,
+      })
+      polylineRef.current.setMap(map)
+    }
 
     // Fit bounds
-    const bounds = new googleMaps.LatLngBounds()
-    path.forEach(p => bounds.extend(p))
-    map.fitBounds(bounds, 60)
+    if (bounds.getNorthEast() && bounds.getSouthWest()) {
+      map.fitBounds(bounds, { padding: 60 })
+    } else {
+      map.setCenter(path[0] || DEFAULT_CENTER)
+      map.setZoom(11)
+    }
   }
 
   const loadData = async () => {
     try {
       setLoading(true)
 
-      const { data: req, error: reqErr } = await supabase
+      let query = supabase
         .from('visit_requests')
-        .select('id,user_id,visitor_name,companions_count,travel_date,city,status,arrival_date,departure_date')
+        .select('id,user_id,visitor_name,companions_count,travel_date,city,status,arrival_date,departure_date,route_id')
         .eq('id', requestId)
-        .eq('user_id', userId)
-        .maybeSingle()
+
+      // إذا لم يكن السائق، أضف شرط user_id
+      if (userId !== 'driver') {
+        query = query.eq('user_id', userId)
+      }
+
+      const { data: req, error: reqErr } = await query.maybeSingle()
 
       if (reqErr) throw reqErr
       if (!req) {
@@ -213,7 +490,44 @@ export default function RequestTracking({ requestId, userId }: { requestId: stri
       }
       setRequest(req as any)
 
-      // Stops (may not exist yet)
+      // Load route and route stops (if route system exists)
+      const { data: dropoffData } = await supabase
+        .from('request_dropoff_points')
+        .select('id,request_id,route_id,name,address,lat,lng')
+        .eq('request_id', requestId)
+        .maybeSingle()
+      
+      if (dropoffData) {
+        setDropoffPoint(dropoffData as any)
+        
+        // Try to find route for this request (route_id on request has priority)
+        const effectiveRouteId = (req as any)?.route_id || (dropoffData as any)?.route_id || null
+        const routeQuery = supabase
+          .from('routes')
+          .select('id,name,start_location_name,start_lat,start_lng,end_location_name,end_lat,end_lng')
+          .eq('is_active', true)
+        const { data: routeData } = effectiveRouteId
+          ? await routeQuery.eq('id', effectiveRouteId).maybeSingle()
+          : await routeQuery.order('created_at', { ascending: true }).limit(1).maybeSingle()
+        
+        if (routeData) {
+          setRoute(routeData as any)
+          
+          // Load route stop points
+          const { data: routeStopsData } = await supabase
+            .from('route_stop_points')
+            .select('id,route_id,name,description,lat,lng,order_index')
+            .eq('route_id', routeData.id)
+            .eq('is_active', true)
+            .order('order_index', { ascending: true })
+          
+          if (routeStopsData) {
+            setRouteStops(routeStopsData as any)
+          }
+        }
+      }
+
+      // Stops (may not exist yet) - custom stops added by driver
       const { data: stopsData, error: stopsErr } = await supabase
         .from('trip_stops')
         .select('id,request_id,title,lat,lng,order_index')
@@ -290,7 +604,7 @@ export default function RequestTracking({ requestId, userId }: { requestId: stri
     if (!mapsReady) return
     setTimeout(() => renderMap(), 0)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mapsReady, request, driverLocation, stops])
+  }, [mapsReady, request, driverLocation, stops, route, routeStops, dropoffPoint])
 
   // Realtime updates (if tables exist)
   useEffect(() => {
@@ -381,6 +695,18 @@ export default function RequestTracking({ requestId, userId }: { requestId: stri
                     <span className="text-gray-500">موقع السائق</span>
                     <span className={`font-semibold ${driverLocation ? 'text-green-700' : 'text-gray-500'}`}>
                       {driverLocation ? 'متاح' : 'غير متاح بعد'}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-gray-500">الوقت المتوقع للوصول</span>
+                    <span className={`font-semibold ${eta ? 'text-blue-700' : 'text-gray-500'}`}>
+                      {driverLocation
+                        ? eta
+                          ? eta.distanceText
+                            ? `${eta.durationText} • ${eta.distanceText}`
+                            : eta.durationText
+                          : 'جاري الحساب...'
+                        : 'غير متاح'}
                     </span>
                   </div>
                   <div className="flex items-center justify-between">
