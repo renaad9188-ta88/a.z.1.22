@@ -216,7 +216,7 @@ export default function JordanVisitForm() {
       return
     }
     if (!formData.tourismCompany) {
-      toast.error('يرجى اختيار الشركة المقدّم لها')
+      toast.error('يرجى اختيار الشركات (طلب زيارة)')
       return
     }
     if (!formData.transportCompany) {
@@ -290,7 +290,7 @@ export default function JordanVisitForm() {
       const companionsOnly = personsData.slice(1) // المرافقين فقط (بدون الزائر الرئيسي)
 
       const companiesBlock = [
-        `الشركة المقدّم لها: ${formData.tourismCompany}`,
+        `الشركات (طلب زيارة): ${formData.tourismCompany}`,
         `شركة النقل: ${formData.transportCompany}`,
         formData.note?.trim() ? `ملاحظة: ${formData.note.trim()}` : null,
       ].filter(Boolean).join('\n')
@@ -399,7 +399,7 @@ export default function JordanVisitForm() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1.5 sm:mb-2">
-                      الشركات المقدَّم لها *
+                      الشركات (طلب زيارة) *
                     </label>
                     <select
                       required
