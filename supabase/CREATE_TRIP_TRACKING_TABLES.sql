@@ -91,3 +91,4 @@ CREATE POLICY "Admin can manage driver locations"
   WITH CHECK (public.is_admin());
 
 
+

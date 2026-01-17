@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createSupabaseBrowserClient } from '@/lib/supabase'
 import toast from 'react-hot-toast'
-import { Calendar, Upload, Trash2, X, Plus, User, Phone, MessageCircle, Lock } from 'lucide-react'
+import { ArrowLeft, Calendar, Upload, Trash2, X, Plus, User, Phone, MessageCircle, Lock, AlertTriangle } from 'lucide-react'
 
 const DEPARTURE_CITIES = [
   'الشام', 'درعا', 'حلب', 'حمص', 'حماة', 'اللاذقية', 'طرطوس', 
@@ -18,11 +18,8 @@ const TOURISM_COMPANIES = [
   'شركة نوفا',
 ]
 
-const TRANSPORT_COMPANIES = [
-  'اختيار الموقع',
-  'شركة رويال للنقل',
-  'شركة الطريق الذهبي للنقل',
-]
+const DEFAULT_TRANSPORT_COMPANY = 'شركة الرويال للنقل'
+const DEFAULT_PURPOSE = 'زيارات الاقارب ( سياحة )'
 
 interface Person {
   id: string
@@ -37,6 +34,8 @@ export default function JordanVisitForm() {
   const [loading, setLoading] = useState(false)
   const [profileLoading, setProfileLoading] = useState(true)
   const [accountName, setAccountName] = useState<string>('')
+  const [draftRequestId, setDraftRequestId] = useState<string | null>(null)
+  const [draftLoading, setDraftLoading] = useState(true)
   const [persons, setPersons] = useState<Person[]>([
     { id: '1', name: '', passportImages: [], passportPreviews: [] }
   ])
@@ -45,7 +44,6 @@ export default function JordanVisitForm() {
     jordanPhone: '',
     whatsappPhone: '',
     tourismCompany: '',
-    transportCompany: '',
     note: '',
     departureCity: '',
     otherCity: '',
@@ -105,6 +103,37 @@ export default function JordanVisitForm() {
 
     loadProfile()
   }, [router, supabase])
+
+  // اكتشاف طلب مسودة سابق (للاستكمال)
+  useEffect(() => {
+    const findDraft = async () => {
+      try {
+        setDraftLoading(true)
+        const { data: { user } } = await supabase.auth.getUser()
+        if (!user) return
+
+        const { data, error } = await supabase
+          .from('visit_requests')
+          .select('id, admin_notes, deposit_paid, created_at')
+          .eq('user_id', user.id)
+          .eq('visit_type', 'visit')
+          .order('created_at', { ascending: false })
+          .limit(5)
+
+        if (error) throw error
+        const rows = (data || []) as any[]
+        const draft = rows.find(r => ((r?.admin_notes || '') as string).startsWith('[DRAFT]'))
+        setDraftRequestId(draft?.id || null)
+      } catch (e) {
+        console.error('Draft detection error:', e)
+        setDraftRequestId(null)
+      } finally {
+        setDraftLoading(false)
+      }
+    }
+
+    findDraft()
+  }, [supabase])
 
   const addPerson = () => {
     if (persons.length >= 10) {
@@ -219,10 +248,6 @@ export default function JordanVisitForm() {
       toast.error('يرجى اختيار الشركات (طلب زيارة)')
       return
     }
-    if (!formData.transportCompany) {
-      toast.error('يرجى اختيار شركة النقل')
-      return
-    }
 
     if (formData.departureCity === 'أخرى' && !formData.otherCity) {
       toast.error('يرجى إدخال اسم المدينة')
@@ -291,7 +316,7 @@ export default function JordanVisitForm() {
 
       const companiesBlock = [
         `الشركات (طلب زيارة): ${formData.tourismCompany}`,
-        `شركة النقل: ${formData.transportCompany}`,
+        `شركة النقل: ${DEFAULT_TRANSPORT_COMPANY}`,
         formData.note?.trim() ? `ملاحظة: ${formData.note.trim()}` : null,
       ].filter(Boolean).join('\n')
 
@@ -312,14 +337,14 @@ export default function JordanVisitForm() {
           // companions_count/companions_data تمثل المرافقين فقط (الزائر الرئيسي يُحسب منفصل)
           companions_count: companionsOnly.length,
           companions_data: companionsOnly,
-          admin_notes: `[DRAFT]\nخدمة: زيارة الأردن لمدة شهر\nاسم الحساب: ${accountName || 'غير محدد'}\nالهاتف الأردني: ${formData.jordanPhone}\nواتساب سوري (اختياري): ${formData.whatsappPhone || 'غير مدخل'}\n${companiesBlock}\nالغرض: ${formData.purpose || 'غير محدد'}`,
+          admin_notes: `[DRAFT]\nخدمة: زيارة الأردن لمدة شهر\nاسم الحساب: ${accountName || 'غير محدد'}\nالهاتف الأردني: ${formData.jordanPhone}\nواتساب سوري (اختياري): ${formData.whatsappPhone || 'غير مدخل'}\n${companiesBlock}\nالغرض: ${(formData.purpose || '').trim() || DEFAULT_PURPOSE}`,
         })
         .select()
         .single()
 
       if (error) throw error
 
-      toast.success('تم حفظ بيانات الزوار. أكمل دفع الرسوم لإرسال الطلب.')
+      toast.success('تم حفظ بيانات الزوار. أكمل المتابعة.')
       router.push(`/services/jordan-visit/payment/${requestData.id}`)
       router.refresh()
     } catch (error: any) {
@@ -341,6 +366,53 @@ export default function JordanVisitForm() {
             <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold text-gray-800 mb-2">خدمات الزيارات السورية للأردن</h1>
             <p className="text-sm sm:text-base text-gray-600">زيارة الأردن لمدة شهر - تنظيم جميع الإجراءات</p>
           </div>
+
+          {!draftLoading && draftRequestId && (
+            <div className="mb-4 sm:mb-6 bg-amber-50 border border-amber-200 rounded-xl p-3 sm:p-4">
+              <div className="flex items-start gap-3">
+                <div className="w-10 h-10 rounded-lg bg-amber-100 flex items-center justify-center flex-shrink-0">
+                  <AlertTriangle className="w-5 h-5 text-amber-700" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="font-bold text-amber-900 text-sm sm:text-base">
+                    لديك طلب محفوظ (مسودة) لم يتم إرساله بعد
+                  </p>
+                  <p className="text-xs sm:text-sm text-amber-800 mt-1">
+                    يمكنك استكمال رفع الدفعة وإرسال الطلب للإدارة من صفحة الدفع.
+                  </p>
+                  <div className="mt-3 flex flex-col sm:flex-row gap-2">
+                    <button
+                      type="button"
+                      onClick={() => router.push(`/services/jordan-visit/payment/${draftRequestId}`)}
+                      className="btn px-4 py-2.5 bg-amber-600 text-white hover:bg-amber-700 text-sm"
+                    >
+                      استكمال الطلب
+                    </button>
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        if (!confirm('هل تريد حذف المسودة والبدء بطلب جديد؟')) return
+                        try {
+                          const { error } = await supabase
+                            .from('visit_requests')
+                            .delete()
+                            .eq('id', draftRequestId)
+                          if (error) throw error
+                          toast.success('تم حذف المسودة')
+                          setDraftRequestId(null)
+                        } catch (e: any) {
+                          toast.error(e?.message || 'تعذر حذف المسودة')
+                        }
+                      }}
+                      className="btn-secondary text-sm"
+                    >
+                      حذف المسودة والبدء من جديد
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
 
           <form onSubmit={(e) => { e.preventDefault(); handleSave(); }} className="space-y-4 sm:space-y-6">
             {/* البيانات الأساسية */}
@@ -397,7 +469,7 @@ export default function JordanVisitForm() {
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
+                  <div className="sm:col-span-2">
                     <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1.5 sm:mb-2">
                       الشركات (طلب زيارة) *
                     </label>
@@ -409,23 +481,6 @@ export default function JordanVisitForm() {
                     >
                       <option value="">اختر الشركة</option>
                       {TOURISM_COMPANIES.map((c) => (
-                        <option key={c} value={c}>{c}</option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1.5 sm:mb-2">
-                      شركة النقل *
-                    </label>
-                    <select
-                      required
-                      value={formData.transportCompany}
-                      onChange={(e) => setFormData({ ...formData, transportCompany: e.target.value })}
-                      className="w-full px-3 sm:px-4 py-2.5 sm:py-3 text-sm sm:text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 bg-white"
-                    >
-                      <option value="">اختر شركة النقل</option>
-                      {TRANSPORT_COMPANIES.map((c) => (
                         <option key={c} value={c}>{c}</option>
                       ))}
                     </select>
@@ -593,9 +648,20 @@ export default function JordanVisitForm() {
             <button 
               type="submit" 
               disabled={loading}
-              className="w-full py-2.5 sm:py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition font-semibold text-sm sm:text-base md:text-lg disabled:opacity-50"
+              className="w-full py-2.5 sm:py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition font-semibold text-sm sm:text-base md:text-lg disabled:opacity-50 px-4 sm:px-6"
             >
-              {loading ? 'جاري الحفظ...' : 'حفظ والمتابعة للدفع'}
+              {loading ? (
+                <span className="w-full text-center">جاري الحفظ...</span>
+              ) : (
+                <span className="grid grid-cols-3 items-center">
+                  <span />
+                  <span className="text-center">حفظ والمتابعة</span>
+                  <span className="inline-flex items-center justify-end gap-1 text-white/95">
+                    التالي
+                    <ArrowLeft className="w-4 h-4 sm:w-5 sm:h-5" />
+                  </span>
+                </span>
+              )}
             </button>
           </form>
           </div>

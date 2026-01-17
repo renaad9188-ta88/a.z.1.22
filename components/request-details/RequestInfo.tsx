@@ -13,6 +13,9 @@ export default function RequestInfo({ request, adminInfo }: RequestInfoProps) {
   const supportPhoneLocal = '0798905595'
   const supportPhoneIntl = '+962798905595'
   const supportWaDigits = '962798905595'
+  const defaultPurpose = 'زيارات الاقارب ( سياحة )'
+  const defaultTransportCompany = 'شركة الرويال للنقل'
+  const isJordanVisit = Boolean((request.admin_notes || '').includes('خدمة: زيارة الأردن لمدة شهر'))
 
   const buildShareText = () => {
     const lines: string[] = []
@@ -26,7 +29,7 @@ export default function RequestInfo({ request, adminInfo }: RequestInfoProps) {
     if (adminInfo?.jordanPhone) lines.push(`هاتف أردني: ${adminInfo.jordanPhone}`)
     if (adminInfo?.syrianPhone) lines.push(`واتساب/هاتف سوري: ${adminInfo.syrianPhone}`)
     if (adminInfo?.tourismCompany) lines.push(`الشركة المقدّم لها: ${adminInfo.tourismCompany}`)
-    if (adminInfo?.transportCompany) lines.push(`شركة النقل: ${adminInfo.transportCompany}`)
+    if (isJordanVisit) lines.push(`شركة النقل: ${adminInfo?.transportCompany || defaultTransportCompany}`)
     if (adminInfo?.note) lines.push(`ملاحظة: ${adminInfo.note}`)
     if (request.deposit_paid) lines.push('الدفع: مدفوع ✅')
     if (request.total_amount) lines.push(`المبلغ الإجمالي: ${request.total_amount} د.أ`)
@@ -92,7 +95,7 @@ export default function RequestInfo({ request, adminInfo }: RequestInfoProps) {
       </div>
 
       {/* ملخص اختيارات الطلب (خصوصاً خدمة الأردن) */}
-      {adminInfo && (adminInfo.tourismCompany || adminInfo.transportCompany || adminInfo.note || adminInfo.purpose) && (
+      {adminInfo && (adminInfo.tourismCompany || adminInfo.note || adminInfo.purpose || isJordanVisit) && (
         <div className="bg-white border border-gray-200 rounded-lg p-3 sm:p-4 mb-3 sm:mb-4">
           <h3 className="font-bold text-gray-800 mb-2 text-sm sm:text-base">ملخص اختياراتك</h3>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs sm:text-sm">
@@ -105,12 +108,14 @@ export default function RequestInfo({ request, adminInfo }: RequestInfoProps) {
                 </div>
               </div>
             )}
-            {adminInfo.transportCompany && (
+            {isJordanVisit && (
               <div className="flex items-start gap-2 bg-gray-50 rounded-lg p-2">
                 <Truck className="w-4 h-4 text-green-600 flex-shrink-0 mt-0.5" />
                 <div className="min-w-0">
                   <p className="text-gray-600">شركة النقل</p>
-                  <p className="font-semibold text-gray-800 break-words">{adminInfo.transportCompany}</p>
+                  <p className="font-semibold text-gray-800 break-words">
+                    {adminInfo.transportCompany || defaultTransportCompany}
+                  </p>
                 </div>
               </div>
             )}
@@ -126,13 +131,12 @@ export default function RequestInfo({ request, adminInfo }: RequestInfoProps) {
             {adminInfo.purpose && (
               <div className="sm:col-span-2 text-gray-700">
                 <span className="text-gray-600">الغرض من الزيارة:</span>
-                <span className="font-semibold text-gray-800 mr-2 break-words">{adminInfo.purpose}</span>
+                <span className="font-semibold text-gray-800 mr-2 break-words">
+                  {adminInfo.purpose === 'غير محدد' ? defaultPurpose : adminInfo.purpose}
+                </span>
               </div>
             )}
           </div>
-          <p className="mt-2 text-[11px] sm:text-xs text-gray-500 leading-relaxed">
-            سيتم إرسال أرقام الهواتف والواتساب للتنسيق وفتح مجموعات القدوم والتتبع.
-          </p>
         </div>
       )}
 

@@ -51,6 +51,10 @@ export const parseAdminNotes = (notes: string): AdminInfo | null => {
     if (trimmed.startsWith('الشركة المقدّم لها:')) {
       info.tourismCompany = trimmed.split('الشركة المقدّم لها:')[1]?.trim()
     }
+    // صيغة أحدث مستخدمة في JordanVisitForm
+    if (trimmed.startsWith('الشركات (طلب زيارة):')) {
+      info.tourismCompany = trimmed.split('الشركات (طلب زيارة):')[1]?.trim()
+    }
     if (trimmed.startsWith('شركة النقل:')) {
       info.transportCompany = trimmed.split('شركة النقل:')[1]?.trim()
     }
@@ -61,7 +65,8 @@ export const parseAdminNotes = (notes: string): AdminInfo | null => {
     if (line.includes('الغرض:')) {
       const purposePart = line.split('الغرض:')[1]?.trim()
       if (purposePart && !purposePart.startsWith('http')) {
-        info.purpose = purposePart.split(' ')[0] || 'غير محدد'
+        // احتفظ بالنص كاملاً (كان سابقاً يأخذ أول كلمة فقط)
+        info.purpose = purposePart.trim()
       } else {
         info.purpose = 'غير محدد'
       }
@@ -73,7 +78,8 @@ export const parseAdminNotes = (notes: string): AdminInfo | null => {
 
 export const getSignedImageUrl = async (
   publicUrl: string,
-  supabase: any
+  supabase: any,
+  expiresInSeconds: number = 3600
 ): Promise<string> => {
   try {
     if (!publicUrl || !publicUrl.trim()) {
@@ -122,7 +128,7 @@ export const getSignedImageUrl = async (
     try {
       const { data, error } = await supabase.storage
         .from('passports')
-        .createSignedUrl(filePath, 3600) // صلاحية ساعة واحدة
+        .createSignedUrl(filePath, expiresInSeconds)
       
       if (error) {
         // إذا كان الخطأ "Object not found"، ارجع الرابط الأصلي

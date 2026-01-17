@@ -17,3 +17,4 @@ GRANT EXECUTE ON FUNCTION get_all_admins() TO authenticated;
 GRANT EXECUTE ON FUNCTION get_all_admins() TO anon;
 
 
+

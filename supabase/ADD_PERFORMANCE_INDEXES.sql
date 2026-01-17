@@ -54,3 +54,4 @@ ON public.trip_driver_locations(request_id, updated_at DESC);
 -- - الفهارس المركبة مفيدة للاستعلامات التي تستخدم عدة أعمدة
 -- - بعد إضافة الفهارس، قد تحتاج إلى VACUUM ANALYZE لتحديث الإحصائيات
 
+

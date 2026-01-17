@@ -31,3 +31,4 @@ GRANT EXECUTE ON FUNCTION public.get_public_trip_counters() TO anon;
 GRANT EXECUTE ON FUNCTION public.get_public_trip_counters() TO authenticated;
 
 
+

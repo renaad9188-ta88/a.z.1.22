@@ -19,11 +19,14 @@ import {
   GraduationCap,
   ArrowLeft,
   Trash2,
-  Plane
+  Plane,
+  Copy,
+  MessageCircle
 } from 'lucide-react'
 import TripSchedulingModal from './admin/TripSchedulingModal'
 import toast from 'react-hot-toast'
 import { formatDate } from '@/lib/date-utils'
+import { getSignedImageUrl, parseAdminNotes } from './request-details/utils'
 
 interface VisitRequest {
   id: string
@@ -40,6 +43,8 @@ interface VisitRequest {
   departure_date: string | null
   trip_status: 'pending_arrival' | 'scheduled_pending_approval' | 'arrived' | 'completed' | null
   assigned_to?: string | null
+  admin_notes?: string | null
+  deposit_paid?: boolean
 }
 
 export default function DashboardContent({ userId }: { userId: string }) {
@@ -49,6 +54,7 @@ export default function DashboardContent({ userId }: { userId: string }) {
   const [loading, setLoading] = useState(true)
   const [userProfile, setUserProfile] = useState<any>(null)
   const [schedulingRequest, setSchedulingRequest] = useState<VisitRequest | null>(null)
+  const [sharingRequestId, setSharingRequestId] = useState<string | null>(null)
 
   useEffect(() => {
     loadData()
@@ -71,12 +77,18 @@ export default function DashboardContent({ userId }: { userId: string }) {
       // Load visit requests (فقط الحقول المطلوبة لتحسين الأداء)
       const { data: visitRequests, error } = await supabase
         .from('visit_requests')
-        .select('id, user_id, visitor_name, visit_type, travel_date, status, city, days_count, arrival_date, departure_date, trip_status, created_at, updated_at, deposit_paid, deposit_amount, payment_verified, assigned_to')
+        .select('id, user_id, visitor_name, visit_type, travel_date, status, city, days_count, arrival_date, departure_date, trip_status, created_at, updated_at, deposit_paid, deposit_amount, payment_verified, assigned_to, admin_notes')
         .eq('user_id', userId)
         .order('created_at', { ascending: false })
 
       if (error) throw error
-      setRequests(visitRequests || [])
+      // ضبط بعض الحقول لتكون متوافقة مع الأنواع المستخدمة في TripSchedulingModal
+      setRequests(
+        (visitRequests || []).map((r: any) => ({
+          ...r,
+          deposit_paid: Boolean(r?.deposit_paid),
+        })) as any
+      )
     } catch (error: any) {
       toast.error('حدث خطأ أثناء تحميل البيانات')
     } finally {
@@ -110,7 +122,111 @@ export default function DashboardContent({ userId }: { userId: string }) {
     }
   }
 
-  const getStatusBadge = (status: string, tripStatus: string | null) => {
+  const copyText = async (text: string, successMsg: string) => {
+    try {
+      if (navigator?.clipboard?.writeText) {
+        await navigator.clipboard.writeText(text)
+      } else {
+        const ta = document.createElement('textarea')
+        ta.value = text
+        ta.style.position = 'fixed'
+        ta.style.left = '-9999px'
+        ta.style.top = '0'
+        document.body.appendChild(ta)
+        ta.focus()
+        ta.select()
+        document.execCommand('copy')
+        document.body.removeChild(ta)
+      }
+      toast.success(successMsg)
+    } catch (e) {
+      console.error('Copy failed:', e)
+      toast.error('تعذر النسخ')
+    }
+  }
+
+  const handleShareWhatsApp = async (requestId: string) => {
+    try {
+      setSharingRequestId(requestId)
+      const { data, error } = await supabase
+        .from('visit_requests')
+        .select('id, visitor_name, city, created_at, admin_notes, passport_image_url, companions_data, companions_count')
+        .eq('id', requestId)
+        .eq('user_id', userId)
+        .maybeSingle()
+
+      if (error) throw error
+      if (!data) {
+        toast.error('تعذر تحميل تفاصيل الطلب للمشاركة')
+        return
+      }
+
+      const shortCode = String(data.id).slice(0, 8).toUpperCase()
+      const adminInfo = parseAdminNotes((data.admin_notes || '') as string) || {}
+      const tourismCompany = adminInfo.tourismCompany || 'غير محدد'
+      const transportCompany = adminInfo.transportCompany || 'شركة الرويال للنقل'
+
+      // جمع صور الجوازات (الزائر + المرافقين)
+      const passportUrls: string[] = []
+      if (data.passport_image_url) passportUrls.push(data.passport_image_url)
+      if (data.companions_data && Array.isArray(data.companions_data)) {
+        for (const c of data.companions_data) {
+          if (c?.passportImages && Array.isArray(c.passportImages)) {
+            passportUrls.push(...c.passportImages)
+          }
+        }
+      }
+
+      // Signed URLs لمدة أطول للمشاركة (7 أيام)
+      const signedUrls: string[] = []
+      for (const u of passportUrls.filter(Boolean)) {
+        signedUrls.push(await getSignedImageUrl(u, supabase, 60 * 60 * 24 * 7))
+      }
+
+      const platformWhatsapp = '962798905595' // 0798905595
+
+      const msgLines: string[] = [
+        'ملخص طلب الزيارة (الأردن)',
+        `رقم الطلب: #${shortCode}`,
+        `الكود: ${shortCode}`,
+        `الاسم: ${data.visitor_name || '-'}`,
+        `المدينة: ${data.city || '-'}`,
+        `الشركة المقدّم لها الطلب: ${tourismCompany}`,
+        `شركة النقل: ${transportCompany}`,
+        '',
+        'ملاحظة:',
+        'تم استلام طلبك وسيتم الرد عليك خلال فترة من 3 إلى 10 أيام لإجراءات الموافقة والقبول وتحديد موعد الزيارة والمتابعة.',
+        'سيتم تفعيل ميزة تتبع الرحلة عند الحجز.',
+        'جميع الحقوق محفوظة.',
+      ]
+
+      if (signedUrls.length > 0) {
+        msgLines.push('', 'روابط صور الجوازات:')
+        signedUrls.forEach((u, i) => msgLines.push(`${i + 1}) ${u}`))
+      }
+
+      msgLines.push('', `للمتابعة عبر واتساب المنصة: ${platformWhatsapp}`)
+
+      const text = encodeURIComponent(msgLines.join('\n'))
+      window.open(`https://wa.me/${platformWhatsapp}?text=${text}`, '_blank')
+      toast.success('تم تجهيز رسالة واتساب')
+    } catch (e: any) {
+      console.error('Share WhatsApp error:', e)
+      toast.error(e?.message || 'تعذر تجهيز المشاركة')
+    } finally {
+      setSharingRequestId(null)
+    }
+  }
+
+  const getStatusBadge = (status: string, tripStatus: string | null, isDraft: boolean) => {
+    if (isDraft) {
+      return (
+        <span className="inline-flex items-center gap-1 px-2 sm:px-3 py-0.5 sm:py-1 rounded-full text-xs sm:text-sm font-medium bg-amber-100 text-amber-900 border border-amber-200">
+          <Clock className="w-3 h-3 sm:w-4 sm:h-4" />
+          <span>مسودة (غير مُرسلة)</span>
+        </span>
+      )
+    }
     // إذا كان الطلب منتهياً، اعرض "منتهي"
     if (status === 'completed' || tripStatus === 'completed') {
       return (
@@ -189,7 +305,10 @@ export default function DashboardContent({ userId }: { userId: string }) {
               <div>
                 <p className="text-gray-600 text-xs sm:text-sm mb-1">قيد المراجعة</p>
                 <p className="text-xl sm:text-2xl md:text-3xl font-bold text-yellow-600">
-                  {requests.filter(r => r.status === 'pending' || r.status === 'under_review').length}
+                  {requests.filter(r => {
+                    const isDraft = ((r.admin_notes || '') as string).startsWith('[DRAFT]')
+                    return !isDraft && (r.status === 'pending' || r.status === 'under_review')
+                  }).length}
                 </p>
               </div>
               <Clock className="w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 text-yellow-600 opacity-20 flex-shrink-0" />
@@ -358,12 +477,43 @@ export default function DashboardContent({ userId }: { userId: string }) {
           ) : (
             <div className="divide-y divide-gray-200">
               {requests.map((request) => (
+                (() => {
+                  const isDraft = ((request.admin_notes || '') as string).startsWith('[DRAFT]')
+                  const adminInfo = parseAdminNotes((request.admin_notes || '') as string) || {}
+                  const tourismCompany = adminInfo.tourismCompany || 'غير محدد'
+                  const transportCompany = adminInfo.transportCompany || 'شركة الرويال للنقل'
+                  const shortCode = String(request.id).slice(0, 8).toUpperCase()
+                  const showCompanies = request.visit_type === 'visit' && !isDraft
+
+                  return (
                 <div key={request.id} className="p-4 sm:p-6 hover:bg-gray-50 transition">
                   <div className="flex flex-col sm:flex-row justify-between items-start gap-3 sm:gap-4">
                     <div className="flex-1 w-full">
                       <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 mb-3 sm:mb-2">
-                        <h3 className="text-base sm:text-lg md:text-xl font-bold text-gray-800 break-words">{request.visitor_name}</h3>
-                        <div className="flex-shrink-0">{getStatusBadge(request.status, request.trip_status)}</div>
+                        <div className="min-w-0 flex items-center flex-wrap gap-2">
+                          <h3 className="text-base sm:text-lg md:text-xl font-bold text-gray-800 break-words">
+                            {request.visitor_name}
+                          </h3>
+                          <span className="inline-flex items-center gap-1 bg-gray-50 border border-gray-200 rounded-md px-2 py-0.5">
+                            <span className="text-xs text-gray-600 font-mono">#{shortCode}</span>
+                            <button
+                              type="button"
+                              onClick={() => copyText(shortCode, 'تم نسخ الكود')}
+                              className="p-1 rounded hover:bg-white"
+                              title="نسخ الكود"
+                              aria-label="نسخ الكود"
+                            >
+                              <Copy className="w-3.5 h-3.5 text-gray-600" />
+                            </button>
+                          </span>
+                        </div>
+                        <div className="flex-shrink-0">
+                          {getStatusBadge(
+                            request.status,
+                            request.trip_status,
+                            ((request.admin_notes || '') as string).startsWith('[DRAFT]')
+                          )}
+                        </div>
                       </div>
                       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 sm:gap-3 md:gap-4 mt-3 sm:mt-4 text-xs sm:text-sm text-gray-600">
                         <div className="flex items-center gap-2">
@@ -374,10 +524,12 @@ export default function DashboardContent({ userId }: { userId: string }) {
                           <MapPin className="w-3 h-3 sm:w-4 sm:h-4 flex-shrink-0" />
                           <span className="break-words">المدينة: {request.city}</span>
                         </div>
-                        <div className="flex items-center gap-2">
-                          <Calendar className="w-3 h-3 sm:w-4 sm:h-4 flex-shrink-0" />
-                          <span className="break-words">تاريخ السفر: {formatDate(request.travel_date)}</span>
-                        </div>
+                        {showCompanies && (
+                          <div className="flex items-center gap-2">
+                            <Building2 className="w-3 h-3 sm:w-4 sm:h-4 flex-shrink-0 text-blue-600" />
+                            <span className="break-words">الشركة المقدّم لها: {tourismCompany}</span>
+                          </div>
+                        )}
                         {request.arrival_date && (
                           <div className="flex items-center gap-2">
                             <Plane className="w-3 h-3 sm:w-4 sm:h-4 flex-shrink-0 text-blue-600" />
@@ -390,21 +542,44 @@ export default function DashboardContent({ userId }: { userId: string }) {
                             <span className="break-words text-green-700 font-medium">تاريخ المغادرة: {formatDate(request.departure_date)}</span>
                           </div>
                         )}
-                        <div className="flex items-center gap-2">
-                          <span className="break-words">عدد الأيام: {request.days_count}</span>
-                        </div>
+                        {showCompanies && (
+                          <div className="flex items-center gap-2">
+                            <span className="break-words">شركة النقل: {transportCompany}</span>
+                          </div>
+                        )}
                         <div className="flex items-center gap-2 sm:col-span-2 md:col-span-1">
                           <span className="break-words">تاريخ الطلب: {formatDate(request.created_at)}</span>
                         </div>
                       </div>
                     </div>
                     <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+                      {request.visit_type === 'visit' &&
+                        ((request.admin_notes || '') as string).startsWith('[DRAFT]') && (
+                          <Link
+                            href={`/services/jordan-visit/payment/${request.id}`}
+                            className="w-full sm:w-auto px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition text-xs sm:text-sm font-semibold text-center"
+                          >
+                            استكمال الطلب
+                          </Link>
+                        )}
                       <Link
                         href={`/dashboard/request/${request.id}`}
                         className="w-full sm:w-auto px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-xs sm:text-sm font-semibold text-center"
                       >
                         عرض التفاصيل
                       </Link>
+                      {request.visit_type === 'visit' && !isDraft && (
+                        <button
+                          type="button"
+                          onClick={() => handleShareWhatsApp(request.id)}
+                          disabled={sharingRequestId === request.id}
+                          className="w-full sm:w-auto px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition text-xs sm:text-sm font-semibold flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                          title="مشاركة تفاصيل الطلب على واتساب المنصة"
+                        >
+                          <MessageCircle className="w-4 h-4" />
+                          {sharingRequestId === request.id ? 'جارٍ التجهيز...' : 'مشاركة واتساب'}
+                        </button>
+                      )}
                       {/* زر حجز الرحلة - فعال للمقبولة، غير فعال للقيد الإجراء */}
                       {request.visit_type === 'visit' && (
                         <button
@@ -453,6 +628,8 @@ export default function DashboardContent({ userId }: { userId: string }) {
                     </div>
                   </div>
                 </div>
+                  )
+                })()
               ))}
             </div>
           )}

@@ -92,3 +92,4 @@ CREATE POLICY "Supervisors can update assigned requests"
 -- UPDATE public.profiles SET role = 'supervisor' WHERE user_id = '...';
 
 
+

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Bell, Check, X, Info, CheckCircle, AlertTriangle, AlertCircle } from 'lucide-react'
 import { createSupabaseBrowserClient } from '@/lib/supabase'
 import { formatDate } from '@/lib/date-utils'
@@ -29,6 +29,8 @@ export default function NotificationsDropdown({ userId }: NotificationsDropdownP
   const [loading, setLoading] = useState(true)
   const [unreadCount, setUnreadCount] = useState(0)
   const [isAdmin, setIsAdmin] = useState(false)
+  const triggerRef = useRef<HTMLButtonElement | null>(null)
+  const [panelStyle, setPanelStyle] = useState<React.CSSProperties>({})
 
   useEffect(() => {
     if (!userId) {
@@ -221,10 +223,53 @@ export default function NotificationsDropdown({ userId }: NotificationsDropdownP
     return null
   }
 
+  const updatePanelPosition = () => {
+    const el = triggerRef.current
+    if (!el || typeof window === 'undefined') return
+
+    const rect = el.getBoundingClientRect()
+    const margin = 8
+    const viewportW = window.innerWidth
+    const viewportH = window.innerHeight
+
+    // Prefer a nice desktop width, but clamp it to viewport
+    const desiredW = 384 // 24rem
+    const width = Math.min(desiredW, Math.max(280, viewportW - 16))
+    const maxH = Math.min(500, Math.max(240, Math.floor(viewportH * 0.7)))
+
+    // Align the panel's right edge with the trigger's right edge (good for RTL/LTR)
+    const rawLeft = rect.right - width
+    const left = Math.max(8, Math.min(rawLeft, viewportW - width - 8))
+
+    // Default open below the trigger; if it would overflow bottom, open above
+    const belowTop = rect.bottom + margin
+    const aboveTop = rect.top - margin - maxH
+    const top =
+      belowTop + maxH <= viewportH - 8
+        ? belowTop
+        : Math.max(8, aboveTop)
+
+    setPanelStyle({
+      position: 'fixed',
+      top,
+      left,
+      width,
+      maxHeight: maxH,
+    })
+  }
+
   return (
     <div className="relative">
       <button
-        onClick={() => setIsOpen(!isOpen)}
+        ref={triggerRef}
+        onClick={() => {
+          const next = !isOpen
+          setIsOpen(next)
+          if (next) {
+            // wait for render then position
+            requestAnimationFrame(updatePanelPosition)
+          }
+        }}
         className="relative p-2 text-gray-700 hover:text-blue-600 hover:bg-gray-100 rounded-lg transition"
       >
         <Bell className="w-5 h-5 sm:w-6 sm:h-6" />
@@ -241,7 +286,10 @@ export default function NotificationsDropdown({ userId }: NotificationsDropdownP
             className="fixed inset-0 z-40"
             onClick={() => setIsOpen(false)}
           />
-          <div className="fixed left-2 right-2 top-14 mt-2 bg-white rounded-lg shadow-xl border border-gray-200 z-50 max-h-[70vh] flex flex-col sm:absolute sm:left-auto sm:right-0 sm:top-full sm:mt-2 sm:w-[24rem] sm:max-h-[500px]">
+          <div
+            className="z-50 bg-white rounded-lg shadow-xl border border-gray-200 flex flex-col"
+            style={panelStyle}
+          >
             {/* Header */}
             <div className="p-4 border-b border-gray-200 flex items-center justify-between">
               <h3 className="font-bold text-gray-800">الإشعارات</h3>

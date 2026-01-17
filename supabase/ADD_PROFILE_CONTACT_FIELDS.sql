@@ -7,3 +7,4 @@ ADD COLUMN IF NOT EXISTS jordan_phone TEXT,
 ADD COLUMN IF NOT EXISTS whatsapp_phone TEXT;
 
 
+

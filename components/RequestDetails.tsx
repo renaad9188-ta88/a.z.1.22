@@ -13,6 +13,7 @@ import RequestHeader from './request-details/RequestHeader'
 import RequestInfo from './request-details/RequestInfo'
 import CompanionsList from './request-details/CompanionsList'
 import PaymentImages from './request-details/PaymentImages'
+import PassportImages from './request-details/PassportImages'
 import ImageGallery from './request-details/ImageGallery'
 import AdminResponse from './request-details/AdminResponse'
 
@@ -173,6 +174,16 @@ export default function RequestDetails({ requestId, userId }: { requestId: strin
     ? request.companions_data 
     : []
 
+  // صور الجوازات (الزائر الرئيسي + المرافقين)
+  const passportImagesRaw: string[] = []
+  if (request.passport_image_url) passportImagesRaw.push(request.passport_image_url)
+  companions.forEach((companion: any) => {
+    if (companion?.passportImages && Array.isArray(companion.passportImages)) {
+      passportImagesRaw.push(...companion.passportImages)
+    }
+  })
+  const passportImagesUnique = Array.from(new Set(passportImagesRaw.filter(Boolean)))
+
   // جمع صور الجوازات والدفعات
   const passportImages: string[] = []
   const paymentImages: string[] = []
@@ -217,6 +228,12 @@ export default function RequestDetails({ requestId, userId }: { requestId: strin
           <RequestHeader requestId={request.id} status={request.status} trackingHref={`/dashboard/request/${request.id}/track`} />
           
           <RequestInfo request={request} adminInfo={adminInfo} />
+
+          <PassportImages
+            passportImages={passportImagesUnique}
+            signedPassportImages={signedPassportImages}
+            onOpenGallery={openImageGallery}
+          />
 
           <CompanionsList 
             companions={companions}

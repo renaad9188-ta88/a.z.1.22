@@ -70,3 +70,4 @@ GRANT EXECUTE ON FUNCTION create_notification(UUID, TEXT, TEXT, TEXT, TEXT, UUID
 -- ملاحظة: الدالة SECURITY DEFINER تتجاوز RLS، لذا يمكن لأي مستخدم إنشاء إشعار لأي مستخدم آخر
 -- هذا مفيد عندما يريد المستخدم العادي إرسال إشعار للإدمن
 
+

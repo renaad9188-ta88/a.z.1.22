@@ -9,3 +9,4 @@ CREATE INDEX IF NOT EXISTS idx_visit_requests_arrival_time ON public.visit_reque
 CREATE INDEX IF NOT EXISTS idx_visit_requests_departure_time ON public.visit_requests(departure_time);
 
 
+

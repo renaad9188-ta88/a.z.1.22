@@ -55,3 +55,4 @@
 - **Monitoring**: راقب الأداء باستخدام Lighthouse أو Web Vitals
 - **Caching**: Supabase يقوم بـ caching تلقائي للاستعلامات المتكررة
 
+

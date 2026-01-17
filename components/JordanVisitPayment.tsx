@@ -4,9 +4,10 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createSupabaseBrowserClient } from '@/lib/supabase'
 import toast from 'react-hot-toast'
-import { Upload, Save, DollarSign, Phone, MessageCircle, CheckCircle, X } from 'lucide-react'
+import { Upload, Save, DollarSign, Phone, MessageCircle, CheckCircle, X, Copy } from 'lucide-react'
 import Link from 'next/link'
 import { createNotification, notifyAdminNewRequest, notifyAllAdmins } from '@/lib/notifications'
+import { getSignedImageUrl } from './request-details/utils'
 
 interface Person {
   name: string
@@ -24,10 +25,56 @@ export default function JordanVisitPayment({ requestId, userId }: { requestId: s
   const [paymentPreviews, setPaymentPreviews] = useState<string[]>([])
   const [paymentSaved, setPaymentSaved] = useState(false)
   const [savedPaymentUrls, setSavedPaymentUrls] = useState<string[]>([])
+  const [signedSavedPaymentUrls, setSignedSavedPaymentUrls] = useState<{ [key: string]: string }>({})
+
+  const copyText = async (text: string, successMsg: string) => {
+    try {
+      if (navigator?.clipboard?.writeText) {
+        await navigator.clipboard.writeText(text)
+      } else {
+        const ta = document.createElement('textarea')
+        ta.value = text
+        ta.style.position = 'fixed'
+        ta.style.left = '-9999px'
+        ta.style.top = '0'
+        document.body.appendChild(ta)
+        ta.focus()
+        ta.select()
+        document.execCommand('copy')
+        document.body.removeChild(ta)
+      }
+      toast.success(successMsg)
+    } catch (e) {
+      console.error('Copy failed:', e)
+      toast.error('تعذر النسخ')
+    }
+  }
 
   useEffect(() => {
     loadRequest()
   }, [requestId])
+
+  // تحويل روابط صور الدفعات المحفوظة إلى signed URLs (لأن bucket passports خاص)
+  useEffect(() => {
+    const convertSavedPaymentsToSigned = async () => {
+      if (!savedPaymentUrls || savedPaymentUrls.length === 0) {
+        setSignedSavedPaymentUrls({})
+        return
+      }
+
+      const nextMap: { [key: string]: string } = {}
+      for (const u of savedPaymentUrls) {
+        try {
+          nextMap[u] = await getSignedImageUrl(u, supabase)
+        } catch {
+          nextMap[u] = u
+        }
+      }
+      setSignedSavedPaymentUrls(nextMap)
+    }
+
+    convertSavedPaymentsToSigned()
+  }, [savedPaymentUrls, supabase])
 
   const loadRequest = async () => {
     try {
@@ -93,6 +140,9 @@ export default function JordanVisitPayment({ requestId, userId }: { requestId: s
       }
       reader.readAsDataURL(file)
     })
+
+    // يسمح بإعادة اختيار نفس الملف مرة أخرى
+    e.currentTarget.value = ''
   }
 
   const removePaymentImage = (index: number) => {
@@ -155,6 +205,7 @@ export default function JordanVisitPayment({ requestId, userId }: { requestId: s
       setPaymentSaved(true)
       setPaymentImages([])
       setPaymentPreviews([])
+      setRequest((prev: any) => (prev ? { ...prev, admin_notes: nextNotes, deposit_paid: true } : prev))
 
       // إشعار للإدمن: تم رفع صور الدفعات (لكن لم يتم إرسال الطلب بعد)
       try {
@@ -226,9 +277,9 @@ export default function JordanVisitPayment({ requestId, userId }: { requestId: s
       try {
         await createNotification({
           userId,
-          title: 'تم إرسال الطلب',
-          message: 'تم إرسال طلبك للإدارة بنجاح. سيتم إشعارك عند استلامه وتحويله لقيد الإجراء.',
-          type: 'success',
+          title: 'تم استلام الطلب',
+          message: 'تم استلام طلبك بنجاح. سيتم مراجعته من قبل الإدارة وسيتم إشعارك عند تحديث الحالة.',
+          type: 'info',
           relatedType: 'request',
           relatedId: requestId,
         })
@@ -269,12 +320,59 @@ export default function JordanVisitPayment({ requestId, userId }: { requestId: s
     }
   }
 
+  const handleDeleteSavedPaymentImage = async (index: number) => {
+    if (!savedPaymentUrls[index]) return
+    if (!confirm('هل تريد حذف هذه الصورة من صور الدفعات؟')) return
+
+    try {
+      setSavingImages(true)
+      const nextUrls = savedPaymentUrls.filter((_, i) => i !== index)
+      const currentNotes = (request?.admin_notes || '') as string
+      const notesWithoutOldLine = currentNotes.replace(/\n*صور الدفعات:\s*[^\n]*\n*/g, '\n')
+      const nextNotes =
+        nextUrls.length > 0
+          ? `${notesWithoutOldLine.trim()}\n\nصور الدفعات: ${nextUrls.join(', ')}`.trim()
+          : notesWithoutOldLine.trim()
+
+      const totalAmount = persons.length * 10
+      const shouldMarkPaid = nextUrls.length > 0
+
+      const { error } = await supabase
+        .from('visit_requests')
+        .update({
+          deposit_paid: shouldMarkPaid,
+          deposit_amount: shouldMarkPaid ? totalAmount : null,
+          total_amount: shouldMarkPaid ? totalAmount : null,
+          admin_notes: nextNotes,
+        })
+        .eq('id', requestId)
+
+      if (error) throw error
+
+      setSavedPaymentUrls(nextUrls)
+      setPaymentSaved(shouldMarkPaid)
+      setRequest((prev: any) => (prev ? { ...prev, admin_notes: nextNotes, deposit_paid: shouldMarkPaid } : prev))
+      toast.success('تم حذف الصورة')
+    } catch (e: any) {
+      console.error('Delete saved payment image error:', e)
+      toast.error(e?.message || 'تعذر حذف الصورة')
+    } finally {
+      setSavingImages(false)
+    }
+  }
+
   if (!request) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">جاري التحميل...</p>
+      <div className="page">
+        <div className="page-container">
+          <div className="max-w-3xl mx-auto">
+            <div className="card flex items-center justify-center">
+              <div className="text-center py-10">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+                <p className="text-gray-600">جاري التحميل...</p>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     )
@@ -283,24 +381,25 @@ export default function JordanVisitPayment({ requestId, userId }: { requestId: s
   const totalAmount = persons.length * 10 // 10 دنانير لكل شخص
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-white py-4 sm:py-6 md:py-8 px-3 sm:px-4">
-      <div className="max-w-3xl mx-auto">
-        <div className="bg-white rounded-lg shadow-xl p-4 sm:p-6 md:p-8">
-          {/* Header */}
-          <div className="text-center mb-6 sm:mb-8">
-            <div className="w-16 h-16 sm:w-20 sm:h-20 bg-green-50 rounded-2xl flex items-center justify-center mx-auto mb-4">
-              <DollarSign className="w-8 h-8 sm:w-10 sm:h-10 text-green-600" />
+    <div className="page">
+      <div className="page-container">
+        <div className="max-w-3xl mx-auto">
+          <div className="card">
+            {/* Header */}
+            <div className="text-center mb-6 sm:mb-8">
+              <div className="w-16 h-16 sm:w-20 sm:h-20 bg-green-50 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                <DollarSign className="w-8 h-8 sm:w-10 sm:h-10 text-green-600" />
+              </div>
+              <h1 className="font-bold text-gray-800 mb-2">الدفع والرسوم</h1>
+              <p className="text-sm sm:text-base text-gray-600">يرجى رفع صور الدفعات للمتابعة</p>
             </div>
-            <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold text-gray-800 mb-2">الدفع والرسوم</h1>
-            <p className="text-sm sm:text-base text-gray-600">يرجى رفع صور الدفعات للمتابعة</p>
-          </div>
 
           {/* قائمة الأشخاص */}
           <div className="mb-6 sm:mb-8">
-            <h2 className="text-lg sm:text-xl font-bold text-gray-800 mb-4">الأشخاص المسجلين</h2>
+            <h2 className="font-bold text-gray-800 mb-4">الأشخاص المسجلين</h2>
             <div className="space-y-3 sm:space-y-4">
               {persons.map((person, index) => (
-                <div key={index} className="bg-gray-50 p-3 sm:p-4 rounded-lg border border-gray-200">
+                <div key={index} className="card-soft">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2 sm:gap-3">
                       <div className="w-8 h-8 sm:w-10 sm:h-10 bg-blue-100 rounded-full flex items-center justify-center">
@@ -321,7 +420,7 @@ export default function JordanVisitPayment({ requestId, userId }: { requestId: s
           </div>
 
           {/* إجمالي المبلغ */}
-          <div className="bg-gradient-to-r from-blue-50 to-green-50 p-4 sm:p-6 rounded-lg mb-6 sm:mb-8 border-2 border-blue-200">
+          <div className="bg-gradient-to-r from-blue-50 to-green-50 p-4 sm:p-6 rounded-lg mb-6 sm:mb-8 border border-blue-200">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm sm:text-base text-gray-600 mb-1">عدد الأشخاص</p>
@@ -337,9 +436,59 @@ export default function JordanVisitPayment({ requestId, userId }: { requestId: s
             </div>
           </div>
 
+          {/* معلومات الدفع */}
+          <div className="card-soft mb-6 sm:mb-8">
+            <div className="flex items-center justify-between gap-3 mb-3">
+              <h3 className="text-sm sm:text-base font-bold text-gray-800">معلومات الدفع</h3>
+              <span className="text-xs text-gray-500">اضغط للنسخ</span>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="bg-white rounded-lg border border-gray-200 p-3 sm:p-4">
+                <p className="text-xs sm:text-sm font-bold text-gray-800 mb-1">البنك الإسلامي الأردني</p>
+                <p className="text-xs text-gray-600 mb-2">باسم: محمد محمد محمد (تجريبي)</p>
+                <div className="flex items-center justify-between gap-2">
+                  <a href="tel:077777777777" className="font-mono font-bold text-blue-700 text-sm sm:text-base ltr">
+                    077777777777
+                  </a>
+                  <button
+                    type="button"
+                    onClick={() => copyText('077777777777', 'تم نسخ رقم الدفع')}
+                    className="btn-secondary px-3 py-2 text-xs sm:text-sm"
+                    title="نسخ الرقم"
+                    aria-label="نسخ الرقم"
+                  >
+                    <Copy className="w-4 h-4" />
+                    نسخ
+                  </button>
+                </div>
+              </div>
+
+              <div className="bg-white rounded-lg border border-gray-200 p-3 sm:p-4">
+                <p className="text-xs sm:text-sm font-bold text-gray-800 mb-1">محفظة زين كاش</p>
+                <p className="text-xs text-gray-600 mb-2">حمادة حمادة حمادة</p>
+                <div className="flex items-center justify-between gap-2">
+                  <a href="tel:07979797979" className="font-mono font-bold text-blue-700 text-sm sm:text-base ltr">
+                    07979797979
+                  </a>
+                  <button
+                    type="button"
+                    onClick={() => copyText('07979797979', 'تم نسخ رقم الدفع')}
+                    className="btn-secondary px-3 py-2 text-xs sm:text-sm"
+                    title="نسخ الرقم"
+                    aria-label="نسخ الرقم"
+                  >
+                    <Copy className="w-4 h-4" />
+                    نسخ
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
           {/* رفع صور الدفعات */}
           <div className="mb-6 sm:mb-8">
-            <h2 className="text-lg sm:text-xl font-bold text-gray-800 mb-4">رفع صور الدفعات *</h2>
+            <h2 className="font-bold text-gray-800 mb-4">رفع صور الدفعات *</h2>
             <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 sm:p-6 text-center hover:border-green-400 transition">
               <input
                 type="file"
@@ -362,6 +511,46 @@ export default function JordanVisitPayment({ requestId, userId }: { requestId: s
                 <span className="text-xs text-gray-500">الحجم الأقصى: 5 ميجابايت لكل صورة</span>
               </label>
             </div>
+
+            {/* صور الدفعات المحفوظة (بعد الحفظ) */}
+            {savedPaymentUrls.length > 0 && (
+              <div className="mt-4">
+                <div className="flex items-center justify-between gap-3 mb-2">
+                  <p className="text-sm sm:text-base font-bold text-gray-800">
+                    صور الدفعات المحفوظة
+                  </p>
+                  <span className="text-xs sm:text-sm text-green-700 font-semibold">
+                    تم الحفظ ✓
+                  </span>
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 sm:gap-3">
+                  {savedPaymentUrls.map((url, index) => (
+                    <div key={`${url}-${index}`} className="relative group">
+                      <a href={signedSavedPaymentUrls[url] || url} target="_blank" rel="noreferrer" title="فتح الصورة">
+                        <img
+                          src={signedSavedPaymentUrls[url] || url}
+                          alt={`دفعة محفوظة ${index + 1}`}
+                          className="w-full h-24 sm:h-32 object-cover rounded-lg border border-gray-300"
+                        />
+                      </a>
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteSavedPaymentImage(index)}
+                        disabled={savingImages || submitting}
+                        className="absolute top-1 left-1 bg-red-600 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity disabled:opacity-50"
+                        title="حذف الصورة"
+                        aria-label="حذف الصورة"
+                      >
+                        <X className="w-3 h-3 sm:w-4 sm:h-4" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+                <p className="mt-2 text-xs sm:text-sm text-gray-500">
+                  يمكنك حذف صورة خاطئة ثم رفع صورة جديدة بدلها.
+                </p>
+              </div>
+            )}
 
             {/* معاينة صور الدفعات */}
             {paymentPreviews.length > 0 && (
@@ -387,8 +576,8 @@ export default function JordanVisitPayment({ requestId, userId }: { requestId: s
           </div>
 
           {/* معلومات التواصل */}
-          <div className="bg-blue-50 p-4 sm:p-5 rounded-lg mb-6 sm:mb-8">
-            <h2 className="text-base sm:text-lg font-bold text-gray-800 mb-3 sm:mb-4">معلومات التواصل</h2>
+          <div className="bg-blue-50 p-4 sm:p-5 rounded-lg mb-6 sm:mb-8 border border-blue-100">
+            <h2 className="font-bold text-gray-800 mb-3 sm:mb-4">معلومات التواصل</h2>
             <div className="space-y-2 sm:space-y-3">
               <a 
                 href="tel:0798905595" 
@@ -413,7 +602,7 @@ export default function JordanVisitPayment({ requestId, userId }: { requestId: s
             <button
               onClick={handleSavePaymentImages}
               disabled={savingImages || paymentImages.length === 0}
-              className="flex-1 flex items-center justify-center gap-2 px-4 sm:px-6 py-2.5 sm:py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition disabled:opacity-50 disabled:cursor-not-allowed text-sm sm:text-base font-semibold"
+              className="btn flex-1 px-4 sm:px-6 py-2.5 sm:py-3 bg-green-600 text-white hover:bg-green-700 text-sm sm:text-base"
             >
               <Save className="w-4 h-4 sm:w-5 sm:h-5" />
               {savingImages ? 'جاري الحفظ...' : 'حفظ صور الدفعات'}
@@ -421,14 +610,14 @@ export default function JordanVisitPayment({ requestId, userId }: { requestId: s
             <button
               onClick={handleSubmitRequest}
               disabled={submitting || !paymentSaved}
-              className="flex-1 flex items-center justify-center gap-2 px-4 sm:px-6 py-2.5 sm:py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition disabled:opacity-50 disabled:cursor-not-allowed text-sm sm:text-base font-semibold"
+              className="btn-primary flex-1 px-4 sm:px-6 py-2.5 sm:py-3 text-sm sm:text-base"
             >
               <CheckCircle className="w-4 h-4 sm:w-5 sm:h-5" />
               {submitting ? 'جاري الإرسال...' : 'إرسال الطلب'}
             </button>
             <Link
               href="/dashboard"
-              className="flex-1 flex items-center justify-center gap-2 px-4 sm:px-6 py-2.5 sm:py-3 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition text-sm sm:text-base font-semibold"
+              className="btn-secondary flex-1 px-4 sm:px-6 py-2.5 sm:py-3 text-sm sm:text-base"
             >
               العودة للوحة التحكم
             </Link>
@@ -436,6 +625,7 @@ export default function JordanVisitPayment({ requestId, userId }: { requestId: s
           <p className="text-xs sm:text-sm text-gray-500 mt-3">
             - أولاً احفظ صور الدفعات، ثم اضغط <span className="font-semibold">إرسال الطلب</span> ليصل للإدارة وتبدأ المتابعة.
           </p>
+          </div>
         </div>
       </div>
     </div>
