@@ -2,7 +2,8 @@
 
 import { formatDate } from '@/lib/date-utils'
 import { VisitRequest } from './types'
-import { Clock, CheckCircle, XCircle, Eye, Calendar, MapPin, Users, DollarSign, Plane } from 'lucide-react'
+import { Clock, CheckCircle, XCircle, Eye, Calendar, MapPin, Users, DollarSign, Plane, Copy, ExternalLink } from 'lucide-react'
+import toast from 'react-hot-toast'
 
 interface RequestCardProps {
   request: VisitRequest
@@ -26,6 +27,32 @@ export default function RequestCard({ request, userProfile, onClick, onScheduleT
   // تحديد إذا كان الطلب جديد (أقل من 24 ساعة)
   const requestAge = getRequestAge()
   const isNewRequest = request.status === 'pending' && requestAge.hours < 24
+
+  const shortRef = `#${request.id.slice(0, 8).toUpperCase()}`
+
+  const copyText = async (text: string, successMsg: string) => {
+    try {
+      if (navigator?.clipboard?.writeText) {
+        await navigator.clipboard.writeText(text)
+      } else {
+        // Fallback for older browsers
+        const ta = document.createElement('textarea')
+        ta.value = text
+        ta.style.position = 'fixed'
+        ta.style.left = '-9999px'
+        ta.style.top = '0'
+        document.body.appendChild(ta)
+        ta.focus()
+        ta.select()
+        document.execCommand('copy')
+        document.body.removeChild(ta)
+      }
+      toast.success(successMsg)
+    } catch (e) {
+      console.error('Copy failed:', e)
+      toast.error('تعذر النسخ')
+    }
+  }
 
   const getStatusBadge = (status: string) => {
     const statusMap: Record<string, { text: string; color: string; bgColor: string; borderColor: string; icon: any }> = {
@@ -180,11 +207,60 @@ export default function RequestCard({ request, userProfile, onClick, onScheduleT
               )}
               {getStatusBadge(request.status)}
             </div>
-            <div className="text-left bg-gray-50 rounded-lg p-2 border border-gray-200">
+            <div
+              className="text-left bg-gray-50 rounded-lg p-2 border border-gray-200 cursor-pointer hover:bg-gray-100 transition"
+              role="button"
+              tabIndex={0}
+              onClick={onClick}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') onClick()
+              }}
+              title="اضغط لفتح تفاصيل الطلب"
+            >
               <p className="text-xs text-gray-500 mb-1">رقم الطلب</p>
-              <p className="text-xs sm:text-sm font-mono text-gray-700 font-bold">
-                #{request.id.slice(0, 8).toUpperCase()}
-              </p>
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-xs sm:text-sm font-mono text-gray-700 font-bold">
+                  {shortRef}
+                </p>
+                <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      copyText(shortRef.replace('#', ''), 'تم نسخ رقم الطلب')
+                    }}
+                    className="p-1 rounded-md hover:bg-white border border-transparent hover:border-gray-200 transition"
+                    title="نسخ رقم الطلب المختصر"
+                    aria-label="نسخ رقم الطلب المختصر"
+                  >
+                    <Copy className="w-3.5 h-3.5 text-gray-600" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      copyText(request.id, 'تم نسخ ID كامل')
+                    }}
+                    className="p-1 rounded-md hover:bg-white border border-transparent hover:border-gray-200 transition"
+                    title="نسخ ID كامل"
+                    aria-label="نسخ ID كامل"
+                  >
+                    <Copy className="w-3.5 h-3.5 text-blue-700" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      onClick()
+                    }}
+                    className="p-1 rounded-md hover:bg-white border border-transparent hover:border-gray-200 transition"
+                    title="فتح التفاصيل"
+                    aria-label="فتح التفاصيل"
+                  >
+                    <ExternalLink className="w-3.5 h-3.5 text-gray-700" />
+                  </button>
+                </div>
+              </div>
               {isNewRequest && (
                 <p className="text-xs text-blue-600 mt-1 font-medium">
                   منذ {requestAge.hours} ساعة
