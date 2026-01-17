@@ -169,7 +169,7 @@ export default function RequestCard({ request, userProfile, onClick, onScheduleT
       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
         {/* المعلومات الأساسية */}
         <div className="flex-1 space-y-3">
-          <div className="flex items-start justify-between gap-3">
+          <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
             <div className="flex-1">
               <div className="flex items-center gap-2 mb-2">
                 {index !== undefined && (
@@ -208,7 +208,7 @@ export default function RequestCard({ request, userProfile, onClick, onScheduleT
               {getStatusBadge(request.status)}
             </div>
             <div
-              className="text-left bg-gray-50 rounded-lg p-2 border border-gray-200 cursor-pointer hover:bg-gray-100 transition"
+              className="text-left bg-gray-50 rounded-lg p-2 border border-gray-200 cursor-pointer hover:bg-gray-100 transition w-full sm:w-auto"
               role="button"
               tabIndex={0}
               onClick={onClick}
@@ -218,11 +218,11 @@ export default function RequestCard({ request, userProfile, onClick, onScheduleT
               title="اضغط لفتح تفاصيل الطلب"
             >
               <p className="text-xs text-gray-500 mb-1">رقم الطلب</p>
-              <div className="flex items-center justify-between gap-2">
+              <div className="flex items-start sm:items-center justify-between gap-2">
                 <p className="text-xs sm:text-sm font-mono text-gray-700 font-bold">
                   {shortRef}
                 </p>
-                <div className="flex items-center gap-1">
+                <div className="flex flex-wrap items-center justify-end gap-1">
                   <button
                     type="button"
                     onClick={(e) => {

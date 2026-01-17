@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { createSupabaseBrowserClient } from '@/lib/supabase'
 import toast from 'react-hot-toast'
-import { FileText, Trash2, Eye, Calendar, MapPin, Navigation } from 'lucide-react'
+import { FileText, Trash2, Eye, Calendar, MapPin, Navigation, Copy } from 'lucide-react'
 import { formatDate } from '@/lib/date-utils'
 
 interface VisitRequest {
@@ -80,6 +80,29 @@ export default function MyRequests({ userId }: { userId: string }) {
     }
   }
 
+  const copyText = async (text: string, successMsg: string) => {
+    try {
+      if (navigator?.clipboard?.writeText) {
+        await navigator.clipboard.writeText(text)
+      } else {
+        const ta = document.createElement('textarea')
+        ta.value = text
+        ta.style.position = 'fixed'
+        ta.style.left = '-9999px'
+        ta.style.top = '0'
+        document.body.appendChild(ta)
+        ta.focus()
+        ta.select()
+        document.execCommand('copy')
+        document.body.removeChild(ta)
+      }
+      toast.success(successMsg)
+    } catch (e) {
+      console.error('Copy failed:', e)
+      toast.error('تعذر النسخ')
+    }
+  }
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-white">
@@ -114,13 +137,35 @@ export default function MyRequests({ userId }: { userId: string }) {
             <div className="space-y-3">
               {requests.map((r) => (
                 <div key={r.id} className="border border-gray-200 rounded-lg p-3 sm:p-4">
-                  <div className="flex items-start justify-between gap-3">
+                  <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
                     <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2">
+                      <div className="flex flex-wrap items-center gap-2">
                         <h3 className="font-bold text-gray-800 text-sm sm:text-base break-words">
                           {r.visitor_name}
                         </h3>
-                        <span className="text-xs text-gray-500 font-mono">#{r.id.slice(0, 8).toUpperCase()}</span>
+                        <div className="inline-flex items-center gap-1 bg-gray-50 border border-gray-200 rounded-md px-2 py-0.5">
+                          <span className="text-xs text-gray-600 font-mono">
+                            #{r.id.slice(0, 8).toUpperCase()}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => copyText(r.id.slice(0, 8).toUpperCase(), 'تم نسخ رقم الطلب')}
+                            className="p-1 rounded hover:bg-white"
+                            title="نسخ رقم الطلب"
+                            aria-label="نسخ رقم الطلب"
+                          >
+                            <Copy className="w-3.5 h-3.5 text-gray-600" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => copyText(r.id, 'تم نسخ ID كامل')}
+                            className="p-1 rounded hover:bg-white"
+                            title="نسخ ID كامل"
+                            aria-label="نسخ ID كامل"
+                          >
+                            <Copy className="w-3.5 h-3.5 text-blue-700" />
+                          </button>
+                        </div>
                       </div>
                       <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs sm:text-sm text-gray-600">
                         <div className="flex items-center gap-2">
