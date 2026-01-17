@@ -124,7 +124,7 @@ export default function RegisterForm() {
           error.message?.includes('already registered') || 
           error.message?.includes('already been registered') ||
           error.message?.includes('User already registered')) {
-        toast.info('الحساب موجود بالفعل، جاري تسجيل الدخول...')
+        toast('الحساب موجود بالفعل، جاري تسجيل الدخول...')
         try {
           let cleanPhoneForLogin = formData.phone.replace(/\s+/g, '').replace(/[^\d+]/g, '')
           cleanPhoneForLogin = cleanPhoneForLogin.replace(/^\+?0+/, '')

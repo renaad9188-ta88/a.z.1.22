@@ -44,10 +44,11 @@ export default function MapPage() {
 
   const initMap = () => {
     if (typeof window === 'undefined' || !window.google) return
+    const googleMaps = (window as any).google as any
 
     // Default to Jaber Border Crossing (المعبر جابر)
     const defaultLocation = { lat: 32.5456, lng: 35.8250 } // Approximate location
-    const map = new google.maps.Map(document.getElementById('map') as HTMLElement, {
+    const map = new googleMaps.maps.Map(document.getElementById('map') as HTMLElement, {
       center: userLocation || defaultLocation,
       zoom: 13,
       mapTypeControl: true,
@@ -56,7 +57,7 @@ export default function MapPage() {
     })
 
     // Add marker for Jaber Border Crossing
-    new google.maps.Marker({
+    new googleMaps.maps.Marker({
       position: defaultLocation,
       map: map,
       title: 'المعبر جابر',
@@ -67,7 +68,7 @@ export default function MapPage() {
 
     // Add marker for user location if available
     if (userLocation) {
-      new google.maps.Marker({
+      new googleMaps.maps.Marker({
         position: userLocation,
         map: map,
         title: 'موقعك الحالي',
@@ -81,7 +82,7 @@ export default function MapPage() {
     loadDrivers(map)
   }
 
-  const loadDrivers = async (map: google.maps.Map) => {
+  const loadDrivers = async (map: any) => {
     try {
       const { data: drivers } = await supabase
         .from('drivers')
@@ -89,6 +90,7 @@ export default function MapPage() {
         .eq('is_active', true)
 
       if (drivers) {
+        const googleMaps = (window as any).google as any
         drivers.forEach((driver) => {
           // For demo purposes, use random locations near the border
           // In production, you would store actual GPS coordinates for each driver
@@ -97,7 +99,7 @@ export default function MapPage() {
             lng: 35.8250 + (Math.random() - 0.5) * 0.1,
           }
 
-          const marker = new google.maps.Marker({
+          const marker = new googleMaps.maps.Marker({
             position: driverLocation,
             map: map,
             title: `${driver.name} - ${driver.phone}`,
@@ -106,7 +108,7 @@ export default function MapPage() {
             },
           })
 
-          const infoWindow = new google.maps.InfoWindow({
+          const infoWindow = new googleMaps.maps.InfoWindow({
             content: `
               <div style="padding: 10px;">
                 <h3 style="margin: 0 0 10px 0; font-weight: bold;">${driver.name}</h3>
@@ -189,12 +191,5 @@ export default function MapPage() {
       </div>
     </div>
   )
-}
-
-// Extend Window interface for TypeScript
-declare global {
-  interface Window {
-    google: typeof google
-  }
 }
 

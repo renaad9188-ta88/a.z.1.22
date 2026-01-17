@@ -29,7 +29,8 @@ function loadGoogleMaps(apiKey: string): Promise<void> {
 
     const script = document.createElement('script')
     script.dataset.googleMaps = '1'
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places&language=ar`
+    // Note: no need for Places library on this public demo map -> faster load
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&language=ar`
     script.async = true
     script.defer = true
     script.onload = () => resolve()
@@ -41,11 +42,13 @@ function loadGoogleMaps(apiKey: string): Promise<void> {
 export default function HomeTransportMap() {
   const supabase = createSupabaseBrowserClient()
   const mapElRef = useRef<HTMLDivElement | null>(null)
+  const inViewRef = useRef<HTMLDivElement | null>(null)
   const mapRef = useRef<google.maps.Map | null>(null)
   const markersRef = useRef<google.maps.Marker[]>([])
 
   const [ready, setReady] = useState(false)
   const [errorText, setErrorText] = useState<string | null>(null)
+  const [shouldLoad, setShouldLoad] = useState(false)
 
   const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || ''
 
@@ -140,6 +143,23 @@ export default function HomeTransportMap() {
   }
 
   useEffect(() => {
+    // Lazy-load Google Maps only when the map area is in view (big perf win on slow phones)
+    if (!inViewRef.current) return
+    const el = inViewRef.current
+    const obs = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((e) => e.isIntersecting)) {
+          setShouldLoad(true)
+          obs.disconnect()
+        }
+      },
+      { root: null, threshold: 0.15 }
+    )
+    obs.observe(el)
+    return () => obs.disconnect()
+  }, [])
+
+  useEffect(() => {
     let mounted = true
     ;(async () => {
       try {
@@ -147,6 +167,7 @@ export default function HomeTransportMap() {
           setErrorText('مفتاح Google Maps غير موجود')
           return
         }
+        if (!shouldLoad) return
         await loadGoogleMaps(apiKey)
         if (!mounted) return
         setReady(true)
@@ -159,7 +180,7 @@ export default function HomeTransportMap() {
     return () => {
       mounted = false
     }
-  }, [apiKey])
+  }, [apiKey, shouldLoad])
 
   useEffect(() => {
     if (!ready) return
@@ -189,7 +210,17 @@ export default function HomeTransportMap() {
         {errorText ? (
           <div className="p-5 text-sm text-gray-700">{errorText}</div>
         ) : (
-          <div ref={mapElRef} className="w-full h-[280px] sm:h-[360px] md:h-[420px]" />
+          <div ref={inViewRef} className="w-full">
+            {!shouldLoad && (
+              <div className="w-full h-[280px] sm:h-[360px] md:h-[420px] flex items-center justify-center bg-gray-50 text-sm text-gray-600">
+                جاري تحميل الخريطة...
+              </div>
+            )}
+            <div
+              ref={mapElRef}
+              className={`${shouldLoad ? '' : 'hidden'} w-full h-[280px] sm:h-[360px] md:h-[420px]`}
+            />
+          </div>
         )}
       </div>
     </div>

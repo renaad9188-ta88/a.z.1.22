@@ -467,7 +467,8 @@ export default function RequestTracking({ requestId, userId }: { requestId: stri
 
     // Fit bounds
     if (bounds.getNorthEast() && bounds.getSouthWest()) {
-      map.fitBounds(bounds, { padding: 60 })
+      // fitBounds accepts either a number padding or {top,right,bottom,left}
+      map.fitBounds(bounds, 60)
     } else {
       map.setCenter(path[0] || DEFAULT_CENTER)
       map.setZoom(11)

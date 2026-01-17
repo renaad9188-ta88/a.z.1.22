@@ -116,28 +116,11 @@ export default function RequestCard({ request, userProfile, onClick, onScheduleT
   }
 
   // التحقق من نوع الطلب (هل هو طلب أردن)
-  const isJordanVisit = request.admin_notes?.includes('خدمة: زيارة الأردن لمدة شهر')
-  const companionsCount = request.companions_data && Array.isArray(request.companions_data) 
-    ? request.companions_data.length 
-    : request.companions_count || 0
+  const isJordanVisit = Boolean(request.admin_notes?.includes('خدمة: زيارة الأردن لمدة شهر'))
 
-  // حساب عدد الأشخاص بشكل صحيح
-  // - الافتراضي: (الزائر الرئيسي = 1) + عدد المرافقين
-  // - طلبات الأردن القديمة كانت تخزّن "كل الأشخاص" داخل companions_data (بما فيهم الرئيسي)
-  //   نكتشف ذلك إذا كان أي عنصر في companions_data يحتوي passport_image_url الخاص بالرئيسي
-  const companionsData: any[] = request.companions_data && Array.isArray(request.companions_data)
-    ? (request.companions_data as any[])
-    : []
-  const primaryPassportUrl = request.passport_image_url
-  const companionsContainPrimaryPassport =
-    Boolean(isJordanVisit && primaryPassportUrl) &&
-    companionsData.some((c: any) =>
-      Array.isArray(c?.passportImages) && c.passportImages.includes(primaryPassportUrl)
-    )
-
-  const totalPeople = companionsContainPrimaryPassport
-    ? companionsData.length // بيانات قديمة: companions_data يحتوي الرئيسي بالفعل
-    : companionsCount + 1   // بيانات صحيحة: companions_count/companions_data = مرافقين فقط
+  // ملاحظة أداء: لا نعتمد على companions_data في بطاقة القائمة (قد تكون كبيرة وتبطّئ تحميل لوحة الأدمن).
+  // العدد هنا تقديري ودقيق في أغلب الحالات: الزائر + عدد المرافقين.
+  const totalPeople = (request.companions_count ?? 0) + 1
 
   const isApproved = request.status === 'approved'
   const hasArrivalDate = request.arrival_date !== null

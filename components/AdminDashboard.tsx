@@ -107,10 +107,10 @@ export default function AdminDashboard() {
         return
       }
       
-      // تحميل جميع الطلبات (فقط الحقول المطلوبة لتحسين الأداء)
+      // تحميل جميع الطلبات (قائمة خفيفة لتحسين الأداء)
       const { data: requestsData, error: requestsError } = await supabase
         .from('visit_requests')
-        .select('id, user_id, visitor_name, visit_type, travel_date, status, city, days_count, arrival_date, departure_date, trip_status, created_at, updated_at, admin_notes, companions_data, companions_count, deposit_paid, deposit_amount, total_amount, remaining_amount, payment_verified, payment_verified_at, payment_verified_by, assigned_to, assigned_by, assigned_at')
+        .select('id, user_id, visitor_name, visit_type, travel_date, status, city, days_count, arrival_date, departure_date, trip_status, created_at, updated_at, admin_notes, companions_count, deposit_paid, deposit_amount, total_amount, remaining_amount, payment_verified, assigned_to, assigned_by, assigned_at')
         .order('created_at', { ascending: false })
 
       if (requestsError) {
@@ -173,9 +173,21 @@ export default function AdminDashboard() {
     toast.success('تم تسجيل الخروج بنجاح')
   }
 
-  const handleRequestClick = (request: VisitRequest) => {
-    setSelectedRequest(request)
-    setSelectedUserProfile(userProfiles[request.user_id] || null)
+  const handleRequestClick = async (request: VisitRequest) => {
+    try {
+      // Fetch full request row for the modal (images/companions/etc) only when needed
+      const { data, error } = await supabase
+        .from('visit_requests')
+        .select('*')
+        .eq('id', request.id)
+        .single()
+      if (error) throw error
+      setSelectedRequest((data as any) || request)
+      setSelectedUserProfile(userProfiles[request.user_id] || null)
+    } catch (e: any) {
+      console.error('Error loading request details:', e)
+      toast.error(e?.message || 'تعذر فتح تفاصيل الطلب')
+    }
   }
 
   const handleCloseModal = () => {
@@ -183,8 +195,19 @@ export default function AdminDashboard() {
     setSelectedUserProfile(null)
   }
 
-  const handleScheduleTrip = (request: VisitRequest) => {
-    setSchedulingRequest(request)
+  const handleScheduleTrip = async (request: VisitRequest) => {
+    try {
+      const { data, error } = await supabase
+        .from('visit_requests')
+        .select('*')
+        .eq('id', request.id)
+        .single()
+      if (error) throw error
+      setSchedulingRequest((data as any) || request)
+    } catch (e: any) {
+      console.error('Error loading request for scheduling:', e)
+      toast.error(e?.message || 'تعذر فتح نافذة الحجز')
+    }
   }
 
   const handleCloseSchedulingModal = () => {

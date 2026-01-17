@@ -35,7 +35,7 @@ export default function CompanionsList({ companions, signedPassportImages, onOpe
                 {images.length > 0 && (
                   <button
                     onClick={() => {
-                      const signedImages = images.map(url => signedPassportImages[url] || url)
+                      const signedImages = images.map((url: string) => signedPassportImages[url] || url)
                       onOpenGallery(signedImages, 0)
                     }}
                     className="flex items-center gap-1 px-2 sm:px-3 py-1 sm:py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-xs sm:text-sm"
@@ -53,7 +53,7 @@ export default function CompanionsList({ companions, signedPassportImages, onOpe
                       <div
                         key={imgIndex}
                         onClick={() => {
-                          const signedImages = images.map(url => signedPassportImages[url] || url)
+                          const signedImages = images.map((url: string) => signedPassportImages[url] || url)
                           onOpenGallery(signedImages, imgIndex)
                         }}
                         className="relative aspect-video cursor-pointer group rounded-lg overflow-hidden border border-gray-300"

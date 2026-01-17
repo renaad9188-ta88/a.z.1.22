@@ -131,6 +131,9 @@ export default function TripSchedulingModal({
 
   // التحقق من إمكانية التعديل (قبل الموعد بيوم واحد فقط)
   const canEditSchedule = (): { canEdit: boolean; reason: string } => {
+    if (!request) {
+      return { canEdit: false, reason: 'لا توجد بيانات للطلب' }
+    }
     if (!request.arrival_date) {
       return { canEdit: true, reason: '' }
     }
@@ -569,13 +572,15 @@ export default function TripSchedulingModal({
                       تريد تعديل موعد الحجز؟
                     </p>
                     <select
-                      value={selectedArrivalDate || request.arrival_date}
+                      value={selectedArrivalDate || request?.arrival_date || ''}
                       onChange={(e) => handleArrivalDateChange(e.target.value)}
                       className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm sm:text-base"
                     >
-                      <option value={request.arrival_date}>
-                        {formatDate(request.arrival_date!)} - {DAY_NAMES[new Date(request.arrival_date!).getDay()]} (الحالي)
-                      </option>
+                      {request?.arrival_date && (
+                        <option value={request.arrival_date}>
+                          {formatDate(request.arrival_date)} - {DAY_NAMES[new Date(request.arrival_date).getDay()]} (الحالي)
+                        </option>
+                      )}
                       {availableArrivalDates
                         .filter(date => {
                           const dateStr = date.toISOString().split('T')[0]

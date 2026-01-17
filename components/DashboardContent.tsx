@@ -27,16 +27,19 @@ import { formatDate } from '@/lib/date-utils'
 
 interface VisitRequest {
   id: string
+  user_id: string
   visitor_name: string
-  visit_type: string
+  visit_type: 'visit' | 'umrah' | 'tourism' | 'goethe' | 'embassy'
   travel_date: string
-  status: string
+  status: 'pending' | 'under_review' | 'approved' | 'rejected' | 'completed'
   created_at: string
+  updated_at: string
   city: string
   days_count: number
   arrival_date: string | null
   departure_date: string | null
-  trip_status: string | null
+  trip_status: 'pending_arrival' | 'scheduled_pending_approval' | 'arrived' | 'completed' | null
+  assigned_to?: string | null
 }
 
 export default function DashboardContent({ userId }: { userId: string }) {
@@ -68,7 +71,7 @@ export default function DashboardContent({ userId }: { userId: string }) {
       // Load visit requests (فقط الحقول المطلوبة لتحسين الأداء)
       const { data: visitRequests, error } = await supabase
         .from('visit_requests')
-        .select('id, visitor_name, visit_type, travel_date, status, city, days_count, arrival_date, departure_date, trip_status, created_at, deposit_paid, deposit_amount, payment_verified')
+        .select('id, user_id, visitor_name, visit_type, travel_date, status, city, days_count, arrival_date, departure_date, trip_status, created_at, updated_at, deposit_paid, deposit_amount, payment_verified, assigned_to')
         .eq('user_id', userId)
         .order('created_at', { ascending: false })
 

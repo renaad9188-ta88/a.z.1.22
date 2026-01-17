@@ -100,6 +100,10 @@ export default function PassengerDetails() {
       }
 
       // تنسيق البيانات
+      const profileRow: any = Array.isArray((requestData as any).profiles)
+        ? (requestData as any).profiles?.[0]
+        : (requestData as any).profiles
+
       const formattedPassenger: PassengerDetails = {
         id: requestData.id,
         visitor_name: requestData.visitor_name,
@@ -113,8 +117,8 @@ export default function PassengerDetails() {
         created_at: requestData.created_at,
         companions_data: requestData.companions_data,
         user_profile: {
-          full_name: requestData.profiles?.full_name || null,
-          phone: requestData.profiles?.phone || null,
+          full_name: profileRow?.full_name || null,
+          phone: profileRow?.phone || null,
         },
         dropoff_point: requestData.request_dropoff_points?.[0] ? {
           name: requestData.request_dropoff_points[0].name,
