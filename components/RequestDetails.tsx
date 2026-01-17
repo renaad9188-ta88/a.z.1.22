@@ -16,6 +16,7 @@ import PaymentImages from './request-details/PaymentImages'
 import PassportImages from './request-details/PassportImages'
 import ImageGallery from './request-details/ImageGallery'
 import AdminResponse from './request-details/AdminResponse'
+import { Copy, FileText, MessageCircle } from 'lucide-react'
 
 export default function RequestDetails({ requestId, userId }: { requestId: string; userId: string }) {
   const router = useRouter()
@@ -26,6 +27,9 @@ export default function RequestDetails({ requestId, userId }: { requestId: strin
   const [allImages, setAllImages] = useState<string[]>([])
   const [signedPassportImages, setSignedPassportImages] = useState<{ [key: string]: string }>({})
   const [signedPaymentImages, setSignedPaymentImages] = useState<{ [key: string]: string }>({})
+  const [reportOpen, setReportOpen] = useState(false)
+  const [reportText, setReportText] = useState<string>('')
+  const [reportGenerating, setReportGenerating] = useState(false)
 
   useEffect(() => {
     loadRequest()
@@ -154,6 +158,29 @@ export default function RequestDetails({ requestId, userId }: { requestId: strin
     }
   }
 
+  const copyText = async (text: string, successMsg: string) => {
+    try {
+      if (navigator?.clipboard?.writeText) {
+        await navigator.clipboard.writeText(text)
+      } else {
+        const ta = document.createElement('textarea')
+        ta.value = text
+        ta.style.position = 'fixed'
+        ta.style.left = '-9999px'
+        ta.style.top = '0'
+        document.body.appendChild(ta)
+        ta.focus()
+        ta.select()
+        document.execCommand('copy')
+        document.body.removeChild(ta)
+      }
+      toast.success(successMsg)
+    } catch (e) {
+      console.error('Copy failed:', e)
+      toast.error('تعذر النسخ')
+    }
+  }
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-white">
@@ -183,6 +210,74 @@ export default function RequestDetails({ requestId, userId }: { requestId: strin
     }
   })
   const passportImagesUnique = Array.from(new Set(passportImagesRaw.filter(Boolean)))
+
+  const platformWhatsappDigits = '962798905595' // 0798905595
+  const shortCode = request.id.slice(0, 8).toUpperCase()
+
+  const buildReport = async (): Promise<string> => {
+    const isJordanVisit = Boolean((request.admin_notes || '').includes('خدمة: زيارة الأردن لمدة شهر'))
+    const tourismCompany = adminInfo?.tourismCompany || 'غير محدد'
+    const transportCompany = adminInfo?.transportCompany || 'شركة الرويال للنقل'
+
+    const lines: string[] = []
+    lines.push('مرحباً بك في المنصة')
+    lines.push('')
+    lines.push('للامان: احفظ الكود وشاركنا به عند الحاجة للتأكد والمتابعة.')
+    lines.push(`الكود: ${shortCode}`)
+    lines.push(`رقم الطلب: #${shortCode}`)
+    lines.push('')
+    lines.push('ملخص الطلب:')
+    lines.push(`- الاسم: ${request.visitor_name || '-'}`)
+    lines.push(`- المدينة: ${request.city || '-'}`)
+    if (isJordanVisit) {
+      lines.push(`- الشركة المقدّم لها الطلب: ${tourismCompany}`)
+      lines.push(`- شركة النقل: ${transportCompany}`)
+    }
+    if (adminInfo?.purpose) {
+      lines.push(`- الغرض: ${adminInfo.purpose === 'غير محدد' ? 'زيارات الاقارب ( سياحة )' : adminInfo.purpose}`)
+    }
+    if (adminInfo?.note) lines.push(`- ملاحظة: ${adminInfo.note}`)
+    lines.push('')
+    lines.push('ملاحظة مهمة:')
+    lines.push('تم استلام طلبك وسيتم الرد عليك خلال فترة من 3 إلى 10 أيام لإجراءات الموافقة والقبول وتحديد موعد الزيارة والمتابعة.')
+    lines.push('هناك ميزات تربطنا ونسهل عليك الزيارة، وميزة تتبّع الرحلة لحظة بلحظة من لحظة الانطلاق إلى أن تصل. نحن معك.')
+    lines.push('')
+    lines.push('ملاحظة: صور الجوازات وصور الدفعات محفوظة داخل المنصة ويمكن الرجوع لها من صفحة الطلب عند الحاجة.')
+    lines.push('')
+    lines.push('دمتم بخير.')
+    return lines.join('\n')
+  }
+
+  const handleGenerateReport = async () => {
+    try {
+      setReportGenerating(true)
+      const text = await buildReport()
+      setReportText(text)
+      setReportOpen(true)
+      toast.success('تم إنشاء التقرير')
+    } catch (e: any) {
+      console.error('Report generation error:', e)
+      toast.error(e?.message || 'تعذر إنشاء التقرير')
+    } finally {
+      setReportGenerating(false)
+    }
+  }
+
+  const handleSendReportWhatsApp = async () => {
+    try {
+      setReportGenerating(true)
+      const text = reportText || (await buildReport())
+      setReportText(text)
+      setReportOpen(true)
+      const encoded = encodeURIComponent(text)
+      window.open(`https://wa.me/${platformWhatsappDigits}?text=${encoded}`, '_blank', 'noopener,noreferrer')
+    } catch (e: any) {
+      console.error('Send report WhatsApp error:', e)
+      toast.error(e?.message || 'تعذر إرسال التقرير عبر واتساب')
+    } finally {
+      setReportGenerating(false)
+    }
+  }
 
   // جمع صور الجوازات والدفعات
   const passportImages: string[] = []
@@ -256,6 +351,45 @@ export default function RequestDetails({ requestId, userId }: { requestId: strin
               <p>تاريخ الإنشاء: {formatDate(request.created_at)}</p>
               <p>آخر تحديث: {formatDate(request.updated_at)}</p>
             </div>
+            <div className="mt-4 flex flex-col sm:flex-row gap-2">
+              <button
+                type="button"
+                onClick={handleGenerateReport}
+                disabled={reportGenerating}
+                className="btn-primary text-sm sm:text-base"
+              >
+                <FileText className="w-4 h-4" />
+                {reportGenerating ? 'جارٍ إنشاء التقرير...' : 'إنشاء تقرير'}
+              </button>
+              <button
+                type="button"
+                onClick={handleSendReportWhatsApp}
+                disabled={reportGenerating}
+                className="btn px-4 py-2.5 sm:py-3 bg-green-600 text-white hover:bg-green-700 text-sm sm:text-base"
+              >
+                <MessageCircle className="w-4 h-4" />
+                إرسال عبر واتساب
+              </button>
+            </div>
+
+            {reportOpen && reportText && (
+              <div className="mt-3 bg-gray-50 border border-gray-200 rounded-lg p-3 sm:p-4">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
+                  <p className="font-bold text-gray-800 text-sm sm:text-base">تقرير جاهز للإرسال</p>
+                  <button
+                    type="button"
+                    onClick={() => copyText(reportText, 'تم نسخ التقرير')}
+                    className="btn-secondary text-sm"
+                  >
+                    <Copy className="w-4 h-4" />
+                    نسخ التقرير
+                  </button>
+                </div>
+                <pre className="mt-3 text-xs sm:text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">
+                  {reportText}
+                </pre>
+              </div>
+            )}
           </div>
         </div>
       </div>
