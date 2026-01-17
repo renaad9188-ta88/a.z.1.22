@@ -1,8 +1,12 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   images: {
-    domains: ['localhost', 'supabase.co', 'images.unsplash.com'],
     remotePatterns: [
+      // Local dev
+      {
+        protocol: 'http',
+        hostname: 'localhost',
+      },
       {
         protocol: 'https',
         hostname: '**.supabase.co',
