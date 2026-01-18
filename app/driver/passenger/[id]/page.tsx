@@ -55,6 +55,34 @@ export default function PassengerDetails() {
         return
       }
 
+      // الحصول على سجل السائق المربوط بهذا الحساب
+      const { data: driverRow, error: driverErr } = await supabase
+        .from('drivers')
+        .select('id')
+        .eq('user_id', user.id)
+        .maybeSingle()
+
+      if (driverErr) throw driverErr
+      if (!driverRow?.id) {
+        toast.error('حسابك كسائق غير مربوط بسجل سائق. يرجى التواصل مع الإدارة.')
+        router.push('/driver')
+        return
+      }
+
+      const { data: rdRows, error: rdErr } = await supabase
+        .from('route_drivers')
+        .select('route_id')
+        .eq('driver_id', driverRow.id)
+        .eq('is_active', true)
+
+      if (rdErr) throw rdErr
+      const routeIds = (rdRows || []).map((r: any) => r.route_id).filter(Boolean)
+      if (routeIds.length === 0) {
+        toast.error('لا توجد خطوط مربوطة بك. يرجى التواصل مع الإدارة.')
+        router.push('/driver')
+        return
+      }
+
       // التحقق من أن الطلب يخص خطوط هذا السائق
       const { data: requestData, error } = await supabase
         .from('visit_requests')
@@ -77,20 +105,7 @@ export default function PassengerDetails() {
         .eq('id', requestId)
         .eq('status', 'approved')
         .in('trip_status', ['pending_arrival', 'arrived'])
-        .in('id',
-          (await supabase
-            .from('request_dropoff_points')
-            .select('request_id')
-            .in('route_id',
-              (await supabase
-                .from('route_drivers')
-                .select('route_id')
-                .eq('driver_id', user.id)
-                .eq('is_active', true)
-              ).data?.map(rd => rd.route_id) || []
-            )
-          ).data?.map(rdp => rdp.request_id) || []
-        )
+        .in('route_id', routeIds)
         .single()
 
       if (error || !requestData) {

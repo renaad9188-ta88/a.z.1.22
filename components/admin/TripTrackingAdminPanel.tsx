@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { createSupabaseBrowserClient } from '@/lib/supabase'
 import toast from 'react-hot-toast'
 import { MapPin, Plus, Save, Trash2, Navigation } from 'lucide-react'
@@ -34,6 +34,10 @@ export default function TripTrackingAdminPanel({ requestId }: { requestId: strin
 
   const [stops, setStops] = useState<StopRow[]>([])
   const [driverLoc, setDriverLoc] = useState<DriverLocRow | null>(null)
+
+  const [liveTracking, setLiveTracking] = useState(false)
+  const watchIdRef = useRef<number | null>(null)
+  const lastSentAtRef = useRef<number>(0)
 
   // driver form
   const [driverLat, setDriverLat] = useState('')
@@ -118,6 +122,14 @@ export default function TripTrackingAdminPanel({ requestId }: { requestId: strin
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [requestId])
 
+  useEffect(() => {
+    return () => {
+      if (watchIdRef.current !== null && navigator?.geolocation?.clearWatch) {
+        navigator.geolocation.clearWatch(watchIdRef.current)
+      }
+    }
+  }, [])
+
   const useMyLocation = async () => {
     if (!navigator.geolocation) {
       toast.error('المتصفح لا يدعم تحديد الموقع')
@@ -132,6 +144,16 @@ export default function TripTrackingAdminPanel({ requestId }: { requestId: strin
     )
   }
 
+  const insertDriverLocation = async (lat: number, lng: number, silent = false) => {
+    const { error } = await supabase.from('trip_driver_locations').insert({
+      request_id: requestId,
+      lat,
+      lng,
+    })
+    if (error) throw error
+    if (!silent) toast.success('تم تحديث موقع السائق')
+  }
+
   const saveDriverLocation = async () => {
     const lat = toNum(driverLat)
     const lng = toNum(driverLng)
@@ -142,15 +164,7 @@ export default function TripTrackingAdminPanel({ requestId }: { requestId: strin
 
     try {
       setSavingDriver(true)
-      const { error } = await supabase
-        .from('trip_driver_locations')
-        .insert({
-          request_id: requestId,
-          lat,
-          lng,
-        })
-      if (error) throw error
-      toast.success('تم تحديث موقع السائق')
+      await insertDriverLocation(lat, lng)
       await load()
     } catch (e: any) {
       console.error('Save driver location error:', e)
@@ -158,6 +172,61 @@ export default function TripTrackingAdminPanel({ requestId }: { requestId: strin
     } finally {
       setSavingDriver(false)
     }
+  }
+
+  const startLiveTracking = async () => {
+    if (!navigator.geolocation) {
+      toast.error('المتصفح لا يدعم تحديد الموقع')
+      return
+    }
+    if (watchIdRef.current !== null) {
+      navigator.geolocation.clearWatch(watchIdRef.current)
+      watchIdRef.current = null
+    }
+
+    lastSentAtRef.current = 0
+    setLiveTracking(true)
+    toast.success('تم بدء التتبع المباشر')
+
+    watchIdRef.current = navigator.geolocation.watchPosition(
+      async (pos) => {
+        const lat = pos.coords.latitude
+        const lng = pos.coords.longitude
+        setDriverLat(String(lat))
+        setDriverLng(String(lng))
+
+        // throttle: لا نرسل أكثر من مرة كل 12 ثانية
+        const now = Date.now()
+        if (now - lastSentAtRef.current < 12000) return
+        lastSentAtRef.current = now
+
+        try {
+          await insertDriverLocation(lat, lng, true)
+        } catch (e: any) {
+          console.error('Live tracking insert error:', e)
+          // لا نعمل spam للتوست
+        }
+      },
+      (err) => {
+        console.error('watchPosition error:', err)
+        toast.error('تعذر تشغيل التتبع (تحقق من صلاحيات الموقع)')
+        setLiveTracking(false)
+        if (watchIdRef.current !== null) {
+          navigator.geolocation.clearWatch(watchIdRef.current)
+          watchIdRef.current = null
+        }
+      },
+      { enableHighAccuracy: true, maximumAge: 5000, timeout: 15000 }
+    )
+  }
+
+  const stopLiveTracking = () => {
+    if (watchIdRef.current !== null && navigator?.geolocation?.clearWatch) {
+      navigator.geolocation.clearWatch(watchIdRef.current)
+      watchIdRef.current = null
+    }
+    setLiveTracking(false)
+    toast.success('تم إيقاف التتبع')
   }
 
   const addStop = async () => {
@@ -218,11 +287,24 @@ export default function TripTrackingAdminPanel({ requestId }: { requestId: strin
       <div className="flex items-center justify-between gap-3 mb-4">
         <h3 className="text-base sm:text-lg font-extrabold text-gray-900 flex items-center gap-2">
           <Navigation className="w-5 h-5 text-blue-600" />
-          تتبع الرحلة (إدمن)
+          تتبع الرحلة
         </h3>
-        <span className="text-[10px] sm:text-xs font-semibold px-2 py-1 rounded-full bg-blue-50 border border-blue-100 text-blue-700">
-          Live
-        </span>
+        <div className="flex items-center gap-2">
+          <span className={`text-[10px] sm:text-xs font-semibold px-2 py-1 rounded-full border ${
+            liveTracking ? 'bg-green-50 border-green-200 text-green-700' : 'bg-gray-50 border-gray-200 text-gray-600'
+          }`}>
+            {liveTracking ? 'Live ON' : 'Live OFF'}
+          </span>
+          <button
+            type="button"
+            onClick={liveTracking ? stopLiveTracking : startLiveTracking}
+            className={`text-xs sm:text-sm font-bold px-3 py-2 rounded-lg transition ${
+              liveTracking ? 'bg-red-600 text-white hover:bg-red-700' : 'bg-green-600 text-white hover:bg-green-700'
+            }`}
+          >
+            {liveTracking ? 'إيقاف' : 'بدء التتبع'}
+          </button>
+        </div>
       </div>
 
       {loading ? (

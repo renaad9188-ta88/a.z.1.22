@@ -722,9 +722,15 @@ export default function RequestTracking({ requestId, userId }: { requestId: stri
                     <span className="font-semibold tabular-nums">{stops.length}</span>
                   </div>
                   {!loading && stops.length === 0 && !driverLocation && (
-                    <p className="text-xs text-gray-500">
-                      ملاحظة: يلزم تفعيل جداول التتبع في Supabase (سأجهز لك ملف SQL جاهز) ثم يبدأ الإدمن بإدخال نقاط السائق/التوقف.
-                    </p>
+                    <div className="text-xs text-gray-500 space-y-1">
+                      <p>
+                        ملاحظة: يلزم تفعيل جداول التتبع في Supabase (سأجهز لك ملف SQL جاهز) ثم يبدأ الإدمن بإدخال نقاط السائق/التوقف.
+                      </p>
+                      <p>
+                        سيتم إضافة تفاصيل التتبّع وموقع الراكب مع السائق على الخريطة لتتبّع الرحلة ومعرفة أماكن النزول للراكب.
+                      </p>
+                      <p>نتمنى لكم السلامة وزيارة جميلة.</p>
+                    </div>
                   )}
                 </div>
               </div>

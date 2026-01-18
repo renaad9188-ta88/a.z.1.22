@@ -34,7 +34,15 @@ export default function DriverPassengers() {
   const supabase = createSupabaseBrowserClient()
   const [passengers, setPassengers] = useState<PassengerRequest[]>([])
   const [loading, setLoading] = useState(true)
-  const [filter, setFilter] = useState<'all' | 'active' | 'upcoming'>('active')
+  const [filter, setFilter] = useState<'today' | 'all' | 'active' | 'upcoming'>('today')
+
+  const getTodayISO = () => {
+    const d = new Date()
+    const yyyy = d.getFullYear()
+    const mm = String(d.getMonth() + 1).padStart(2, '0')
+    const dd = String(d.getDate()).padStart(2, '0')
+    return `${yyyy}-${mm}-${dd}`
+  }
 
   useEffect(() => {
     loadPassengers()
@@ -98,7 +106,9 @@ export default function DriverPassengers() {
         .in('route_id', routeIds)
 
       // تطبيق الفلتر
-      if (filter === 'active') {
+      if (filter === 'today') {
+        query = query.eq('arrival_date', getTodayISO())
+      } else if (filter === 'active') {
         query = query.eq('trip_status', 'arrived')
       } else if (filter === 'upcoming') {
         query = query.eq('trip_status', 'pending_arrival')
@@ -207,6 +217,16 @@ export default function DriverPassengers() {
           <h3 className="text-base sm:text-lg font-bold text-gray-800">فلترة الركاب</h3>
           <div className="flex flex-wrap gap-2">
             <button
+              onClick={() => setFilter('today')}
+              className={`px-3 py-2 rounded-lg text-sm font-medium transition ${
+                filter === 'today'
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+              }`}
+            >
+              رحلات اليوم
+            </button>
+            <button
               onClick={() => setFilter('all')}
               className={`px-3 py-2 rounded-lg text-sm font-medium transition ${
                 filter === 'all'
@@ -250,12 +270,14 @@ export default function DriverPassengers() {
           <div className="text-center py-8">
             <Users className="w-12 h-12 text-gray-400 mx-auto mb-4" />
             <h3 className="text-lg font-bold text-gray-800 mb-2">
-              {filter === 'active' ? 'لا يوجد ركاب حالياً' :
+              {filter === 'today' ? 'لا توجد رحلات اليوم' :
+               filter === 'active' ? 'لا يوجد ركاب حالياً' :
                filter === 'upcoming' ? 'لا توجد رحلات قادمة' :
                'لا توجد ركاب'}
             </h3>
             <p className="text-sm text-gray-600">
-              {filter === 'active' ? 'جميع الركاب وصلوا إلى وجهاتهم' :
+              {filter === 'today' ? 'لا توجد طلبات مجدولة اليوم ضمن خطوطك' :
+               filter === 'active' ? 'جميع الركاب وصلوا إلى وجهاتهم' :
                filter === 'upcoming' ? 'لا توجد رحلات مجدولة قادمة' :
                'لم يتم العثور على أي ركاب في خطوطك'}
             </p>

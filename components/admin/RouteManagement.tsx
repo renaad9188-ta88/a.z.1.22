@@ -25,6 +25,7 @@ type Driver = {
   vehicle_type: string
   seats_count: number
   is_active: boolean
+  user_id?: string | null
 }
 
 type RouteDriver = {
@@ -34,11 +35,19 @@ type RouteDriver = {
   driver?: Driver
 }
 
+type DriverAccount = {
+  user_id: string
+  full_name: string | null
+  phone: string | null
+  role: string | null
+}
+
 export default function RouteManagement() {
   const supabase = createSupabaseBrowserClient()
   const [routes, setRoutes] = useState<Route[]>([])
   const [drivers, setDrivers] = useState<Driver[]>([])
   const [routeDrivers, setRouteDrivers] = useState<RouteDriver[]>([])
+  const [driverAccounts, setDriverAccounts] = useState<DriverAccount[]>([])
   const [loading, setLoading] = useState(true)
   const [showAddRoute, setShowAddRoute] = useState(false)
   const [showAddDriver, setShowAddDriver] = useState(false)
@@ -51,19 +60,22 @@ export default function RouteManagement() {
   const loadData = async () => {
     try {
       setLoading(true)
-      const [routesRes, driversRes, routeDriversRes] = await Promise.all([
+      const [routesRes, driversRes, routeDriversRes, driverAccountsRes] = await Promise.all([
         supabase.from('routes').select('*').order('created_at', { ascending: false }),
         supabase.from('drivers').select('*').order('name'),
-        supabase.from('route_drivers').select('*, driver:drivers(*)').eq('is_active', true)
+        supabase.from('route_drivers').select('*, driver:drivers(*)').eq('is_active', true),
+        supabase.from('profiles').select('user_id, full_name, phone, role').order('updated_at', { ascending: false }),
       ])
 
       if (routesRes.error) throw routesRes.error
       if (driversRes.error) throw driversRes.error
       if (routeDriversRes.error) throw routeDriversRes.error
+      if (driverAccountsRes.error) throw driverAccountsRes.error
 
       setRoutes(routesRes.data || [])
       setDrivers(driversRes.data || [])
       setRouteDrivers(routeDriversRes.data || [])
+      setDriverAccounts((driverAccountsRes.data || []) as any)
     } catch (error: any) {
       console.error('Error loading data:', error)
       toast.error('حدث خطأ أثناء تحميل البيانات')
@@ -74,15 +86,35 @@ export default function RouteManagement() {
 
   const handleAddDriver = async (formData: FormData) => {
     try {
-      const { error } = await supabase.from('drivers').insert({
+      const userIdRaw = String(formData.get('user_id') || '').trim()
+      const userId = userIdRaw ? userIdRaw : null
+
+      const { data: inserted, error } = await supabase
+        .from('drivers')
+        .insert({
         name: formData.get('name') as string,
         phone: formData.get('phone') as string,
         vehicle_type: formData.get('vehicle_type') as string,
         seats_count: parseInt(formData.get('seats_count') as string),
         is_active: true,
+        ...(userId ? { user_id: userId } : {}),
       })
+        .select('id,user_id')
+        .maybeSingle()
 
       if (error) throw error
+
+      // إذا تم ربطه بحساب، تأكد أن role في profiles = driver (للوصول إلى /driver)
+      if (userId) {
+        const { error: profileErr } = await supabase
+          .from('profiles')
+          .update({ role: 'driver' } as any)
+          .eq('user_id', userId)
+        if (profileErr) {
+          console.warn('Could not update profile role to driver:', profileErr)
+        }
+      }
+
       toast.success('تم إضافة السائق بنجاح')
       setShowAddDriver(false)
       loadData()
@@ -209,6 +241,30 @@ export default function RouteManagement() {
             <div className="p-4 sm:p-6">
               <h3 className="text-lg sm:text-xl font-bold text-gray-800 mb-4 sm:mb-6">إضافة سائق جديد</h3>
               <form action={handleAddDriver} className="space-y-4 sm:space-y-6">
+                <div className="bg-blue-50 border border-blue-100 rounded-lg p-3 text-xs sm:text-sm text-blue-800 leading-relaxed">
+                  <p className="font-bold mb-1">ربط السائق بحساب (اختياري)</p>
+                  <p>
+                    إذا اخترت حسابًا هنا، سيتمكن السائق من تسجيل الدخول إلى لوحة السائق وبدء التتبع وتحديث المسار حسب الصلاحيات.
+                  </p>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">حساب السائق (User ID)</label>
+                  <select
+                    name="user_id"
+                    defaultValue=""
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm sm:text-base"
+                  >
+                    <option value="">بدون ربط (سائق بدون تسجيل دخول)</option>
+                    {driverAccounts.map((acc) => (
+                      <option key={acc.user_id} value={acc.user_id}>
+                        {(acc.full_name || 'بدون اسم')} — {(acc.phone || 'بدون رقم')} — {(acc.role || 'user')}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="mt-1 text-[11px] sm:text-xs text-gray-500">
+                    ملاحظة: الحساب يجب أن يكون موجودًا بالفعل (مستخدم مسجل). سيتم تعيين دوره إلى driver تلقائياً.
+                  </p>
+                </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">الاسم</label>
                   <input
