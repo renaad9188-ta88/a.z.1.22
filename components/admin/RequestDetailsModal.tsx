@@ -274,7 +274,11 @@ export default function RequestDetailsModal({
           // إشعار عند الموافقة
           if (status === 'approved') {
             console.log('Sending request approval notification to user...')
-            await notifyRequestApproved(request.user_id, request.id, request.visitor_name)
+            const notifyId = await notifyRequestApproved(request.user_id, request.id, request.visitor_name)
+            if (!notifyId) {
+              // غالباً RLS/SQL للإشعارات غير مُفعل في Supabase، نوضح للإدمن بدل الفشل الصامت
+              toast.error('تعذر إرسال إشعار الموافقة للمستخدم. يرجى تفعيل نظام الإشعارات في Supabase (notifications + create_notification).')
+            }
             console.log('Request approval notification sent successfully')
             
             // إشعار للإدمن (تأكيد الموافقة)

@@ -60,6 +60,26 @@ export default function DashboardContent({ userId }: { userId: string }) {
     loadData()
   }, [userId])
 
+  // إشعار لطيف للمستخدم عند وصول الموافقة (Fallback حتى لو نظام notifications في Supabase غير مفعّل)
+  useEffect(() => {
+    try {
+      const key = `seen-approved-${userId}`
+      const raw = localStorage.getItem(key) || '[]'
+      const seen: string[] = Array.isArray(JSON.parse(raw)) ? JSON.parse(raw) : []
+      const newlyApproved = requests.filter((r) => r.status === 'approved' && !seen.includes(r.id))
+      if (newlyApproved.length === 0) return
+
+      newlyApproved.slice(0, 3).forEach((r) => {
+        toast.success(`تم قبول طلبك لـ ${r.visitor_name}. يرجى استكمال الإجراءات من تفاصيل الطلب.`)
+      })
+
+      const nextSeen = Array.from(new Set([...seen, ...newlyApproved.map((r) => r.id)]))
+      localStorage.setItem(key, JSON.stringify(nextSeen))
+    } catch {
+      // ignore
+    }
+  }, [requests, userId])
+
   const loadData = async () => {
     try {
       // Load user profile
@@ -476,21 +496,37 @@ export default function DashboardContent({ userId }: { userId: string }) {
             </div>
           ) : (
             <div className="divide-y divide-gray-200">
-              {requests.map((request) => (
-                (() => {
-                  const isDraft = ((request.admin_notes || '') as string).startsWith('[DRAFT]')
-                  const adminInfo = parseAdminNotes((request.admin_notes || '') as string) || {}
-                  const tourismCompany = adminInfo.tourismCompany || 'غير محدد'
-                  const transportCompany = adminInfo.transportCompany || 'شركة الرويال للنقل'
-                  const shortCode = String(request.id).slice(0, 8).toUpperCase()
-                  const showCompanies = request.visit_type === 'visit' && !isDraft
+              {requests.map((request) => {
+                const isDraft = ((request.admin_notes || '') as string).startsWith('[DRAFT]')
+                const adminInfo = parseAdminNotes((request.admin_notes || '') as string) || {}
+                const tourismCompany = adminInfo.tourismCompany || 'غير محدد'
+                const transportCompany = adminInfo.transportCompany || 'شركة الرويال للنقل'
+                const shortCode = String(request.id).slice(0, 8).toUpperCase()
+                const showCompanies = request.visit_type === 'visit' && !isDraft
+                const needsPostApproval =
+                  request.visit_type === 'visit' &&
+                  !isDraft &&
+                  request.status === 'approved' &&
+                  (!Boolean((request as any).payment_verified) ||
+                    !((request.admin_notes || '') as string).includes('=== استكمال بعد الموافقة ==='))
 
-                  return (
-                <div key={request.id} className="p-4 sm:p-6 hover:bg-gray-50 transition">
+                return (
+                <div
+                  key={request.id}
+                  className={`p-4 sm:p-6 hover:bg-gray-50 transition ${
+                    needsPostApproval ? 'bg-gradient-to-r from-blue-50/60 to-white' : ''
+                  }`}
+                >
                   <div className="flex flex-col sm:flex-row justify-between items-start gap-3 sm:gap-4">
                     <div className="flex-1 w-full">
                       <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 mb-3 sm:mb-2">
                         <div className="min-w-0 flex items-center flex-wrap gap-2">
+                          {needsPostApproval && (
+                            <span className="relative inline-flex items-center">
+                              <span className="absolute inline-flex h-2.5 w-2.5 rounded-full bg-blue-500 opacity-75 animate-ping"></span>
+                              <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-blue-600"></span>
+                            </span>
+                          )}
                           <h3 className="text-base sm:text-lg md:text-xl font-bold text-gray-800 break-words">
                             {request.visitor_name}
                           </h3>
@@ -515,6 +551,14 @@ export default function DashboardContent({ userId }: { userId: string }) {
                           )}
                         </div>
                       </div>
+                      {needsPostApproval && (
+                        <div className="mb-2">
+                          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-blue-600 text-white text-xs sm:text-sm font-bold shadow-sm">
+                            يرجى استكمال الإجراءات
+                            <span className="opacity-90">(دفع المتبقي + الكفالة)</span>
+                          </div>
+                        </div>
+                      )}
                       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 sm:gap-3 md:gap-4 mt-3 sm:mt-4 text-xs sm:text-sm text-gray-600">
                         <div className="flex items-center gap-2">
                           <Calendar className="w-3 h-3 sm:w-4 sm:h-4 flex-shrink-0" />
@@ -628,9 +672,8 @@ export default function DashboardContent({ userId }: { userId: string }) {
                     </div>
                   </div>
                 </div>
-                  )
-                })()
-              ))}
+                )
+              })}
             </div>
           )}
         </div>
