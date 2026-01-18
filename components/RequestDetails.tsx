@@ -454,7 +454,7 @@ export default function RequestDetails({ requestId, userId }: { requestId: strin
                     استكمال الإجراءات بعد الموافقة
                   </h2>
                   <p className="mt-1 text-xs sm:text-sm text-gray-700 leading-relaxed">
-                    يرجى استكمال الخطوات التالية. بعد رفع صورة الدفعة سيتم تأكيدها من الإدارة لفتح حجز موعد القدوم.
+                    يرجى استكمال الخطوات التالية. سيتم مراجعة اختياراتك من الإدارة وتأكيد الدفع عند الحاجة لفتح حجز موعد القدوم.
                   </p>
                 </div>
                 {Boolean((request as any)?.payment_verified) ? (
@@ -517,7 +517,7 @@ export default function RequestDetails({ requestId, userId }: { requestId: strin
 
                   <div className="mt-3 grid grid-cols-1 sm:grid-cols-3 gap-2">
                     {[
-                      { key: 'bus' as const, label: 'في الباص مع المندوب' },
+                      { key: 'bus' as const, label: 'في الباص مع المندوب / السائق' },
                       { key: 'office' as const, label: 'في المكتب' },
                       { key: 'click' as const, label: 'كليك (تحويل)' },
                     ].map((m) => (
@@ -576,54 +576,61 @@ export default function RequestDetails({ requestId, userId }: { requestId: strin
                     </div>
                   )}
 
-                  <div className="mt-3">
-                    <p className="font-bold text-gray-800 text-sm mb-2">رفع صورة الدفعة</p>
-                    <label className="block cursor-pointer border-2 border-dashed border-gray-300 rounded-lg p-3 sm:p-4 text-center hover:border-green-400 transition bg-white">
-                      <input
-                        type="file"
-                        accept="image/*"
-                        multiple
-                        onChange={handlePaymentFilesChange}
-                        className="hidden"
-                      />
-                      <div className="flex items-center justify-center gap-2 text-sm text-gray-700">
-                        <Banknote className="w-4 h-4 text-green-600" />
-                        اضغط لرفع صور الدفعات (حد أقصى 5MB لكل صورة)
-                      </div>
-                    </label>
+                  {remainingPaymentMethod === 'click' ? (
+                    <div className="mt-3">
+                      <p className="font-bold text-gray-800 text-sm mb-2">رفع صورة الدفعة (للكليك)</p>
+                      <label className="block cursor-pointer border-2 border-dashed border-gray-300 rounded-lg p-3 sm:p-4 text-center hover:border-green-400 transition bg-white">
+                        <input
+                          type="file"
+                          accept="image/*"
+                          multiple
+                          onChange={handlePaymentFilesChange}
+                          className="hidden"
+                        />
+                        <div className="flex items-center justify-center gap-2 text-sm text-gray-700">
+                          <Banknote className="w-4 h-4 text-green-600" />
+                          اضغط لرفع صور الدفعات (حد أقصى 5MB لكل صورة)
+                        </div>
+                      </label>
 
-                    {newPaymentPreviews.length > 0 && (
-                      <div className="mt-3 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
-                        {newPaymentPreviews.map((src, idx) => (
-                          <div key={src} className="relative group">
-                            <img
-                              src={src}
-                              alt={`دفعة جديدة ${idx + 1}`}
-                              className="w-full h-24 sm:h-28 object-cover rounded-lg border border-gray-200"
-                            />
-                            <button
-                              type="button"
-                              onClick={() => removeNewPaymentAt(idx)}
-                              className="absolute top-1 left-1 bg-red-600 text-white rounded-full p-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity"
-                              title="حذف"
-                            >
-                              <X className="w-3.5 h-3.5" />
-                            </button>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-
-                    <div className="mt-3 flex flex-col sm:flex-row gap-2">
-                      <button
-                        type="button"
-                        onClick={handleSavePostApproval}
-                        disabled={savingPostApproval}
-                        className="w-full sm:w-auto px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm font-semibold disabled:opacity-50"
-                      >
-                        {savingPostApproval ? 'جاري الحفظ...' : 'حفظ استكمال الإجراءات'}
-                      </button>
+                      {newPaymentPreviews.length > 0 && (
+                        <div className="mt-3 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
+                          {newPaymentPreviews.map((src, idx) => (
+                            <div key={src} className="relative group">
+                              <img
+                                src={src}
+                                alt={`دفعة جديدة ${idx + 1}`}
+                                className="w-full h-24 sm:h-28 object-cover rounded-lg border border-gray-200"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => removeNewPaymentAt(idx)}
+                                className="absolute top-1 left-1 bg-red-600 text-white rounded-full p-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity"
+                                title="حذف"
+                              >
+                                <X className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
+                  ) : (
+                    <div className="mt-3 text-xs sm:text-sm text-gray-600 bg-gray-50 border border-gray-200 rounded-lg p-3 leading-relaxed">
+                      لا يلزم رفع صور الدفعات عند اختيار الدفع {remainingPaymentMethod === 'office' ? 'في المكتب' : 'في الباص مع المندوب / السائق'}.
+                      سيتم حفظ اختيارك ومراجعته من الإدارة.
+                    </div>
+                  )}
+
+                  <div className="mt-3 flex flex-col sm:flex-row gap-2">
+                    <button
+                      type="button"
+                      onClick={handleSavePostApproval}
+                      disabled={savingPostApproval}
+                      className="w-full sm:w-auto px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm font-semibold disabled:opacity-50"
+                    >
+                      {savingPostApproval ? 'جاري الحفظ...' : 'حفظ استكمال الإجراءات'}
+                    </button>
                   </div>
                 </div>
               </div>
