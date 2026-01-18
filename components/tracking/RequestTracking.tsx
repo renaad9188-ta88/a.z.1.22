@@ -721,6 +721,9 @@ export default function RequestTracking({ requestId, userId }: { requestId: stri
                     <span className="text-gray-500">محطات التوقف</span>
                     <span className="font-semibold tabular-nums">{stops.length}</span>
                   </div>
+                  <div className="text-xs text-gray-500 bg-gray-50 border border-gray-200 rounded-lg p-2 leading-relaxed">
+                    ملاحظة: سيتم تفعيل التتبع بعد الحجز والانطلاق.
+                  </div>
                   {!loading && stops.length === 0 && !driverLocation && (
                     <div className="text-xs text-gray-500 space-y-1">
                       <p>
