@@ -553,10 +553,14 @@ export default function DashboardContent({ userId }: { userId: string }) {
                       </div>
                       {needsPostApproval && (
                         <div className="mb-2">
-                          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-blue-600 text-white text-xs sm:text-sm font-bold shadow-sm">
+                          <Link
+                            href={`/dashboard/request/${request.id}#post-approval`}
+                            className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-blue-600 text-white text-xs sm:text-sm font-bold shadow-sm hover:bg-blue-700 transition"
+                            title="اضغط لاستكمال الإجراءات"
+                          >
                             يرجى استكمال الإجراءات
                             <span className="opacity-90">(دفع المتبقي + الكفالة)</span>
-                          </div>
+                          </Link>
                         </div>
                       )}
                       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 sm:gap-3 md:gap-4 mt-3 sm:mt-4 text-xs sm:text-sm text-gray-600">
@@ -607,10 +611,10 @@ export default function DashboardContent({ userId }: { userId: string }) {
                           </Link>
                         )}
                       <Link
-                        href={`/dashboard/request/${request.id}`}
+                        href={`/dashboard/request/${request.id}#admin-response`}
                         className="w-full sm:w-auto px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-xs sm:text-sm font-semibold text-center"
                       >
-                        عرض التفاصيل
+                        عرض رد الإدارة
                       </Link>
                       {request.visit_type === 'visit' && !isDraft && (
                         <button

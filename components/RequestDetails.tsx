@@ -447,7 +447,7 @@ export default function RequestDetails({ requestId, userId }: { requestId: strin
           
           {/* استكمال الإجراءات بعد الموافقة */}
           {request.status === 'approved' && (
-            <div className="bg-blue-50 border border-blue-100 rounded-lg p-4 sm:p-5 md:p-6 mb-4 sm:mb-6">
+            <div id="post-approval" className="bg-blue-50 border border-blue-100 rounded-lg p-4 sm:p-5 md:p-6 mb-4 sm:mb-6">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
                   <h2 className="text-base sm:text-lg md:text-xl font-extrabold text-gray-900">
@@ -651,7 +651,9 @@ export default function RequestDetails({ requestId, userId }: { requestId: strin
           />
 
           {/* رد الإدارة */}
-          <AdminResponse adminNotes={request.admin_notes} />
+          <div id="admin-response">
+            <AdminResponse adminNotes={request.admin_notes} />
+          </div>
 
           {/* التواريخ */}
           <div className="pt-4 sm:pt-6 border-t border-gray-200">
