@@ -469,24 +469,9 @@ export default function RequestDetails({ requestId, userId }: { requestId: strin
               </div>
 
               <div className="mt-4 grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4">
-                {/* 1) تحديد موعد القدوم */}
+                {/* 1) توقيع الكفالة */}
                 <div className="bg-white rounded-lg border border-gray-200 p-3 sm:p-4">
-                  <p className="font-bold text-gray-800 text-sm sm:text-base mb-2">1) تحديد موعد القدوم</p>
-                  <p className="text-xs sm:text-sm text-gray-600 mb-3">
-                    {request.arrival_date ? `الموعد الحالي: ${formatDate(request.arrival_date)}` : 'لم يتم تحديد موعد القدوم بعد.'}
-                  </p>
-                  <button
-                    type="button"
-                    onClick={() => setShowSchedulingModal(true)}
-                    className="w-full px-4 py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition text-sm font-semibold"
-                  >
-                    {request.arrival_date ? 'تعديل موعد القدوم' : 'تحديد موعد القدوم'}
-                  </button>
-                </div>
-
-                {/* 2) توقيع الكفالة */}
-                <div className="bg-white rounded-lg border border-gray-200 p-3 sm:p-4">
-                  <p className="font-bold text-gray-800 text-sm sm:text-base mb-2">2) توقيع الكفالة</p>
+                  <p className="font-bold text-gray-800 text-sm sm:text-base mb-2">1) توقيع الكفالة</p>
                   <div className="space-y-2 text-sm">
                     {[
                       'توقيع الكفالة في المكتب عند الوصول',
@@ -506,10 +491,10 @@ export default function RequestDetails({ requestId, userId }: { requestId: strin
                   </div>
                 </div>
 
-                {/* 3) دفع المبلغ المتبقي */}
+                {/* 2) دفع المبلغ المتبقي */}
                 <div className="bg-white rounded-lg border border-gray-200 p-3 sm:p-4 lg:col-span-2">
                   <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-                    <p className="font-bold text-gray-800 text-sm sm:text-base">3) دفع المبلغ المتبقي</p>
+                    <p className="font-bold text-gray-800 text-sm sm:text-base">2) دفع المبلغ المتبقي</p>
                     <span className="text-sm font-extrabold text-blue-700">
                       المتبقي: {(request.remaining_amount ?? 20)} دينار
                     </span>
@@ -632,6 +617,21 @@ export default function RequestDetails({ requestId, userId }: { requestId: strin
                       {savingPostApproval ? 'جاري الحفظ...' : 'حفظ استكمال الإجراءات'}
                     </button>
                   </div>
+                </div>
+
+                {/* 3) تحديد موعد القدوم */}
+                <div className="bg-white rounded-lg border border-gray-200 p-3 sm:p-4 lg:col-span-2">
+                  <p className="font-bold text-gray-800 text-sm sm:text-base mb-2">3) تحديد موعد القدوم</p>
+                  <p className="text-xs sm:text-sm text-gray-600 mb-3">
+                    {request.arrival_date ? `الموعد الحالي: ${formatDate(request.arrival_date)}` : 'لم يتم تحديد موعد القدوم بعد.'}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setShowSchedulingModal(true)}
+                    className="w-full px-4 py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition text-sm font-semibold"
+                  >
+                    {request.arrival_date ? 'تعديل موعد القدوم' : 'تحديد موعد القدوم'}
+                  </button>
                 </div>
               </div>
             </div>
