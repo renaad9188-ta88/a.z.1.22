@@ -637,6 +637,20 @@ export default function RequestDetails({ requestId, userId }: { requestId: strin
             </div>
           )}
 
+          {/* فاصل بين الاستكمال وباقي التفاصيل */}
+          {request.status === 'approved' && (
+            <div className="border-t border-gray-200 pt-4 sm:pt-6 mb-4 sm:mb-6">
+              <div className="flex items-center justify-between gap-3">
+                <h2 className="text-base sm:text-lg md:text-xl font-extrabold text-gray-900">
+                  تفاصيل الطلب
+                </h2>
+                <span className="text-[11px] sm:text-xs text-gray-500">
+                  معلومات عامة + صور + رد الإدارة
+                </span>
+              </div>
+            </div>
+          )}
+
           <RequestInfo request={request} adminInfo={adminInfo} />
 
           <PassportImages
