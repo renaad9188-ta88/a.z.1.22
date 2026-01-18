@@ -69,7 +69,13 @@ export async function notifyRequestApproved(userId: string, requestId: string, v
   return createNotification({
     userId,
     title: 'تم قبول طلبك',
-    message: `تم قبول طلب الزيارة لـ ${visitorName}. يمكنك الآن حجز موعد الرحلة.`,
+    message:
+      `تم قبول طلب الزيارة لـ ${visitorName}.\n` +
+      `يرجى استكمال الإجراءات التالية:\n` +
+      `- تحديد موعد القدوم\n` +
+      `- دفع المبلغ المتبقي ورفع صورة الدفعة\n` +
+      `- اختيار طريقة توقيع الكفالة\n` +
+      `بعد استكمال الدفع سيتم تأكيده من الإدارة لفتح حجز الموعد.`,
     type: 'success',
     relatedType: 'request',
     relatedId: requestId,

@@ -62,6 +62,17 @@ export const parseAdminNotes = (notes: string): AdminInfo | null => {
       info.note = trimmed.split('ملاحظة:')[1]?.trim()
     }
 
+    // post-approval details (visit requests)
+    if (trimmed.startsWith('طريقة توقيع الكفالة:')) {
+      info.guaranteeMethod = trimmed.split('طريقة توقيع الكفالة:')[1]?.trim()
+    }
+    if (trimmed.startsWith('توقيع الكفالة:')) {
+      info.guaranteeMethod = trimmed.split('توقيع الكفالة:')[1]?.trim()
+    }
+    if (trimmed.startsWith('طريقة دفع المتبقي:')) {
+      info.remainingPaymentMethod = trimmed.split('طريقة دفع المتبقي:')[1]?.trim()
+    }
+
     if (line.includes('الغرض:')) {
       const purposePart = line.split('الغرض:')[1]?.trim()
       if (purposePart && !purposePart.startsWith('http')) {

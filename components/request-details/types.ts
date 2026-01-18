@@ -22,6 +22,10 @@ export interface VisitRequest {
   hotel_location: string | null
   rooms_count: number | null
   nights_count: number | null
+  arrival_date?: string | null
+  departure_date?: string | null
+  trip_status?: string | null
+  payment_verified?: boolean | null
   status: string
   rejection_reason: string | null
   deposit_paid: boolean
@@ -42,6 +46,9 @@ export interface AdminInfo {
   tourismCompany?: string
   transportCompany?: string
   note?: string
+  // post-approval (visit requests)
+  guaranteeMethod?: string
+  remainingPaymentMethod?: string
 }
 
 
