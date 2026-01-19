@@ -7,6 +7,7 @@ import Link from 'next/link'
 import { LogOut, Bus, Settings } from 'lucide-react'
 import toast from 'react-hot-toast'
 import DriverAvailabilityMap from '@/components/driver/DriverAvailabilityMap'
+import DriverTripsList from '@/components/driver/DriverTripsList'
 import NotificationsDropdown from '@/components/NotificationsDropdown'
 
 type DriverProfile = {
@@ -21,6 +22,7 @@ export default function DriverDashboard() {
   const supabase = createSupabaseBrowserClient()
   const [loading, setLoading] = useState(true)
   const [driverProfile, setDriverProfile] = useState<DriverProfile | null>(null)
+  const [driverRowId, setDriverRowId] = useState<string | null>(null)
   // تم تبسيط لوحة السائق: خريطة + زر (متاح) فقط حسب طلب الإدارة
 
   useEffect(() => {
@@ -66,6 +68,19 @@ export default function DriverDashboard() {
       }
 
       setDriverProfile(profile as DriverProfile)
+      
+      // Get driver row ID from drivers table
+      const { data: driverRow, error: driverRowError } = await supabase
+        .from('drivers')
+        .select('id')
+        .eq('user_id', user.id)
+        .maybeSingle()
+      
+      if (driverRowError) {
+        console.error('Error loading driver row:', driverRowError)
+      } else if (driverRow) {
+        setDriverRowId(driverRow.id)
+      }
     } catch (error: any) {
       console.error('Error loading driver profile:', error)
       toast.error('حدث خطأ أثناء تحميل البيانات')
@@ -154,7 +169,10 @@ export default function DriverDashboard() {
           </p>
         </div>
 
-        <DriverAvailabilityMap />
+        {driverRowId && <DriverTripsList driverRowId={driverRowId} />}
+        <div className="mt-4 sm:mt-6">
+          <DriverAvailabilityMap />
+        </div>
       </div>
     </div>
   )

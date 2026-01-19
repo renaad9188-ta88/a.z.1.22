@@ -5,6 +5,7 @@ import { createSupabaseBrowserClient } from '@/lib/supabase'
 import { MapPin, Plus, Trash2, Edit, Bus, Users, Phone, Navigation, Copy } from 'lucide-react'
 import toast from 'react-hot-toast'
 import TripSchedulingModal from './TripSchedulingModal'
+import CreateTripModal from './CreateTripModal'
 import type { VisitRequest } from './types'
 
 type Route = {
@@ -61,6 +62,10 @@ type RouteTripLite = {
   arrival_date: string | null
   trip_status: string | null
   created_at: string
+  meeting_time?: string | null
+  departure_time?: string | null
+  start_location_name?: string
+  end_location_name?: string
 }
 
 export default function RouteManagement() {
@@ -72,7 +77,9 @@ export default function RouteManagement() {
   const [loading, setLoading] = useState(true)
   const [showAddRoute, setShowAddRoute] = useState(false)
   const [showAddDriver, setShowAddDriver] = useState(false)
+  const [showCreateTrip, setShowCreateTrip] = useState(false)
   const [selectedRoute, setSelectedRoute] = useState<Route | null>(null)
+  const [selectedRouteForTrip, setSelectedRouteForTrip] = useState<Route | null>(null)
   const [driverSearch, setDriverSearch] = useState('')
   const [driverLocLoading, setDriverLocLoading] = useState<Record<string, boolean>>({})
   const [driverLastLoc, setDriverLastLoc] = useState<Record<string, DriverLocationLite | null>>({})
@@ -81,6 +88,7 @@ export default function RouteManagement() {
   const [expandedRouteTrips, setExpandedRouteTrips] = useState<Record<string, boolean>>({})
   const [routeTrips, setRouteTrips] = useState<Record<string, RouteTripLite[]>>({})
   const [routeTripsLoading, setRouteTripsLoading] = useState<Record<string, boolean>>({})
+  const [tripAssignedDrivers, setTripAssignedDrivers] = useState<Record<string, Driver[]>>({})
   const [schedulingRequest, setSchedulingRequest] = useState<VisitRequest | null>(null)
   const [driverForm, setDriverForm] = useState({
     user_id: '',
@@ -281,18 +289,54 @@ export default function RouteManagement() {
   const loadTripsForRoute = async (routeId: string) => {
     try {
       setRouteTripsLoading((p) => ({ ...p, [routeId]: true }))
-      const { data, error } = await supabase
-        .from('visit_requests')
-        .select('id,visitor_name,city,companions_count,arrival_date,trip_status,created_at')
+      // Load trips from route_trips table (admin-created trips)
+      const { data: tripsData, error: tripsErr } = await supabase
+        .from('route_trips')
+        .select('id,trip_date,meeting_time,departure_time,start_location_name,end_location_name,is_active,created_at')
         .eq('route_id', routeId)
-        .eq('status', 'approved')
-        .order('arrival_date', { ascending: true })
-      if (error) throw error
-
-      const rows = (data || []) as any[]
-      // نظهر فقط اللي إلها موعد أو حالة رحلة
-      const filtered = rows.filter((r) => Boolean(r.arrival_date) || Boolean(r.trip_status))
-      setRouteTrips((p) => ({ ...p, [routeId]: (filtered as any) || [] }))
+        .eq('is_active', true)
+        .order('trip_date', { ascending: true })
+        .order('departure_time', { ascending: true })
+      
+      if (tripsErr) throw tripsErr
+      
+      // Format as RouteTripLite for display
+      const formattedTrips = (tripsData || []).map((trip: any) => ({
+        id: trip.id,
+        visitor_name: `${trip.start_location_name} → ${trip.end_location_name}`,
+        city: trip.start_location_name,
+        companions_count: 0,
+        arrival_date: trip.trip_date,
+        trip_status: trip.is_active ? 'مجدولة' : 'ملغاة',
+        created_at: trip.created_at,
+        meeting_time: trip.meeting_time,
+        departure_time: trip.departure_time,
+        start_location_name: trip.start_location_name,
+        end_location_name: trip.end_location_name,
+      }))
+      
+      setRouteTrips((p) => ({ ...p, [routeId]: formattedTrips as any[] }))
+      
+      // Load assigned drivers for each trip
+      const tripIds = formattedTrips.map((t: any) => t.id)
+      if (tripIds.length > 0) {
+        const { data: assignments, error: assignErr } = await supabase
+          .from('route_trip_drivers')
+          .select('trip_id, driver_id, drivers(id, name, vehicle_type, phone)')
+          .in('trip_id', tripIds)
+          .eq('is_active', true)
+        
+        if (!assignErr && assignments) {
+          const driversByTrip: Record<string, Driver[]> = {}
+          assignments.forEach((a: any) => {
+            if (a.drivers && a.trip_id) {
+              if (!driversByTrip[a.trip_id]) driversByTrip[a.trip_id] = []
+              driversByTrip[a.trip_id].push(a.drivers as Driver)
+            }
+          })
+          setTripAssignedDrivers((p) => ({ ...p, ...driversByTrip }))
+        }
+      }
     } catch (e: any) {
       console.error('loadTripsForRoute error:', e)
       toast.error(e?.message || 'تعذر تحميل رحلات هذا الخط')
@@ -434,6 +478,37 @@ export default function RouteManagement() {
     }
   }
 
+  const handleAssignDriverToTrip = async (tripId: string, driverId: string, routeId: string) => {
+    try {
+      const { error } = await supabase
+        .from('route_trip_drivers')
+        .upsert(
+          { trip_id: tripId, driver_id: driverId, is_active: true },
+          { onConflict: 'trip_id,driver_id' }
+        )
+      if (error) throw error
+      
+      // Reload assigned drivers for this trip
+      const { data: driverData } = await supabase
+        .from('drivers')
+        .select('id, name, vehicle_type, phone')
+        .eq('id', driverId)
+        .single()
+      
+      if (driverData) {
+        setTripAssignedDrivers((p) => ({
+          ...p,
+          [tripId]: [...(p[tripId] || []), driverData as Driver],
+        }))
+      }
+      
+      toast.success('تم ربط السائق بالرحلة بنجاح')
+    } catch (e: any) {
+      console.error('Assign driver to trip error:', e)
+      toast.error(e?.message || 'تعذر ربط السائق بالرحلة')
+    }
+  }
+
   const handleAssignDriver = async (routeId: string, driverId: string) => {
     try {
       const { error } = await supabase.from('route_drivers').upsert({
@@ -460,6 +535,24 @@ export default function RouteManagement() {
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 sm:gap-4">
         <h2 className="text-lg sm:text-xl md:text-2xl font-bold text-gray-800">إدارة الخطوط والسائقين</h2>
         <div className="flex gap-2 w-full sm:w-auto">
+          {routes.length > 0 && (
+            <button
+              onClick={() => {
+                if (routes.length === 1) {
+                  setSelectedRouteForTrip(routes[0])
+                  setShowCreateTrip(true)
+                } else {
+                  // إذا في أكثر من خط، اختر الخط الأول (يمكن تحسينه لاختيار الخط)
+                  setSelectedRouteForTrip(routes[0])
+                  setShowCreateTrip(true)
+                }
+              }}
+              className="flex-1 sm:flex-none px-3 sm:px-4 py-2 sm:py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition text-sm sm:text-base font-medium"
+            >
+              <Plus className="w-4 h-4 inline mr-2" />
+              إنشاء رحلة جديدة
+            </button>
+          )}
           <button
             onClick={() => setShowAddDriver(true)}
             className="flex-1 sm:flex-none px-3 sm:px-4 py-2 sm:py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm sm:text-base font-medium"
@@ -610,24 +703,65 @@ export default function RouteManagement() {
                           {(routeTrips[route.id] || []).map((t) => {
                             const people = 1 + (Number(t.companions_count || 0) || 0)
                             return (
-                              <div key={t.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border border-gray-200 rounded-lg p-3">
-                                <div className="min-w-0">
-                                  <div className="font-bold text-gray-900 truncate">{t.visitor_name}</div>
-                                  <div className="text-xs text-gray-600 flex flex-wrap gap-x-3 gap-y-1 mt-1">
-                                    <span>المدينة: {t.city}</span>
-                                    <span>الأشخاص: {people}</span>
-                                    <span>الموعد: {t.arrival_date || 'غير محدد'}</span>
-                                    <span>الحالة: {t.trip_status || 'غير محددة'}</span>
+                              <div key={t.id} className="border border-gray-200 rounded-lg p-3 space-y-3">
+                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                                  <div className="min-w-0 flex-1">
+                                    <div className="font-bold text-gray-900 truncate">{t.visitor_name || `${t.start_location_name} → ${t.end_location_name}`}</div>
+                                    <div className="text-xs text-gray-600 flex flex-wrap gap-x-3 gap-y-1 mt-1">
+                                      <span>التاريخ: {t.arrival_date || 'غير محدد'}</span>
+                                      {t.meeting_time && <span>تجمع: {t.meeting_time}</span>}
+                                      {t.departure_time && <span>انطلاق: {t.departure_time}</span>}
+                                      <span>الحالة: {t.trip_status || 'غير محددة'}</span>
+                                    </div>
                                   </div>
                                 </div>
-                                <div className="flex gap-2">
-                                  <button
-                                    type="button"
-                                    onClick={() => openTripScheduling(t.id)}
-                                    className="px-3 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition text-xs sm:text-sm font-bold"
-                                  >
-                                    تحديد/تعديل الموعد
-                                  </button>
+                                
+                                {/* Assigned Drivers Display */}
+                                {(tripAssignedDrivers[t.id] || []).length > 0 && (
+                                  <div className="border-t border-gray-100 pt-2">
+                                    <label className="block text-xs font-semibold text-gray-700 mb-2">
+                                      السائقون المعيّنون:
+                                    </label>
+                                    <div className="flex flex-wrap gap-2">
+                                      {tripAssignedDrivers[t.id].map((driver) => (
+                                        <span
+                                          key={driver.id}
+                                          className="inline-flex items-center gap-1.5 px-2 sm:px-3 py-1 bg-green-50 text-green-700 rounded-full text-xs sm:text-sm font-medium border border-green-200"
+                                        >
+                                          <Bus className="w-3 h-3 sm:w-4 sm:h-4 flex-shrink-0" />
+                                          <span className="truncate">{driver.name}</span>
+                                          <span className="hidden sm:inline">({driver.vehicle_type})</span>
+                                        </span>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+                                
+                                {/* Assign Driver to Trip */}
+                                <div className="border-t border-gray-100 pt-2">
+                                  <label className="block text-xs font-semibold text-gray-700 mb-2">
+                                    {tripAssignedDrivers[t.id]?.length > 0 ? 'إضافة سائق آخر:' : 'تعيين سائق للرحلة:'}
+                                  </label>
+                                  <div className="flex gap-2">
+                                    <select
+                                      onChange={(e) => {
+                                        if (e.target.value) {
+                                          handleAssignDriverToTrip(t.id, e.target.value, route.id)
+                                          e.target.value = ''
+                                        }
+                                      }}
+                                      className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-xs sm:text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                    >
+                                      <option value="">اختر سائق...</option>
+                                      {drivers
+                                        .filter(d => d.is_active !== false && !tripAssignedDrivers[t.id]?.find(ad => ad.id === d.id))
+                                        .map(driver => (
+                                          <option key={driver.id} value={driver.id}>
+                                            {driver.name} - {driver.vehicle_type}
+                                          </option>
+                                        ))}
+                                    </select>
+                                  </div>
                                 </div>
                               </div>
                             )
@@ -867,6 +1001,23 @@ export default function RouteManagement() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Create Trip Modal */}
+      {showCreateTrip && selectedRouteForTrip && (
+        <CreateTripModal
+          routeId={selectedRouteForTrip.id}
+          routeName={selectedRouteForTrip.name}
+          onClose={() => {
+            setShowCreateTrip(false)
+            setSelectedRouteForTrip(null)
+          }}
+          onSuccess={() => {
+            // Reload trips for this route
+            loadTripsForRoute(selectedRouteForTrip.id)
+            toast.success('تم إنشاء الرحلة بنجاح')
+          }}
+        />
       )}
 
       {/* Trip Scheduling Modal (Admin) */}
