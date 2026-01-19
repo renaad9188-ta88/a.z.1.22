@@ -2,9 +2,10 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { createSupabaseBrowserClient } from '@/lib/supabase'
-import { MapPin, Plus, Edit, Trash2, Bus, Route as RouteIcon } from 'lucide-react'
+import { MapPin, Plus, Edit, Trash2, Bus, Route as RouteIcon, Flag, CornerDownLeft } from 'lucide-react'
 import toast from 'react-hot-toast'
 import StopPointSelector from '@/components/driver/StopPointSelector'
+import LocationSelector from '@/components/driver/LocationSelector'
 
 type Route = {
   id: string
@@ -36,6 +37,8 @@ export default function DriverRoutes() {
   const [showAddStop, setShowAddStop] = useState(false)
   const [editingStop, setEditingStop] = useState<RouteStopPoint | null>(null)
   const [showStopPicker, setShowStopPicker] = useState(false)
+  const [showStartPicker, setShowStartPicker] = useState(false)
+  const [showEndPicker, setShowEndPicker] = useState(false)
 
   // Map preview (route + stops)
   const mapRef = useRef<HTMLDivElement | null>(null)
@@ -315,6 +318,30 @@ export default function DriverRoutes() {
     }
   }
 
+  const updateRoutePoint = async (kind: 'start' | 'end', point: { name: string; lat: number; lng: number }) => {
+    if (!selectedRoute) return
+    try {
+      const updateData: any =
+        kind === 'start'
+          ? { start_location_name: point.name, start_lat: point.lat, start_lng: point.lng }
+          : { end_location_name: point.name, end_lat: point.lat, end_lng: point.lng }
+
+      const { error } = await supabase.from('routes').update(updateData).eq('id', selectedRoute.id)
+      if (error) throw error
+
+      toast.success(kind === 'start' ? 'تم تحديث نقطة الانطلاق' : 'تم تحديث نقطة الوصول')
+      // Update local state
+      setRoutes((prev) => prev.map((r) => (r.id === selectedRoute.id ? ({ ...r, ...updateData } as any) : r)))
+      setSelectedRoute((prev) => (prev ? ({ ...prev, ...updateData } as any) : prev))
+      if (kind === 'start') setShowStartPicker(false)
+      else setShowEndPicker(false)
+      renderRoutePreview()
+    } catch (e: any) {
+      console.error('updateRoutePoint error:', e)
+      toast.error(e?.message || 'تعذر تحديث نقطة المسار (تحقق من الصلاحيات/RLS)')
+    }
+  }
+
   const handleUpdateStop = async (formData: FormData) => {
     if (!editingStop) return
 
@@ -440,6 +467,22 @@ export default function DriverRoutes() {
                 <div className="flex justify-between items-center mb-3">
                   <h4 className="text-sm sm:text-base font-semibold text-gray-800">نقاط التوقف:</h4>
                   <div className="flex flex-wrap gap-2 justify-end">
+                    <button
+                      onClick={() => setShowStartPicker(true)}
+                      className="flex items-center gap-2 px-3 py-2 bg-gray-100 text-gray-900 rounded-lg hover:bg-gray-200 transition text-sm font-bold"
+                      title="تحديد نقطة الانطلاق"
+                    >
+                      <Flag className="w-4 h-4 text-green-700" />
+                      نقطة الانطلاق
+                    </button>
+                    <button
+                      onClick={() => setShowEndPicker(true)}
+                      className="flex items-center gap-2 px-3 py-2 bg-gray-100 text-gray-900 rounded-lg hover:bg-gray-200 transition text-sm font-bold"
+                      title="تحديد نقطة الوصول"
+                    >
+                      <CornerDownLeft className="w-4 h-4 text-red-700" />
+                      نقطة الوصول
+                    </button>
                     <button
                       onClick={() => setShowStopPicker(true)}
                       className="flex items-center gap-2 px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm"
@@ -680,6 +723,64 @@ export default function DriverRoutes() {
               <StopPointSelector
                 title={`اختر نقطة توقف للخط: ${selectedRoute.name}`}
                 onSelect={addStopFromMap}
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Start Point Picker */}
+      {showStartPicker && selectedRoute && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-3 sm:p-4 overflow-y-auto">
+          <div className="bg-white rounded-lg max-w-lg w-full mx-4 max-h-[90vh] overflow-y-auto">
+            <div className="p-4 sm:p-6">
+              <div className="flex items-center justify-between gap-3 mb-4">
+                <h3 className="text-lg sm:text-xl font-bold text-gray-800">تحديد نقطة الانطلاق</h3>
+                <button
+                  type="button"
+                  onClick={() => setShowStartPicker(false)}
+                  className="px-3 py-1.5 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition text-sm font-semibold"
+                >
+                  إغلاق
+                </button>
+              </div>
+              <LocationSelector
+                title={`نقطة الانطلاق للخط: ${selectedRoute.name}`}
+                initial={{
+                  name: selectedRoute.start_location_name,
+                  lat: selectedRoute.start_lat,
+                  lng: selectedRoute.start_lng,
+                }}
+                onSelect={(p) => updateRoutePoint('start', p)}
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* End Point Picker */}
+      {showEndPicker && selectedRoute && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-3 sm:p-4 overflow-y-auto">
+          <div className="bg-white rounded-lg max-w-lg w-full mx-4 max-h-[90vh] overflow-y-auto">
+            <div className="p-4 sm:p-6">
+              <div className="flex items-center justify-between gap-3 mb-4">
+                <h3 className="text-lg sm:text-xl font-bold text-gray-800">تحديد نقطة الوصول</h3>
+                <button
+                  type="button"
+                  onClick={() => setShowEndPicker(false)}
+                  className="px-3 py-1.5 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition text-sm font-semibold"
+                >
+                  إغلاق
+                </button>
+              </div>
+              <LocationSelector
+                title={`نقطة الوصول للخط: ${selectedRoute.name}`}
+                initial={{
+                  name: selectedRoute.end_location_name,
+                  lat: selectedRoute.end_lat,
+                  lng: selectedRoute.end_lng,
+                }}
+                onSelect={(p) => updateRoutePoint('end', p)}
               />
             </div>
           </div>
