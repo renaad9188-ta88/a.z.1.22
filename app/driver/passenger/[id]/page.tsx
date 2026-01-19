@@ -3,10 +3,11 @@
 import { useState, useEffect } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { createSupabaseBrowserClient } from '@/lib/supabase'
-import { ArrowLeft, User, Phone, MapPin, Calendar, Users, Navigation } from 'lucide-react'
+import { ArrowLeft, User, Phone, MapPin, Calendar, Users, Navigation, Route as RouteIcon } from 'lucide-react'
 import Link from 'next/link'
 import toast from 'react-hot-toast'
 import DropoffPointSelector from '@/components/DropoffPointSelector'
+import TripStopsEditor from '@/components/driver/TripStopsEditor'
 
 type PassengerDetails = {
   id: string
@@ -40,6 +41,7 @@ export default function PassengerDetails() {
   const [passenger, setPassenger] = useState<PassengerDetails | null>(null)
   const [loading, setLoading] = useState(true)
   const [showDropoffSelector, setShowDropoffSelector] = useState(false)
+  const [showTripStopsEditor, setShowTripStopsEditor] = useState(false)
 
   useEffect(() => {
     if (params.id) {
@@ -447,6 +449,14 @@ export default function PassengerDetails() {
             <div className="bg-white rounded-lg sm:rounded-xl shadow-md p-4 sm:p-6">
               <h3 className="text-lg font-bold text-gray-800 mb-4">الإجراءات</h3>
               <div className="space-y-3">
+                <button
+                  type="button"
+                  onClick={() => setShowTripStopsEditor(true)}
+                  className="w-full px-4 py-3 bg-green-600 text-white text-center rounded-lg hover:bg-green-700 transition font-medium flex items-center justify-center gap-2"
+                >
+                  <RouteIcon className="w-5 h-5" />
+                  إضافة/تعديل سير الرحلة (نقاط التوقف)
+                </button>
                 <Link
                   href={`/driver/passenger/${passenger.id}/track`}
                   className="w-full block px-4 py-3 bg-blue-600 text-white text-center rounded-lg hover:bg-blue-700 transition font-medium"
@@ -498,6 +508,16 @@ export default function PassengerDetails() {
             </div>
           </div>
         </div>
+      )}
+
+      {showTripStopsEditor && passenger?.id && (
+        <TripStopsEditor
+          requestId={passenger.id}
+          onClose={() => setShowTripStopsEditor(false)}
+          onSaved={() => {
+            // لا يلزم شيء هنا—صفحة التتبع تعتمد على Realtime وتقرأ trip_stops مباشرة
+          }}
+        />
       )}
     </div>
   )

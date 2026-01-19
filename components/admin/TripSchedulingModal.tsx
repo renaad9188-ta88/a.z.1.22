@@ -16,6 +16,15 @@ interface TripSchedulingModalProps {
   isAdmin?: boolean // إذا كان true، يعني من لوحة الإدارة (يمكن الموافقة)، إذا false من لوحة المستخدم (يطلب الحجز)
 }
 
+type DriverRow = {
+  id: string
+  name: string
+  phone: string
+  vehicle_type: string
+  seats_count: number
+  is_active: boolean
+}
+
 // أيام القدوم المتاحة: الأحد، الثلاثاء، الخميس
 const ARRIVAL_DAYS = [0, 2, 4] // 0 = الأحد، 2 = الثلاثاء، 4 = الخميس
 
@@ -53,6 +62,9 @@ export default function TripSchedulingModal({
   const [showDropoffSelector, setShowDropoffSelector] = useState(false)
   const [arrivalTime, setArrivalTime] = useState<string>('10:00')
   const [departureTime, setDepartureTime] = useState<string>('10:00')
+  const [drivers, setDrivers] = useState<DriverRow[]>([])
+  const [assignedDriverId, setAssignedDriverId] = useState<string>('')
+  const [loadingDrivers, setLoadingDrivers] = useState(false)
 
   useEffect(() => {
     if (request) {
@@ -87,8 +99,37 @@ export default function TripSchedulingModal({
       // أوقات الرحلة (إن وجدت) أو افتراضي
       setArrivalTime((request as any)?.arrival_time || '10:00')
       setDepartureTime((request as any)?.departure_time || '10:00')
+
+      // السائق المعيّن (إن وجد)
+      setAssignedDriverId(String((request as any)?.assigned_driver_id || ''))
     }
   }, [request, supabase])
+
+  useEffect(() => {
+    if (!isAdmin || !request) return
+    let mounted = true
+    ;(async () => {
+      try {
+        setLoadingDrivers(true)
+        const { data, error } = await supabase
+          .from('drivers')
+          .select('id,name,phone,vehicle_type,seats_count,is_active')
+          .eq('is_active', true)
+          .order('name')
+        if (error) throw error
+        if (!mounted) return
+        setDrivers((data || []) as any)
+      } catch (e: any) {
+        console.error('Load drivers error:', e)
+        toast.error(e?.message || 'تعذر تحميل قائمة السائقين')
+      } finally {
+        if (mounted) setLoadingDrivers(false)
+      }
+    })()
+    return () => {
+      mounted = false
+    }
+  }, [isAdmin, request, supabase])
 
   const calculateArrivalDates = () => {
     const dates: Date[] = []
@@ -259,6 +300,7 @@ export default function TripSchedulingModal({
         route_id: effectiveRouteId,
         arrival_time: arrivalTime || null,
         departure_time: departureTime || null,
+        assigned_driver_id: assignedDriverId ? assignedDriverId : null,
         updated_at: new Date().toISOString(),
       }
 
@@ -666,6 +708,28 @@ export default function TripSchedulingModal({
                 />
                 <p className="mt-1 text-[11px] text-gray-500">اختياري — إذا تركته فارغاً لن يظهر وقت.</p>
               </div>
+            </div>
+          )}
+
+          {/* تعيين السائق (للإدمن فقط) */}
+          {isAdmin && selectedArrivalDate && (
+            <div className="bg-white border border-gray-200 rounded-lg p-4">
+              <label className="block text-sm font-bold text-gray-800 mb-2">تعيين السائق لهذه الرحلة</label>
+              <select
+                value={assignedDriverId}
+                onChange={(e) => setAssignedDriverId(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+              >
+                <option value="">بدون تعيين (تظهر لجميع سائقي الخط)</option>
+                {drivers.map((d) => (
+                  <option key={d.id} value={d.id}>
+                    {d.name} — {d.phone} — {d.vehicle_type}
+                  </option>
+                ))}
+              </select>
+              <p className="mt-1 text-[11px] text-gray-500">
+                {loadingDrivers ? 'جاري تحميل السائقين...' : 'إذا عينت سائقاً هنا، سيظهر الطلب فقط لهذا السائق في لوحة السائق.'}
+              </p>
             </div>
           )}
 

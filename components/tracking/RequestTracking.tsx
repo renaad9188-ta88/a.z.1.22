@@ -204,6 +204,9 @@ export default function RequestTracking({ requestId, userId }: { requestId: stri
     const path: LatLng[] = []
     const bounds = new googleMaps.LatLngBounds()
 
+    const sortedStops = [...stops].sort((a, b) => (a.order_index ?? 0) - (b.order_index ?? 0))
+    const hasCustomTripStops = sortedStops.length > 0
+
     // إذا كان هناك خط محدد (route system)
     if (route) {
       // نقطة الانطلاق (ساحة المرجة - دمشق)
@@ -223,31 +226,52 @@ export default function RequestTracking({ requestId, userId }: { requestId: stri
         })
       )
 
-      // نقاط التوقف الثابتة (route_stop_points) - بصورة حافلة
-      const sortedRouteStops = [...routeStops].sort((a, b) => a.order_index - b.order_index)
-      for (const stop of sortedRouteStops) {
-        const pos: LatLng = { lat: stop.lat, lng: stop.lng }
-        path.push(pos)
-        bounds.extend(pos)
-        
-        // أيقونة حافلة للنقاط الثابتة
-        markersRef.current.push(
-          new googleMaps.Marker({
-            position: pos,
-            map,
-            title: stop.name,
-            icon: {
-              url: 'http://maps.google.com/mapfiles/ms/icons/bus.png',
-              scaledSize: new googleMaps.Size(40, 40),
-            },
-            label: {
-              text: String(stop.order_index + 1),
-              color: '#ffffff',
-              fontWeight: 'bold',
-              fontSize: '12px',
-            },
-          })
-        )
+      // نقاط التوقف: إذا السائق رسم "سير الرحلة" (trip_stops) نستخدمها بدل نقاط الخط الثابتة
+      if (hasCustomTripStops) {
+        for (const s of sortedStops) {
+          const pos: LatLng = { lat: safeNumber(s.lat, 0), lng: safeNumber(s.lng, 0) }
+          if (!pos.lat || !pos.lng) continue
+          bounds.extend(pos)
+          markersRef.current.push(
+            new googleMaps.Marker({
+              position: pos,
+              map,
+              title: s.title,
+              icon: { url: 'http://maps.google.com/mapfiles/ms/icons/blue-dot.png' },
+              label: {
+                text: String((s.order_index ?? 0) + 1),
+                color: '#ffffff',
+                fontWeight: '900',
+                fontSize: '12px',
+              },
+            })
+          )
+        }
+      } else {
+        // نقاط التوقف الثابتة (route_stop_points) - بصورة حافلة
+        const sortedRouteStops = [...routeStops].sort((a, b) => a.order_index - b.order_index)
+        for (const stop of sortedRouteStops) {
+          const pos: LatLng = { lat: stop.lat, lng: stop.lng }
+          bounds.extend(pos)
+          // أيقونة حافلة للنقاط الثابتة
+          markersRef.current.push(
+            new googleMaps.Marker({
+              position: pos,
+              map,
+              title: stop.name,
+              icon: {
+                url: 'http://maps.google.com/mapfiles/ms/icons/bus.png',
+                scaledSize: new googleMaps.Size(40, 40),
+              },
+              label: {
+                text: String(stop.order_index + 1),
+                color: '#ffffff',
+                fontWeight: 'bold',
+                fontSize: '12px',
+              },
+            })
+          )
+        }
       }
 
       // نقطة الوصول (مجمع الشرق الأوسط - عمان)
@@ -302,13 +326,13 @@ export default function RequestTracking({ requestId, userId }: { requestId: stri
         ? { lat: dropoffPoint.lat, lng: dropoffPoint.lng }
         : { lat: route.end_lat, lng: route.end_lng }
 
-      const waypoints: google.maps.DirectionsWaypoint[] = [...routeStops]
-        .sort((a, b) => a.order_index - b.order_index)
+      const waypointSource = hasCustomTripStops
+        ? sortedStops.map((s) => ({ lat: safeNumber(s.lat, 0), lng: safeNumber(s.lng, 0) })).filter((p) => p.lat && p.lng)
+        : [...routeStops].sort((a, b) => a.order_index - b.order_index).map((s) => ({ lat: s.lat, lng: s.lng }))
+
+      const waypoints: google.maps.DirectionsWaypoint[] = waypointSource
         .slice(0, 23) // حد Google للـ waypoints في أغلب الخطط
-        .map((s) => ({
-          location: { lat: s.lat, lng: s.lng },
-          stopover: true,
-        }))
+        .map((p) => ({ location: p, stopover: true }))
 
       if (!directionsRendererRef.current) {
         directionsRendererRef.current = new googleMaps.DirectionsRenderer({
@@ -431,8 +455,7 @@ export default function RequestTracking({ requestId, userId }: { requestId: stri
       }
     }
 
-    // نقاط التوقف المخصصة (من السائق) - trip_stops
-    const sortedStops = [...stops].sort((a, b) => (a.order_index ?? 0) - (b.order_index ?? 0))
+    // نقاط التوقف المخصصة (من السائق) - trip_stops (في الوضع القديم فقط)
     for (const s of sortedStops) {
       const pos = { lat: safeNumber(s.lat, 0), lng: safeNumber(s.lng, 0) }
       if (!pos.lat || !pos.lng) continue

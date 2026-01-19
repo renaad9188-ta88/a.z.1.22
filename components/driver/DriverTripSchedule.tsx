@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { createSupabaseBrowserClient } from '@/lib/supabase'
 import toast from 'react-hot-toast'
-import { Calendar, MapPin, Users, Navigation } from 'lucide-react'
+import { Calendar, MapPin, Users, Navigation, Phone } from 'lucide-react'
 
 type TripRow = {
   id: string
@@ -14,6 +14,11 @@ type TripRow = {
   arrival_date: string | null
   trip_status: string | null
   route_id: string | null
+  assigned_driver_id?: string | null
+  user_profile?: {
+    full_name: string | null
+    phone: string | null
+  }
 }
 
 type RouteRow = { id: string; name: string; start_location_name: string; end_location_name: string }
@@ -70,14 +75,29 @@ export default function DriverTripSchedule() {
 
       const { data: tripsData, error: tripsErr } = await supabase
         .from('visit_requests')
-        .select('id,visitor_name,companions_count,city,arrival_date,trip_status,route_id')
+        .select('id,visitor_name,companions_count,city,arrival_date,trip_status,route_id,assigned_driver_id,profiles!inner(full_name, phone)')
         .eq('status', 'approved')
         .in('route_id', routeIds)
         .in('trip_status', ['scheduled_pending_approval', 'pending_arrival', 'arrived'])
+        .or(`assigned_driver_id.is.null,assigned_driver_id.eq.${driverRow.id}`)
         .order('arrival_date', { ascending: true })
       if (tripsErr) throw tripsErr
 
-      setTrips((tripsData || []) as any)
+      const formatted = (tripsData || []).map((t: any) => ({
+        id: t.id,
+        visitor_name: t.visitor_name,
+        companions_count: t.companions_count,
+        city: t.city,
+        arrival_date: t.arrival_date,
+        trip_status: t.trip_status,
+        route_id: t.route_id,
+        assigned_driver_id: t.assigned_driver_id || null,
+        user_profile: {
+          full_name: t.profiles?.full_name || null,
+          phone: t.profiles?.phone || null,
+        },
+      }))
+      setTrips(formatted as any)
     } catch (e: any) {
       console.error('DriverTripSchedule load error:', e)
       toast.error(e?.message || 'تعذر تحميل جدول الرحلات')
@@ -97,6 +117,11 @@ export default function DriverTripSchedule() {
   }, [trips])
 
   const peopleCount = (t: TripRow) => 1 + (Number(t.companions_count || 0) || 0)
+  const waHref = (t: TripRow) => {
+    const digits = (t.user_profile?.phone || '').replace(/[^\d]/g, '')
+    const msg = `مرحباً، بخصوص رحلتك: ${t.visitor_name} — موعد: ${t.arrival_date || 'غير محدد'}`
+    return digits.length >= 10 ? `https://wa.me/${digits}?text=${encodeURIComponent(msg)}` : `https://wa.me/?text=${encodeURIComponent(msg)}`
+  }
 
   if (loading) {
     return (
@@ -162,6 +187,12 @@ export default function DriverTripSchedule() {
                         <Navigation className="w-4 h-4" />
                         {t.trip_status || 'غير محددة'}
                       </span>
+                      {t.user_profile?.phone && (
+                        <span className="inline-flex items-center gap-1">
+                          <Phone className="w-4 h-4" />
+                          {t.user_profile.phone}
+                        </span>
+                      )}
                       {route && (
                         <span className="text-gray-500">
                           الخط: {route.start_location_name} → {route.end_location_name}
@@ -183,6 +214,16 @@ export default function DriverTripSchedule() {
                     >
                       تتبع
                     </Link>
+                    {t.user_profile?.phone && (
+                      <a
+                        href={waHref(t)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="px-3 py-2 rounded-lg bg-green-600 text-white hover:bg-green-700 transition text-xs sm:text-sm font-bold"
+                      >
+                        واتساب
+                      </a>
+                    )}
                   </div>
                 </div>
               )

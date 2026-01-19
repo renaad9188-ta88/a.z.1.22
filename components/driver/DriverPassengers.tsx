@@ -18,6 +18,7 @@ type PassengerRequest = {
   trip_status: string | null
   created_at: string
   user_id: string
+  assigned_driver_id?: string | null
   user_profile?: {
     full_name: string | null
     phone: string | null
@@ -98,12 +99,15 @@ export default function DriverPassengers() {
           trip_status,
           created_at,
           user_id,
+          assigned_driver_id,
           profiles!inner(full_name, phone),
           request_dropoff_points(name, address, lat, lng)
         `)
         .eq('status', 'approved') // فقط الطلبات المقبولة
         .in('trip_status', ['pending_arrival', 'arrived']) // الرحلات النشطة
         .in('route_id', routeIds)
+        // إذا تم تعيين سائق للطلب: لا يظهر إلا لهذا السائق (أو إذا لم يتم تعيين سائق)
+        .or(`assigned_driver_id.is.null,assigned_driver_id.eq.${driverRow.id}`)
 
       // تطبيق الفلتر
       if (filter === 'today') {
@@ -132,6 +136,7 @@ export default function DriverPassengers() {
         trip_status: passenger.trip_status,
         created_at: passenger.created_at,
         user_id: passenger.user_id,
+        assigned_driver_id: passenger.assigned_driver_id || null,
         user_profile: {
           full_name: passenger.profiles?.full_name || null,
           phone: passenger.profiles?.phone || null,

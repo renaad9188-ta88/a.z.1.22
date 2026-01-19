@@ -17,6 +17,8 @@ export interface VisitRequest {
   driver_phone?: string | null
   vehicle_type?: string | null
   seats_count?: number | null
+  route_id?: string | null
+  assigned_driver_id?: string | null
   route_going?: string | null
   route_return?: string | null
   hotel_name?: string | null
