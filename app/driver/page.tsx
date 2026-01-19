@@ -4,11 +4,9 @@ import { useEffect, useState } from 'react'
 import { createSupabaseBrowserClient } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { LogOut, Bus, MapPin, Users, Route, Settings } from 'lucide-react'
+import { LogOut, Bus, Settings } from 'lucide-react'
 import toast from 'react-hot-toast'
-import DriverRoutes from '@/components/driver/DriverRoutes'
-import DriverPassengers from '@/components/driver/DriverPassengers'
-import DriverTripSchedule from '@/components/driver/DriverTripSchedule'
+import DriverAvailabilityMap from '@/components/driver/DriverAvailabilityMap'
 import NotificationsDropdown from '@/components/NotificationsDropdown'
 
 type DriverProfile = {
@@ -23,7 +21,7 @@ export default function DriverDashboard() {
   const supabase = createSupabaseBrowserClient()
   const [loading, setLoading] = useState(true)
   const [driverProfile, setDriverProfile] = useState<DriverProfile | null>(null)
-  const [activeTab, setActiveTab] = useState<'schedule' | 'routes' | 'passengers'>('schedule')
+  // تم تبسيط لوحة السائق: خريطة + زر (متاح) فقط حسب طلب الإدارة
 
   useEffect(() => {
     loadDriverProfile()
@@ -147,61 +145,16 @@ export default function DriverDashboard() {
       </header>
 
       <div className="container mx-auto px-2 sm:px-3 md:px-4 py-3 sm:py-4 md:py-6 max-w-full">
-        {/* Welcome Message */}
         <div className="bg-white rounded-lg sm:rounded-xl shadow-md p-3 sm:p-4 md:p-6 mb-4 sm:mb-6">
           <h2 className="text-base sm:text-lg md:text-xl font-bold text-gray-800 mb-2">
             مرحباً {driverProfile?.full_name || 'سائق'}
           </h2>
           <p className="text-xs sm:text-sm text-gray-600">
-            إدارة خطوط الرحلات والركاب من لوحة التحكم الخاصة بك
+            اضغط "متاح" ليظهر موقعك للإدارة ويتم تتبعك أثناء الرحلة فقط.
           </p>
         </div>
 
-        {/* Tabs */}
-        <div className="bg-white rounded-lg sm:rounded-xl shadow-md mb-4 sm:mb-6">
-          <div className="border-b border-gray-200">
-            <div className="flex">
-              <button
-                onClick={() => setActiveTab('schedule')}
-                className={`flex items-center gap-2 px-4 sm:px-6 py-3 sm:py-4 text-sm sm:text-base font-medium border-b-2 transition-colors ${
-                  activeTab === 'schedule'
-                    ? 'border-blue-500 text-blue-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700'
-                }`}
-              >
-                <MapPin className="w-4 h-4 sm:w-5 sm:h-5" />
-                جدول الرحلات
-              </button>
-              <button
-                onClick={() => setActiveTab('routes')}
-                className={`flex items-center gap-2 px-4 sm:px-6 py-3 sm:py-4 text-sm sm:text-base font-medium border-b-2 transition-colors ${
-                  activeTab === 'routes'
-                    ? 'border-blue-500 text-blue-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700'
-                }`}
-              >
-                <Route className="w-4 h-4 sm:w-5 sm:h-5" />
-                خطوط الرحلات
-              </button>
-              <button
-                onClick={() => setActiveTab('passengers')}
-                className={`flex items-center gap-2 px-4 sm:px-6 py-3 sm:py-4 text-sm sm:text-base font-medium border-b-2 transition-colors ${
-                  activeTab === 'passengers'
-                    ? 'border-blue-500 text-blue-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700'
-                }`}
-              >
-                <Users className="w-4 h-4 sm:w-5 sm:h-5" />
-                الركاب
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {/* Content */}
-        {activeTab === 'schedule' && <DriverTripSchedule />}
-        {activeTab === 'routes' && <DriverRoutes />}
-        {activeTab === 'passengers' && <DriverPassengers />}
+        <DriverAvailabilityMap />
       </div>
     </div>
   )

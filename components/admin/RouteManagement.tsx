@@ -49,7 +49,8 @@ type DriverLocationLite = {
   lat: number
   lng: number
   updated_at: string
-  request_id: string
+  request_id: string | null
+  is_available?: boolean // للتمييز بين driver_live_status و trip_driver_locations
 }
 
 type RouteTripLite = {
@@ -154,7 +155,31 @@ export default function RouteManagement() {
   const loadDriverLastLocation = async (driverRow: Driver) => {
     try {
       setDriverLocLoading((p) => ({ ...p, [driverRow.id]: true }))
-      // 1) routes assigned to this driver
+      
+      // أولاً: جرب قراءة من driver_live_status (النظام الجديد - "متاح")
+      const { data: liveStatus, error: liveErr } = await supabase
+        .from('driver_live_status')
+        .select('lat,lng,is_available,updated_at')
+        .eq('driver_id', driverRow.id)
+        .maybeSingle()
+      
+      if (!liveErr && liveStatus && liveStatus.is_available && liveStatus.lat && liveStatus.lng) {
+        // السائق متاح وله موقع مباشر
+        setDriverLastLoc((p) => ({ 
+          ...p, 
+          [driverRow.id]: {
+            lat: liveStatus.lat,
+            lng: liveStatus.lng,
+            updated_at: liveStatus.updated_at,
+            request_id: null, // لا يرتبط بـ request محدد
+            is_available: true
+          }
+        }))
+        toast.success(`السائق متاح - آخر تحديث: ${new Date(liveStatus.updated_at).toLocaleString('ar-JO')}`)
+        return
+      }
+
+      // Fallback: جرب trip_driver_locations (النظام القديم - مرتبط بـ request_id)
       const { data: rdRows, error: rdErr } = await supabase
         .from('route_drivers')
         .select('route_id')
@@ -168,7 +193,6 @@ export default function RouteManagement() {
         return
       }
 
-      // 2) active requests on those routes
       const { data: reqRows, error: reqErr } = await supabase
         .from('visit_requests')
         .select('id')
@@ -180,11 +204,10 @@ export default function RouteManagement() {
       const requestIds = (reqRows || []).map((r: any) => r.id).filter(Boolean)
       if (requestIds.length === 0) {
         setDriverLastLoc((p) => ({ ...p, [driverRow.id]: null }))
-        toast('لا توجد رحلات نشطة لهذا السائق حالياً.')
+        toast('لا توجد رحلات نشطة لهذا السائق حالياً. اطلب من السائق تفعيل "متاح" في لوحة السائق.')
         return
       }
 
-      // 3) latest location across those requests (vehicle location)
       const { data: locRow, error: locErr } = await supabase
         .from('trip_driver_locations')
         .select('lat,lng,updated_at,request_id')
@@ -196,7 +219,7 @@ export default function RouteManagement() {
 
       setDriverLastLoc((p) => ({ ...p, [driverRow.id]: (locRow as any) || null }))
       if (!locRow) {
-        toast('لا يوجد موقع مُسجل بعد. اطلب من السائق تشغيل التتبع داخل صفحة تتبع رحلة راكب.')
+        toast('لا يوجد موقع مُسجل بعد. اطلب من السائق تفعيل "متاح" في لوحة السائق أو تشغيل التتبع داخل صفحة تتبع رحلة راكب.')
       }
     } catch (e: any) {
       console.error('loadDriverLastLocation error:', e)

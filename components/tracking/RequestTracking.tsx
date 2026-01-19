@@ -548,7 +548,7 @@ export default function RequestTracking({ requestId, userId }: { requestId: stri
       let query = supabase
         .from('visit_requests')
         .select(
-          'id,user_id,visitor_name,companions_count,companions_data,travel_date,city,status,arrival_date,departure_date,route_id,trip_status,vehicle_type'
+          'id,user_id,visitor_name,companions_count,companions_data,travel_date,city,status,arrival_date,departure_date,route_id,trip_status,vehicle_type,assigned_driver_id'
         )
         .eq('id', requestId)
 
@@ -620,25 +620,48 @@ export default function RequestTracking({ requestId, userId }: { requestId: stri
         setStops((stopsData || []) as any)
       }
 
-      // Driver current location (may not exist yet)
-      const { data: loc, error: locErr } = await supabase
-        .from('trip_driver_locations')
-        .select('id,request_id,lat,lng,updated_at')
-        .eq('request_id', requestId)
-        .order('updated_at', { ascending: false })
-        .limit(1)
-        .maybeSingle()
+      // Driver current location: أولاً جرب driver_live_status (السائق متاح)
+      const assignedDriverId = (req as any)?.assigned_driver_id
+      let driverLoc: { lat: number; lng: number } | null = null
 
-      if (locErr) {
-        if ((locErr as any).code !== '42P01') {
-          console.error('Driver location load error:', locErr)
+      if (assignedDriverId) {
+        try {
+          const { data: liveStatus } = await supabase
+            .from('driver_live_status')
+            .select('lat,lng,is_available')
+            .eq('driver_id', assignedDriverId)
+            .eq('is_available', true)
+            .maybeSingle()
+          
+          if (liveStatus && liveStatus.lat && liveStatus.lng) {
+            driverLoc = { lat: safeNumber(liveStatus.lat, 0), lng: safeNumber(liveStatus.lng, 0) }
+          }
+        } catch (e) {
+          console.warn('Failed to load driver_live_status:', e)
         }
-        setDriverLocation(null)
-      } else if (loc) {
-        setDriverLocation({ lat: safeNumber((loc as any).lat, 0), lng: safeNumber((loc as any).lng, 0) })
-      } else {
-        setDriverLocation(null)
       }
+
+      // Fallback: جرب trip_driver_locations (النظام القديم)
+      if (!driverLoc) {
+        const { data: loc, error: locErr } = await supabase
+          .from('trip_driver_locations')
+          .select('id,request_id,lat,lng,updated_at')
+          .eq('request_id', requestId)
+          .order('updated_at', { ascending: false })
+          .limit(1)
+          .maybeSingle()
+
+        if (locErr) {
+          if ((locErr as any).code !== '42P01') {
+            console.error('Driver location load error:', locErr)
+          }
+          setDriverLocation(null)
+        } else if (loc) {
+          driverLoc = { lat: safeNumber((loc as any).lat, 0), lng: safeNumber((loc as any).lng, 0) }
+        }
+      }
+
+      setDriverLocation(driverLoc)
     } catch (e: any) {
       console.error('Tracking load error:', e)
       toast.error('حدث خطأ أثناء تحميل التتبع')
@@ -684,7 +707,9 @@ export default function RequestTracking({ requestId, userId }: { requestId: stri
 
   // Realtime updates (if tables exist)
   useEffect(() => {
-    if (!requestId) return
+    if (!requestId || !request) return
+    const assignedDriverId = (request as any)?.assigned_driver_id
+    
     const channel = supabase
       .channel(`trip-tracking-${requestId}`)
       .on(
@@ -697,13 +722,23 @@ export default function RequestTracking({ requestId, userId }: { requestId: stri
         { event: '*', schema: 'public', table: 'trip_stops', filter: `request_id=eq.${requestId}` },
         () => loadData()
       )
-      .subscribe()
+    
+    // Realtime subscription لـ driver_live_status (إذا كان السائق متاح)
+    if (assignedDriverId) {
+      channel.on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'driver_live_status', filter: `driver_id=eq.${assignedDriverId}` },
+        () => loadData()
+      )
+    }
+    
+    channel.subscribe()
 
     return () => {
       supabase.removeChannel(channel)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [requestId])
+  }, [requestId, request])
 
   const copyText = async (text: string, okMsg: string) => {
     try {
