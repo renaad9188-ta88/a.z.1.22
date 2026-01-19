@@ -4,6 +4,8 @@ import { formatDate } from '@/lib/date-utils'
 import { VisitRequest } from './types'
 import { Clock, CheckCircle, XCircle, Eye, Calendar, MapPin, Users, DollarSign, Plane, Copy, ExternalLink } from 'lucide-react'
 import toast from 'react-hot-toast'
+import { parseAdminNotes } from '../request-details/utils'
+import Link from 'next/link'
 
 interface RequestCardProps {
   request: VisitRequest
@@ -117,6 +119,8 @@ export default function RequestCard({ request, userProfile, onClick, onScheduleT
 
   // التحقق من نوع الطلب (هل هو طلب أردن)
   const isJordanVisit = Boolean(request.admin_notes?.includes('خدمة: زيارة الأردن لمدة شهر'))
+  const adminInfo = parseAdminNotes((request.admin_notes || '') as string) || {}
+  // سيتم حساب isCompleted لاحقاً ثم نستخدمه هنا (بعد تعريفه)
 
   // ملاحظة أداء: لا نعتمد على companions_data في بطاقة القائمة (قد تكون كبيرة وتبطّئ تحميل لوحة الأدمن).
   // العدد هنا تقديري ودقيق في أغلب الحالات: الزائر + عدد المرافقين.
@@ -126,6 +130,12 @@ export default function RequestCard({ request, userProfile, onClick, onScheduleT
   const hasArrivalDate = request.arrival_date !== null
   const isCompleted = request.status === 'completed' || request.trip_status === 'completed'
   const isUnderReview = request.status === 'under_review' || request.status === 'pending'
+
+  const needsPaymentVerifyAfterPostApproval =
+    request.status === 'approved' &&
+    !isCompleted &&
+    !Boolean((request as any)?.payment_verified) &&
+    (adminInfo?.postApprovalStatus || '') === 'مرسل'
 
   // تحديد لون الحدود حسب الحالة
   const getBorderColor = () => {
@@ -310,6 +320,11 @@ export default function RequestCard({ request, userProfile, onClick, onScheduleT
                 حجز بانتظار الموافقة
               </span>
             )}
+            {needsPaymentVerifyAfterPostApproval && (
+              <span className="px-3 py-1.5 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-lg font-bold border-2 border-blue-500 animate-pulse">
+                استكمال مرسل • بانتظار تأكيد الدفع
+              </span>
+            )}
             {hasArrivalDate && request.arrival_date && request.trip_status !== 'scheduled_pending_approval' && (
               <span className="px-3 py-1.5 bg-gradient-to-r from-purple-100 to-purple-200 text-purple-800 rounded-lg font-bold flex items-center gap-1 border-2 border-purple-300">
                 <Plane className="w-3.5 h-3.5" />
@@ -326,35 +341,15 @@ export default function RequestCard({ request, userProfile, onClick, onScheduleT
 
         {/* الأزرار */}
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-3">
-          {isApproved && !isCompleted && (
-            <button
-              onClick={(e) => {
-                e.stopPropagation()
-                onScheduleTrip?.()
-              }}
-              className={`px-4 py-2.5 rounded-lg font-bold text-sm sm:text-base transition-all flex items-center justify-center gap-2 shadow-md hover:shadow-lg transform hover:scale-105 ${
-                request.trip_status === 'scheduled_pending_approval'
-                  ? 'bg-gradient-to-r from-orange-500 to-orange-600 text-white hover:from-orange-600 hover:to-orange-700'
-                  : hasArrivalDate
-                  ? 'bg-gradient-to-r from-purple-100 to-purple-200 text-purple-700 hover:from-purple-200 hover:to-purple-300 border-2 border-purple-300'
-                  : 'bg-gradient-to-r from-blue-500 to-blue-600 text-white hover:from-blue-600 hover:to-blue-700'
-              }`}
-            >
-              <Plane className="w-4 h-4" />
-              {request.trip_status === 'scheduled_pending_approval'
-                ? 'الموافقة على الحجز'
-                : hasArrivalDate
-                ? 'تعديل الموعد'
-                : 'حجز موعد الرحلة'}
-            </button>
-          )}
-          <button
-            onClick={onClick}
-            className="px-4 py-2.5 bg-gradient-to-r from-gray-100 to-gray-200 text-gray-700 rounded-lg hover:from-gray-200 hover:to-gray-300 transition-all font-bold text-sm sm:text-base flex items-center justify-center gap-2 shadow-md hover:shadow-lg transform hover:scale-105 border-2 border-gray-300"
+          <Link
+            href={`/admin/request/${request.id}/follow`}
+            onClick={(e) => e.stopPropagation()}
+            className="px-4 py-2.5 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-lg hover:from-blue-700 hover:to-blue-800 transition-all font-bold text-sm sm:text-base flex items-center justify-center gap-2 shadow-md hover:shadow-lg transform hover:scale-105 border-2 border-blue-500"
+            title="متابعة الطلب (مراحل)"
           >
             <Eye className="w-4 h-4" />
-            التفاصيل
-          </button>
+            متابعة الطلب
+          </Link>
         </div>
 
         {/* التاريخ */}

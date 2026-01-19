@@ -124,7 +124,7 @@ export default function RegisterForm() {
           error.message?.includes('already registered') || 
           error.message?.includes('already been registered') ||
           error.message?.includes('User already registered')) {
-        toast('الحساب موجود بالفعل، جاري تسجيل الدخول...')
+        toast('هذا الرقم مسجّل مسبقاً. سنحاول تسجيل الدخول...', { duration: 2500 })
         try {
           let cleanPhoneForLogin = formData.phone.replace(/\s+/g, '').replace(/[^\d+]/g, '')
           cleanPhoneForLogin = cleanPhoneForLogin.replace(/^\+?0+/, '')
@@ -137,13 +137,36 @@ export default function RegisterForm() {
             password: formData.password,
           })
           if (!loginError) {
+            // بعد تسجيل الدخول: وجّه حسب الدور
+            const { data: { user } } = await supabase.auth.getUser()
+            const { data: profile } = await supabase
+              .from('profiles')
+              .select('role')
+              .eq('user_id', user?.id || '')
+              .order('updated_at', { ascending: false })
+              .limit(1)
+              .maybeSingle()
+
+            const role = (profile?.role || '').toLowerCase()
             toast.success('تم تسجيل الدخول بنجاح')
-            router.push('/dashboard')
+            if (role === 'admin') router.push('/admin')
+            else if (role === 'driver') router.push('/driver')
+            else router.push('/dashboard')
             router.refresh()
             return
           }
+          // إذا الحساب موجود لكن كلمة المرور خاطئة
+          if (loginError.message?.includes('Invalid login credentials') || loginError.status === 400) {
+            toast.error('الحساب موجود لكن كلمة المرور غير صحيحة. انتقل لتسجيل الدخول أو غيّر كلمة المرور.')
+            router.push('/auth/login')
+            return
+          }
+          toast.error(loginError.message || 'تعذر تسجيل الدخول. جرّب تسجيل الدخول من صفحة تسجيل الدخول.')
+          router.push('/auth/login')
+          return
         } catch (loginErr: any) {
           toast.error(loginErr.message || 'حدث خطأ أثناء تسجيل الدخول')
+          router.push('/auth/login')
           return
         }
       }

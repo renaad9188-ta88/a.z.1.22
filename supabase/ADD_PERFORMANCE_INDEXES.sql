@@ -55,3 +55,4 @@ ON public.trip_driver_locations(request_id, updated_at DESC);
 -- - بعد إضافة الفهارس، قد تحتاج إلى VACUUM ANALYZE لتحديث الإحصائيات
 
 
+

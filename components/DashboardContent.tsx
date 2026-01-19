@@ -284,6 +284,24 @@ export default function DashboardContent({ userId }: { userId: string }) {
     return types[type] || type
   }
 
+  const getLatestAdminResponseSnippet = (adminNotes?: string | null) => {
+    const notes = (adminNotes || '').trim()
+    if (!notes) return null
+    const marker = '=== رد الإدارة ==='
+    const idx = notes.lastIndexOf(marker)
+    if (idx === -1) return null
+    const after = notes.slice(idx + marker.length).trim()
+    if (!after) return null
+
+    // Stop at "تاريخ الرد:" if present
+    const stopIdx = after.indexOf('تاريخ الرد:')
+    const body = (stopIdx !== -1 ? after.slice(0, stopIdx) : after).trim()
+    if (!body) return null
+
+    const oneLine = body.replace(/\s+/g, ' ').trim()
+    return oneLine.length > 80 ? `${oneLine.slice(0, 80)}…` : oneLine
+  }
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -503,6 +521,7 @@ export default function DashboardContent({ userId }: { userId: string }) {
                 const transportCompany = adminInfo.transportCompany || 'شركة الرويال للنقل'
                 const shortCode = String(request.id).slice(0, 8).toUpperCase()
                 const showCompanies = request.visit_type === 'visit' && !isDraft
+                const lastAdminResponse = getLatestAdminResponseSnippet(request.admin_notes)
                 const needsPostApproval =
                   request.visit_type === 'visit' &&
                   !isDraft &&
@@ -551,16 +570,13 @@ export default function DashboardContent({ userId }: { userId: string }) {
                           )}
                         </div>
                       </div>
-                      {needsPostApproval && (
-                        <div className="mb-2">
-                          <Link
-                            href={`/dashboard/request/${request.id}#post-approval`}
-                            className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-blue-600 text-white text-xs sm:text-sm font-bold shadow-sm hover:bg-blue-700 transition"
-                            title="اضغط لاستكمال الإجراءات"
-                          >
-                            يرجى استكمال الإجراءات
-                            <span className="opacity-90">(دفع المتبقي + الكفالة)</span>
-                          </Link>
+                      {/* NOTE: CTA moved to the action buttons area to avoid duplication */}
+                      {lastAdminResponse && (
+                        <div className="mb-2 bg-gray-50 border border-gray-200 rounded-lg p-2 sm:p-3">
+                          <p className="text-[11px] sm:text-xs text-gray-500 mb-1">آخر رد من الإدارة</p>
+                          <p className="text-xs sm:text-sm text-gray-800 font-semibold leading-relaxed break-words">
+                            {lastAdminResponse}
+                          </p>
                         </div>
                       )}
                       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 sm:gap-3 md:gap-4 mt-3 sm:mt-4 text-xs sm:text-sm text-gray-600">
@@ -601,78 +617,12 @@ export default function DashboardContent({ userId }: { userId: string }) {
                       </div>
                     </div>
                     <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
-                      {request.visit_type === 'visit' &&
-                        ((request.admin_notes || '') as string).startsWith('[DRAFT]') && (
-                          <Link
-                            href={`/services/jordan-visit/payment/${request.id}`}
-                            className="w-full sm:w-auto px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition text-xs sm:text-sm font-semibold text-center"
-                          >
-                            استكمال الطلب
-                          </Link>
-                        )}
                       <Link
-                        href={`/dashboard/request/${request.id}#admin-response`}
+                        href={`/dashboard/request/${request.id}/follow`}
                         className="w-full sm:w-auto px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-xs sm:text-sm font-semibold text-center"
                       >
-                        عرض رد الإدارة
+                        متابعة الطلب
                       </Link>
-                      {request.visit_type === 'visit' && !isDraft && (
-                        <button
-                          type="button"
-                          onClick={() => handleShareWhatsApp(request.id)}
-                          disabled={sharingRequestId === request.id}
-                          className="w-full sm:w-auto px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition text-xs sm:text-sm font-semibold flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-                          title="مشاركة تفاصيل الطلب على واتساب المنصة"
-                        >
-                          <MessageCircle className="w-4 h-4" />
-                          {sharingRequestId === request.id ? 'جارٍ التجهيز...' : 'مشاركة واتساب'}
-                        </button>
-                      )}
-                      {/* زر حجز الرحلة - فعال للمقبولة، غير فعال للقيد الإجراء */}
-                      {request.visit_type === 'visit' && (
-                        <button
-                          onClick={() => setSchedulingRequest(request)}
-                          disabled={
-                            request.status !== 'approved' || 
-                            !(request as any).payment_verified ||
-                            request.trip_status === 'completed' ||
-                            request.trip_status === 'arrived'
-                          }
-                          className={`w-full sm:w-auto px-4 py-2 rounded-lg transition text-xs sm:text-sm font-semibold flex items-center justify-center gap-2 ${
-                            request.status === 'approved' && 
-                            (request as any).payment_verified &&
-                            request.trip_status !== 'completed' && 
-                            request.trip_status !== 'arrived'
-                              ? 'bg-green-600 text-white hover:bg-green-700'
-                              : 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                          }`}
-                          title={
-                            request.status !== 'approved'
-                              ? 'يجب الموافقة على الطلب أولاً'
-                              : !(request as any).payment_verified
-                              ? 'بانتظار تأكيد الدفعة لفتح الحجز'
-                              : request.trip_status === 'completed' || request.trip_status === 'arrived'
-                              ? 'الرحلة منتهية أو بدأت'
-                              : 'حجز موعد الرحلة'
-                          }
-                        >
-                          <Plane className="w-3 h-3 sm:w-4 sm:h-4" />
-                          {request.trip_status === 'scheduled_pending_approval'
-                            ? 'الحجز بانتظار الموافقة'
-                            : request.arrival_date
-                            ? 'تعديل موعد الرحلة'
-                            : 'حجز موعد الرحلة'}
-                        </button>
-                      )}
-                      {(request.status === 'completed' || request.trip_status === 'completed') && (
-                        <button
-                          onClick={() => handleDeleteRequest(request.id)}
-                          className="w-full sm:w-auto px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition text-xs sm:text-sm font-semibold flex items-center justify-center gap-2"
-                        >
-                          <Trash2 className="w-3 h-3 sm:w-4 sm:h-4" />
-                          حذف
-                        </button>
-                      )}
                     </div>
                   </div>
                 </div>

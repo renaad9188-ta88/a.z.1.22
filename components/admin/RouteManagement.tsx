@@ -2,8 +2,10 @@
 
 import { useState, useEffect } from 'react'
 import { createSupabaseBrowserClient } from '@/lib/supabase'
-import { MapPin, Plus, Trash2, Edit, Bus, Users } from 'lucide-react'
+import { MapPin, Plus, Trash2, Edit, Bus, Users, Phone, Navigation, Copy } from 'lucide-react'
 import toast from 'react-hot-toast'
+import TripSchedulingModal from './TripSchedulingModal'
+import type { VisitRequest } from './types'
 
 type Route = {
   id: string
@@ -32,6 +34,7 @@ type RouteDriver = {
   id: string
   route_id: string
   driver_id: string
+  is_active?: boolean
   driver?: Driver
 }
 
@@ -40,6 +43,23 @@ type DriverAccount = {
   full_name: string | null
   phone: string | null
   role: string | null
+}
+
+type DriverLocationLite = {
+  lat: number
+  lng: number
+  updated_at: string
+  request_id: string
+}
+
+type RouteTripLite = {
+  id: string
+  visitor_name: string
+  city: string
+  companions_count: number | null
+  arrival_date: string | null
+  trip_status: string | null
+  created_at: string
 }
 
 export default function RouteManagement() {
@@ -52,10 +72,42 @@ export default function RouteManagement() {
   const [showAddRoute, setShowAddRoute] = useState(false)
   const [showAddDriver, setShowAddDriver] = useState(false)
   const [selectedRoute, setSelectedRoute] = useState<Route | null>(null)
+  const [driverSearch, setDriverSearch] = useState('')
+  const [driverLocLoading, setDriverLocLoading] = useState<Record<string, boolean>>({})
+  const [driverLastLoc, setDriverLastLoc] = useState<Record<string, DriverLocationLite | null>>({})
+  const [driverLocHistory, setDriverLocHistory] = useState<Record<string, DriverLocationLite[]>>({})
+  const [openHistoryFor, setOpenHistoryFor] = useState<Driver | null>(null)
+  const [expandedRouteTrips, setExpandedRouteTrips] = useState<Record<string, boolean>>({})
+  const [routeTrips, setRouteTrips] = useState<Record<string, RouteTripLite[]>>({})
+  const [routeTripsLoading, setRouteTripsLoading] = useState<Record<string, boolean>>({})
+  const [schedulingRequest, setSchedulingRequest] = useState<VisitRequest | null>(null)
+  const [driverForm, setDriverForm] = useState({
+    user_id: '',
+    name: '',
+    phone: '',
+    vehicle_type: 'حافلة',
+    seats_count: '',
+  })
+  const [driverAutofill, setDriverAutofill] = useState<{ name: boolean; phone: boolean }>({
+    name: false,
+    phone: false,
+  })
 
   useEffect(() => {
     loadData()
   }, [])
+
+  useEffect(() => {
+    if (!showAddDriver) return
+    setDriverForm({
+      user_id: '',
+      name: '',
+      phone: '',
+      vehicle_type: 'حافلة',
+      seats_count: '',
+    })
+    setDriverAutofill({ name: false, phone: false })
+  }, [showAddDriver])
 
   const loadData = async () => {
     try {
@@ -84,38 +136,249 @@ export default function RouteManagement() {
     }
   }
 
+  const normalizePhoneForWhatsApp = (raw: string) => {
+    const digits = (raw || '').replace(/[^\d]/g, '')
+    // إذا الرقم قصير، نستخدم wa.me/?text كـ fallback
+    return digits.length >= 10 ? digits : ''
+  }
+
+  const getAccountForDriver = (d: Driver) => {
+    if (!d.user_id) return null
+    return driverAccounts.find((a) => a.user_id === d.user_id) || null
+  }
+
+  const getAssignedRoutesCount = (driverId: string) => {
+    return routeDrivers.filter((rd) => rd.driver_id === driverId && rd.is_active !== false).length
+  }
+
+  const loadDriverLastLocation = async (driverRow: Driver) => {
+    try {
+      setDriverLocLoading((p) => ({ ...p, [driverRow.id]: true }))
+      // 1) routes assigned to this driver
+      const { data: rdRows, error: rdErr } = await supabase
+        .from('route_drivers')
+        .select('route_id')
+        .eq('driver_id', driverRow.id)
+        .eq('is_active', true)
+      if (rdErr) throw rdErr
+      const routeIds = (rdRows || []).map((r: any) => r.route_id).filter(Boolean)
+      if (routeIds.length === 0) {
+        setDriverLastLoc((p) => ({ ...p, [driverRow.id]: null }))
+        toast('لا توجد خطوط مربوطة بهذا السائق بعد.')
+        return
+      }
+
+      // 2) active requests on those routes
+      const { data: reqRows, error: reqErr } = await supabase
+        .from('visit_requests')
+        .select('id')
+        .eq('status', 'approved')
+        .in('trip_status', ['pending_arrival', 'arrived'])
+        .in('route_id', routeIds)
+        .limit(100)
+      if (reqErr) throw reqErr
+      const requestIds = (reqRows || []).map((r: any) => r.id).filter(Boolean)
+      if (requestIds.length === 0) {
+        setDriverLastLoc((p) => ({ ...p, [driverRow.id]: null }))
+        toast('لا توجد رحلات نشطة لهذا السائق حالياً.')
+        return
+      }
+
+      // 3) latest location across those requests (vehicle location)
+      const { data: locRow, error: locErr } = await supabase
+        .from('trip_driver_locations')
+        .select('lat,lng,updated_at,request_id')
+        .in('request_id', requestIds)
+        .order('updated_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+      if (locErr) throw locErr
+
+      setDriverLastLoc((p) => ({ ...p, [driverRow.id]: (locRow as any) || null }))
+      if (!locRow) {
+        toast('لا يوجد موقع مُسجل بعد. اطلب من السائق تشغيل التتبع داخل صفحة تتبع رحلة راكب.')
+      }
+    } catch (e: any) {
+      console.error('loadDriverLastLocation error:', e)
+      toast.error(e?.message || 'تعذر جلب آخر موقع للسائق')
+    } finally {
+      setDriverLocLoading((p) => ({ ...p, [driverRow.id]: false }))
+    }
+  }
+
+  const loadDriverLocationHistory = async (driverRow: Driver) => {
+    try {
+      setDriverLocLoading((p) => ({ ...p, [driverRow.id]: true }))
+      const { data: rdRows, error: rdErr } = await supabase
+        .from('route_drivers')
+        .select('route_id')
+        .eq('driver_id', driverRow.id)
+        .eq('is_active', true)
+      if (rdErr) throw rdErr
+      const routeIds = (rdRows || []).map((r: any) => r.route_id).filter(Boolean)
+      if (routeIds.length === 0) {
+        setDriverLocHistory((p) => ({ ...p, [driverRow.id]: [] }))
+        toast('لا توجد خطوط مربوطة بهذا السائق بعد.')
+        return
+      }
+
+      const { data: reqRows, error: reqErr } = await supabase
+        .from('visit_requests')
+        .select('id')
+        .eq('status', 'approved')
+        .in('trip_status', ['pending_arrival', 'arrived'])
+        .in('route_id', routeIds)
+        .limit(100)
+      if (reqErr) throw reqErr
+      const requestIds = (reqRows || []).map((r: any) => r.id).filter(Boolean)
+      if (requestIds.length === 0) {
+        setDriverLocHistory((p) => ({ ...p, [driverRow.id]: [] }))
+        toast('لا توجد رحلات نشطة لهذا السائق حالياً.')
+        return
+      }
+
+      const { data: locRows, error: locErr } = await supabase
+        .from('trip_driver_locations')
+        .select('lat,lng,updated_at,request_id')
+        .in('request_id', requestIds)
+        .order('updated_at', { ascending: false })
+        .limit(20)
+      if (locErr) throw locErr
+
+      setDriverLocHistory((p) => ({ ...p, [driverRow.id]: ((locRows as any) || []) as any }))
+      setOpenHistoryFor(driverRow)
+    } catch (e: any) {
+      console.error('loadDriverLocationHistory error:', e)
+      toast.error(e?.message || 'تعذر جلب سجل حركة السائق')
+    } finally {
+      setDriverLocLoading((p) => ({ ...p, [driverRow.id]: false }))
+    }
+  }
+
+  const loadTripsForRoute = async (routeId: string) => {
+    try {
+      setRouteTripsLoading((p) => ({ ...p, [routeId]: true }))
+      const { data, error } = await supabase
+        .from('visit_requests')
+        .select('id,visitor_name,city,companions_count,arrival_date,trip_status,created_at')
+        .eq('route_id', routeId)
+        .eq('status', 'approved')
+        .order('arrival_date', { ascending: true })
+      if (error) throw error
+
+      const rows = (data || []) as any[]
+      // نظهر فقط اللي إلها موعد أو حالة رحلة
+      const filtered = rows.filter((r) => Boolean(r.arrival_date) || Boolean(r.trip_status))
+      setRouteTrips((p) => ({ ...p, [routeId]: (filtered as any) || [] }))
+    } catch (e: any) {
+      console.error('loadTripsForRoute error:', e)
+      toast.error(e?.message || 'تعذر تحميل رحلات هذا الخط')
+      setRouteTrips((p) => ({ ...p, [routeId]: [] }))
+    } finally {
+      setRouteTripsLoading((p) => ({ ...p, [routeId]: false }))
+    }
+  }
+
+  const openTripScheduling = async (requestId: string) => {
+    try {
+      const { data, error } = await supabase.from('visit_requests').select('*').eq('id', requestId).single()
+      if (error) throw error
+      setSchedulingRequest((data as any) || null)
+    } catch (e: any) {
+      console.error('openTripScheduling error:', e)
+      toast.error(e?.message || 'تعذر فتح نافذة تحديد موعد الرحلة')
+    }
+  }
+
   const handleAddDriver = async (formData: FormData) => {
     try {
       const userIdRaw = String(formData.get('user_id') || '').trim()
       const userId = userIdRaw ? userIdRaw : null
+      const driverName = String(formData.get('name') || '').trim()
+      const driverPhone = String(formData.get('phone') || '').trim()
+      const vehicleType = String(formData.get('vehicle_type') || '').trim()
+      const seatsCount = parseInt(String(formData.get('seats_count') || '0'), 10)
 
-      const { data: inserted, error } = await supabase
-        .from('drivers')
-        .insert({
-        name: formData.get('name') as string,
-        phone: formData.get('phone') as string,
-        vehicle_type: formData.get('vehicle_type') as string,
-        seats_count: parseInt(formData.get('seats_count') as string),
-        is_active: true,
-        ...(userId ? { user_id: userId } : {}),
-      })
-        .select('id,user_id')
-        .maybeSingle()
+      if (!driverName || !driverPhone || !vehicleType || !Number.isFinite(seatsCount) || seatsCount <= 0) {
+        throw new Error('يرجى تعبئة بيانات السائق بشكل صحيح')
+      }
 
-      if (error) throw error
+      // إذا كان هناك user_id: قد يكون السائق موجود مسبقاً -> نحدّث بدل أن نفشل بسبب UNIQUE(user_id)
+      let driverId: string | null = null
+      if (userId) {
+        const { data: existingDriver, error: findErr } = await supabase
+          .from('drivers')
+          .select('id')
+          .eq('user_id', userId)
+          .maybeSingle()
+        if (findErr) throw findErr
+
+        if (existingDriver?.id) {
+          driverId = existingDriver.id
+          const { error: updErr } = await supabase
+            .from('drivers')
+            .update({
+              name: driverName,
+              phone: driverPhone,
+              vehicle_type: vehicleType,
+              seats_count: seatsCount,
+              is_active: true,
+            })
+            .eq('id', driverId)
+          if (updErr) throw updErr
+        } else {
+          const { data: inserted, error } = await supabase
+            .from('drivers')
+            .insert({
+              name: driverName,
+              phone: driverPhone,
+              vehicle_type: vehicleType,
+              seats_count: seatsCount,
+              is_active: true,
+              user_id: userId,
+            })
+            .select('id,user_id')
+            .maybeSingle()
+          if (error) throw error
+          driverId = inserted?.id || null
+        }
+      } else {
+        // بدون ربط: إدخال سائق جديد (بدون تسجيل دخول)
+        const { data: inserted, error } = await supabase
+          .from('drivers')
+          .insert({
+            name: driverName,
+            phone: driverPhone,
+            vehicle_type: vehicleType,
+            seats_count: seatsCount,
+            is_active: true,
+          })
+          .select('id')
+          .maybeSingle()
+        if (error) throw error
+        driverId = inserted?.id || null
+      }
 
       // إذا تم ربطه بحساب، تأكد أن role في profiles = driver (للوصول إلى /driver)
       if (userId) {
+        // IMPORTANT: استخدم UPSERT لأن بعض الحسابات قد لا يكون لديها profile أصلاً
         const { error: profileErr } = await supabase
           .from('profiles')
-          .update({ role: 'driver' } as any)
-          .eq('user_id', userId)
+          .upsert(
+            { user_id: userId, role: 'driver', full_name: driverName || null, phone: driverPhone || null } as any,
+            { onConflict: 'user_id' }
+          )
+
         if (profileErr) {
           console.warn('Could not update profile role to driver:', profileErr)
+          toast.error(
+            'تم إضافة السائق لكن لم نتمكن من تعيين دوره كسائق بسبب صلاحيات قاعدة البيانات (RLS). نفّذ ملف: supabase/ALLOW_ADMIN_MANAGE_PROFILES.sql',
+            { duration: 8000 }
+          )
         }
       }
 
-      toast.success('تم إضافة السائق بنجاح')
+      toast.success(userId ? 'تم حفظ السائق وربطه بالحساب بنجاح' : 'تم إضافة السائق بنجاح')
       setShowAddDriver(false)
       loadData()
     } catch (error: any) {
@@ -228,11 +491,326 @@ export default function RouteManagement() {
                       ))}
                   </select>
                 </div>
+
+                {/* Trips for this route */}
+                <div className="mt-4 border-t border-gray-100 pt-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <h4 className="text-xs sm:text-sm font-extrabold text-gray-900 flex items-center gap-2">
+                      <Navigation className="w-4 h-4 text-blue-600" />
+                      رحلات هذا الخط (مواعيد + كشف أسماء)
+                    </h4>
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setExpandedRouteTrips((p) => ({ ...p, [route.id]: !p[route.id] }))
+                          // lazy-load when opening
+                          const willOpen = !expandedRouteTrips[route.id]
+                          if (willOpen) loadTripsForRoute(route.id)
+                        }}
+                        className="px-3 py-2 rounded-lg bg-blue-50 text-blue-700 hover:bg-blue-100 transition text-xs sm:text-sm font-bold"
+                      >
+                        {expandedRouteTrips[route.id] ? 'إخفاء' : 'عرض'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => loadTripsForRoute(route.id)}
+                        disabled={Boolean(routeTripsLoading[route.id])}
+                        className="px-3 py-2 rounded-lg bg-gray-100 text-gray-800 hover:bg-gray-200 transition text-xs sm:text-sm font-bold disabled:opacity-50"
+                      >
+                        {routeTripsLoading[route.id] ? 'جارٍ التحديث...' : 'تحديث'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          const list = routeTrips[route.id] || []
+                          if (list.length === 0) {
+                            toast('لا يوجد كشف للنسخ. افتح "عرض" ثم حدّث.')
+                            return
+                          }
+                          const lines = list
+                            .map((r, idx) => {
+                              const people = 1 + (Number(r.companions_count || 0) || 0)
+                              const date = r.arrival_date || '-'
+                              const status = r.trip_status || '-'
+                              return `${idx + 1}) ${r.visitor_name} — ${people} أشخاص — ${r.city} — ${date} — ${status}`
+                            })
+                            .join('\n')
+                          try {
+                            await navigator.clipboard.writeText(lines)
+                            toast.success('تم نسخ كشف الأسماء')
+                          } catch {
+                            toast.error('تعذر نسخ الكشف')
+                          }
+                        }}
+                        className="px-3 py-2 rounded-lg bg-green-50 text-green-800 hover:bg-green-100 transition text-xs sm:text-sm font-bold"
+                        title="نسخ كشف الركاب لهذه الرحلات"
+                      >
+                        نسخ الكشف
+                      </button>
+                    </div>
+                  </div>
+
+                  {expandedRouteTrips[route.id] && (
+                    <div className="mt-3">
+                      {(routeTrips[route.id] || []).length === 0 ? (
+                        <div className="text-sm text-gray-600 bg-gray-50 border border-gray-200 rounded-lg p-3">
+                          لا توجد رحلات مجدولة لهذا الخط بعد. استخدم زر "تحديد موعد" داخل طلب الزيارة أو من القائمة أدناه بعد ظهورها.
+                        </div>
+                      ) : (
+                        <div className="space-y-2">
+                          {(routeTrips[route.id] || []).map((t) => {
+                            const people = 1 + (Number(t.companions_count || 0) || 0)
+                            return (
+                              <div key={t.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border border-gray-200 rounded-lg p-3">
+                                <div className="min-w-0">
+                                  <div className="font-bold text-gray-900 truncate">{t.visitor_name}</div>
+                                  <div className="text-xs text-gray-600 flex flex-wrap gap-x-3 gap-y-1 mt-1">
+                                    <span>المدينة: {t.city}</span>
+                                    <span>الأشخاص: {people}</span>
+                                    <span>الموعد: {t.arrival_date || 'غير محدد'}</span>
+                                    <span>الحالة: {t.trip_status || 'غير محددة'}</span>
+                                  </div>
+                                </div>
+                                <div className="flex gap-2">
+                                  <button
+                                    type="button"
+                                    onClick={() => openTripScheduling(t.id)}
+                                    className="px-3 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition text-xs sm:text-sm font-bold"
+                                  >
+                                    تحديد/تعديل الموعد
+                                  </button>
+                                </div>
+                              </div>
+                            )
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           )
         })}
       </div>
+
+      {/* Drivers Overview */}
+      <div className="bg-white rounded-lg shadow-md p-3 sm:p-4 lg:p-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+          <div className="min-w-0">
+            <h3 className="text-base sm:text-lg md:text-xl font-extrabold text-gray-900 flex items-center gap-2">
+              <Users className="w-5 h-5 text-blue-600" />
+              السائقون (الكل)
+            </h3>
+            <p className="text-xs sm:text-sm text-gray-600 mt-1">
+              عرض السائقين المضافين + ربطهم بالحساب + آخر موقع مُسجل + تواصل مباشر
+            </p>
+          </div>
+          <div className="flex items-center gap-2 w-full sm:w-auto">
+            <input
+              value={driverSearch}
+              onChange={(e) => setDriverSearch(e.target.value)}
+              placeholder="بحث بالاسم أو الهاتف..."
+              className="w-full sm:w-64 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            />
+          </div>
+        </div>
+
+        <div className="grid gap-3 sm:gap-4">
+          {drivers
+            .filter((d) => {
+              const q = driverSearch.trim()
+              if (!q) return true
+              const qq = q.toLowerCase()
+              return (
+                d.name.toLowerCase().includes(qq) ||
+                (d.phone || '').toLowerCase().includes(qq) ||
+                (d.vehicle_type || '').toLowerCase().includes(qq)
+              )
+            })
+            .map((d) => {
+              const acc = getAccountForDriver(d)
+              const routesCount = getAssignedRoutesCount(d.id)
+              const lastLoc = driverLastLoc[d.id] || null
+              const waDigits = normalizePhoneForWhatsApp(d.phone || '')
+              const waHref = waDigits ? `https://wa.me/${waDigits}` : `https://wa.me/?text=${encodeURIComponent(`تواصل مع السائق: ${d.name} — ${d.phone}`)}`
+              const mapHref =
+                lastLoc ? `https://www.google.com/maps?q=${lastLoc.lat},${lastLoc.lng}` : ''
+
+              return (
+                <div key={d.id} className="border border-gray-200 rounded-xl p-3 sm:p-4">
+                  <div className="flex flex-col sm:flex-row justify-between items-start gap-3">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <span className="font-extrabold text-gray-900">{d.name}</span>
+                        <span className={`text-[11px] px-2 py-0.5 rounded-full border ${d.is_active ? 'bg-green-50 text-green-700 border-green-200' : 'bg-gray-50 text-gray-700 border-gray-200'}`}>
+                          {d.is_active ? 'نشط' : 'غير نشط'}
+                        </span>
+                        {d.user_id ? (
+                          <span className="text-[11px] px-2 py-0.5 rounded-full border bg-blue-50 text-blue-700 border-blue-200">
+                            مربوط بحساب
+                          </span>
+                        ) : (
+                          <span className="text-[11px] px-2 py-0.5 rounded-full border bg-yellow-50 text-yellow-800 border-yellow-200">
+                            بدون حساب
+                          </span>
+                        )}
+                      </div>
+                      <div className="mt-1 text-xs sm:text-sm text-gray-700 flex flex-wrap gap-x-4 gap-y-1">
+                        <span className="inline-flex items-center gap-1">
+                          <Phone className="w-4 h-4 text-gray-500" />
+                          {d.phone}
+                        </span>
+                        <span className="inline-flex items-center gap-1">
+                          <Bus className="w-4 h-4 text-gray-500" />
+                          {d.vehicle_type} • {d.seats_count} مقعد
+                        </span>
+                        <span className="inline-flex items-center gap-1">
+                          <MapPin className="w-4 h-4 text-gray-500" />
+                          خطوط مربوطة: {routesCount}
+                        </span>
+                      </div>
+                      {acc && (
+                        <div className="mt-1 text-[11px] sm:text-xs text-gray-600">
+                          حساب: {(acc.full_name || 'بدون اسم')} — {(acc.phone || 'بدون رقم')} — الدور الحالي: {(acc.role || 'user')}
+                        </div>
+                      )}
+                      {lastLoc && (
+                        <div className="mt-2 text-[11px] sm:text-xs text-gray-600">
+                          آخر موقع: {new Date(lastLoc.updated_at).toLocaleString('ar-JO')} •{' '}
+                          <a href={mapHref} target="_blank" rel="noopener noreferrer" className="text-blue-700 font-bold hover:underline">
+                            فتح على الخريطة
+                          </a>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="flex flex-wrap gap-2 w-full sm:w-auto">
+                      <a
+                        href={waHref}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="px-3 py-2 rounded-lg bg-green-600 text-white text-xs sm:text-sm font-bold hover:bg-green-700 transition inline-flex items-center gap-2"
+                        title="تواصل واتساب"
+                      >
+                        <Phone className="w-4 h-4" />
+                        واتساب
+                      </a>
+                      <button
+                        type="button"
+                        onClick={() => loadDriverLastLocation(d)}
+                        disabled={Boolean(driverLocLoading[d.id])}
+                        className="px-3 py-2 rounded-lg bg-blue-600 text-white text-xs sm:text-sm font-bold hover:bg-blue-700 transition disabled:opacity-50 inline-flex items-center gap-2"
+                        title="آخر موقع مسجل"
+                      >
+                        <Navigation className="w-4 h-4" />
+                        {driverLocLoading[d.id] ? 'جارٍ التحميل...' : 'آخر موقع'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => loadDriverLocationHistory(d)}
+                        disabled={Boolean(driverLocLoading[d.id])}
+                        className="px-3 py-2 rounded-lg bg-gray-100 text-gray-800 text-xs sm:text-sm font-bold hover:bg-gray-200 transition disabled:opacity-50 inline-flex items-center gap-2"
+                        title="سجل حركة (آخر 20 نقطة)"
+                      >
+                        <MapPin className="w-4 h-4" />
+                        سجل حركة
+                      </button>
+                      {d.user_id && (
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            try {
+                              await navigator.clipboard.writeText(d.user_id || '')
+                              toast.success('تم نسخ User ID')
+                            } catch {
+                              toast.error('تعذر النسخ')
+                            }
+                          }}
+                          className="px-3 py-2 rounded-lg bg-gray-100 text-gray-800 text-xs sm:text-sm font-bold hover:bg-gray-200 transition inline-flex items-center gap-2"
+                          title="نسخ معرف الحساب (يُستخدم للربط والصلاحيات)"
+                        >
+                          <Copy className="w-4 h-4" />
+                          معرف الحساب
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )
+            })}
+
+          {drivers.length === 0 && (
+            <div className="text-sm text-gray-600 bg-gray-50 border border-gray-200 rounded-lg p-4">
+              لا يوجد سائقون بعد. اضغط "إضافة سائق" لإنشاء أول سائق.
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Driver History Modal */}
+      {openHistoryFor && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-3 sm:p-4 overflow-y-auto">
+          <div className="bg-white rounded-lg max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+            <div className="p-4 sm:p-6">
+              <div className="flex items-center justify-between gap-3 mb-4">
+                <h3 className="text-lg sm:text-xl font-bold text-gray-800">
+                  سجل حركة السائق: {openHistoryFor.name}
+                </h3>
+                <button
+                  type="button"
+                  onClick={() => setOpenHistoryFor(null)}
+                  className="px-3 py-1.5 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition text-sm font-semibold"
+                >
+                  إغلاق
+                </button>
+              </div>
+
+              <div className="space-y-2">
+                {(driverLocHistory[openHistoryFor.id] || []).length === 0 ? (
+                  <div className="text-sm text-gray-600 bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                    لا يوجد سجل حركة حالياً. تأكد أن السائق بدأ التتبع أثناء رحلة نشطة.
+                  </div>
+                ) : (
+                  (driverLocHistory[openHistoryFor.id] || []).map((x, idx) => (
+                    <div key={idx} className="flex items-center justify-between gap-3 border border-gray-200 rounded-lg p-3">
+                      <div className="text-sm text-gray-800">
+                        <div className="font-bold">{new Date(x.updated_at).toLocaleString('ar-JO')}</div>
+                        <div className="text-xs text-gray-500">
+                          طلب: #{String(x.request_id).slice(0, 8).toUpperCase()}
+                        </div>
+                      </div>
+                      <a
+                        href={`https://www.google.com/maps?q=${x.lat},${x.lng}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="px-3 py-2 rounded-lg bg-blue-600 text-white text-xs sm:text-sm font-bold hover:bg-blue-700 transition"
+                      >
+                        فتح
+                      </a>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Trip Scheduling Modal (Admin) */}
+      {schedulingRequest && (
+        <TripSchedulingModal
+          request={schedulingRequest}
+          onClose={() => setSchedulingRequest(null)}
+          onUpdate={() => {
+            // refresh trips lists if open
+            const rid = (schedulingRequest as any)?.route_id as string | undefined
+            if (rid) loadTripsForRoute(rid)
+          }}
+          isAdmin
+        />
+      )}
 
       {/* Add Driver Modal */}
       {showAddDriver && (
@@ -251,7 +829,26 @@ export default function RouteManagement() {
                   <label className="block text-sm font-medium text-gray-700 mb-2">حساب السائق (User ID)</label>
                   <select
                     name="user_id"
-                    defaultValue=""
+                    value={driverForm.user_id}
+                    onChange={(e) => {
+                      const userId = e.target.value
+                      if (!userId) {
+                        setDriverForm((p) => ({ ...p, user_id: '', name: '', phone: '' }))
+                        setDriverAutofill({ name: false, phone: false })
+                        return
+                      }
+
+                      const acc = driverAccounts.find((a) => a.user_id === userId)
+                      const nextName = (acc?.full_name || '').trim()
+                      const nextPhone = (acc?.phone || '').trim()
+                      setDriverForm((p) => ({
+                        ...p,
+                        user_id: userId,
+                        name: nextName || p.name,
+                        phone: nextPhone || p.phone,
+                      }))
+                      setDriverAutofill({ name: Boolean(nextName), phone: Boolean(nextPhone) })
+                    }}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm sm:text-base"
                   >
                     <option value="">بدون ربط (سائق بدون تسجيل دخول)</option>
@@ -264,14 +861,25 @@ export default function RouteManagement() {
                   <p className="mt-1 text-[11px] sm:text-xs text-gray-500">
                     ملاحظة: الحساب يجب أن يكون موجودًا بالفعل (مستخدم مسجل). سيتم تعيين دوره إلى driver تلقائياً.
                   </p>
+                  {driverForm.user_id && (driverAutofill.name || driverAutofill.phone) && (
+                    <p className="mt-1 text-[11px] sm:text-xs text-green-700">
+                      تم تعبئة بيانات السائق تلقائياً من الحساب المختار.
+                    </p>
+                  )}
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">الاسم</label>
                   <input
                     name="name"
                     required
+                    value={driverForm.name}
+                    onChange={(e) => setDriverForm((p) => ({ ...p, name: e.target.value }))}
+                    readOnly={Boolean(driverForm.user_id) && driverAutofill.name}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm sm:text-base"
                   />
+                  {Boolean(driverForm.user_id) && driverAutofill.name && (
+                    <p className="mt-1 text-[11px] sm:text-xs text-gray-500">تم جلب الاسم من الحساب (يمكن تغييره من بيانات الحساب إن لزم).</p>
+                  )}
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">الهاتف</label>
@@ -279,14 +887,22 @@ export default function RouteManagement() {
                     name="phone"
                     type="tel"
                     required
+                    value={driverForm.phone}
+                    onChange={(e) => setDriverForm((p) => ({ ...p, phone: e.target.value }))}
+                    readOnly={Boolean(driverForm.user_id) && driverAutofill.phone}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm sm:text-base"
                   />
+                  {Boolean(driverForm.user_id) && driverAutofill.phone && (
+                    <p className="mt-1 text-[11px] sm:text-xs text-gray-500">تم جلب الهاتف من الحساب.</p>
+                  )}
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">نوع المركبة</label>
                   <select
                     name="vehicle_type"
                     required
+                    value={driverForm.vehicle_type}
+                    onChange={(e) => setDriverForm((p) => ({ ...p, vehicle_type: e.target.value }))}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm sm:text-base"
                   >
                     <option value="حافلة">حافلة</option>
@@ -301,6 +917,8 @@ export default function RouteManagement() {
                     type="number"
                     required
                     min="1"
+                    value={driverForm.seats_count}
+                    onChange={(e) => setDriverForm((p) => ({ ...p, seats_count: e.target.value }))}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm sm:text-base"
                   />
                 </div>

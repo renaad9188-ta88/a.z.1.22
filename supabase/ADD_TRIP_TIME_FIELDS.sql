@@ -10,3 +10,4 @@ CREATE INDEX IF NOT EXISTS idx_visit_requests_departure_time ON public.visit_req
 
 
 
+

@@ -72,8 +72,11 @@ export default function LoginForm() {
         console.error('Error loading role:', roleError)
       }
 
-      if (profile?.role === 'admin') {
+      const role = (profile?.role || '').toLowerCase()
+      if (role === 'admin') {
         router.push('/admin')
+      } else if (role === 'driver') {
+        router.push('/driver')
       } else {
         router.push('/dashboard')
       }

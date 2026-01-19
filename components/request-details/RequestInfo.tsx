@@ -1,6 +1,6 @@
 'use client'
 
-import { User, Calendar, Phone, MessageCircle, DollarSign, Building2, Truck, StickyNote, Share2 } from 'lucide-react'
+import { User, Calendar, Phone, MessageCircle, DollarSign, Building2, Truck, StickyNote } from 'lucide-react'
 import { VisitRequest, AdminInfo } from './types'
 import { getVisitTypeText } from './utils'
 
@@ -17,53 +17,6 @@ export default function RequestInfo({ request, adminInfo }: RequestInfoProps) {
   const defaultTransportCompany = 'شركة الرويال للنقل'
   const isJordanVisit = Boolean((request.admin_notes || '').includes('خدمة: زيارة الأردن لمدة شهر'))
 
-  const buildShareText = () => {
-    const lines: string[] = []
-    lines.push('ملخص طلب منصة خدمات السوريين')
-    lines.push(`رقم الطلب: ${request.id.slice(0, 8).toUpperCase()}`)
-    lines.push(`الحالة: ${request.status}`)
-    lines.push(`الزائر الرئيسي: ${request.visitor_name}`)
-    lines.push(`المدينة: ${request.city}`)
-    lines.push(`نوع الزيارة: ${getVisitTypeText(request.visit_type)}`)
-    lines.push(`عدد الأيام: ${request.days_count}`)
-    if (adminInfo?.jordanPhone) lines.push(`هاتف أردني: ${adminInfo.jordanPhone}`)
-    if (adminInfo?.syrianPhone) lines.push(`واتساب/هاتف سوري: ${adminInfo.syrianPhone}`)
-    if (adminInfo?.tourismCompany) lines.push(`الشركة المقدّم لها: ${adminInfo.tourismCompany}`)
-    if (isJordanVisit) lines.push(`شركة النقل: ${adminInfo?.transportCompany || defaultTransportCompany}`)
-    if (adminInfo?.note) lines.push(`ملاحظة: ${adminInfo.note}`)
-    if (request.deposit_paid) lines.push('الدفع: مدفوع ✅')
-    if (request.total_amount) lines.push(`المبلغ الإجمالي: ${request.total_amount} د.أ`)
-    lines.push('')
-    lines.push('للتنسيق: سيتم إرسال أرقام الهواتف والواتساب للتنسيق وفتح مجموعات القدوم والتتبع.')
-    return lines.join('\n')
-  }
-
-  const handleShare = async () => {
-    const text = buildShareText()
-    const url = typeof window !== 'undefined' ? window.location.href : undefined
-    try {
-      // مشاركة نظامية (موبايل)
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const nav: any = navigator
-      if (nav?.share) {
-        await nav.share({ text, url })
-        return
-      }
-    } catch {
-      // ignore and fallback
-    }
-    // fallback: واتساب نص فقط
-    const encoded = encodeURIComponent(text + (url ? `\n\n${url}` : ''))
-    window.open(`https://wa.me/?text=${encoded}`, '_blank', 'noopener,noreferrer')
-  }
-
-  const handleSendToSupportWhatsApp = () => {
-    const text = buildShareText()
-    const url = typeof window !== 'undefined' ? window.location.href : undefined
-    const encoded = encodeURIComponent(text + (url ? `\n\n${url}` : ''))
-    window.open(`https://wa.me/${supportWaDigits}?text=${encoded}`, '_blank', 'noopener,noreferrer')
-  }
-
   return (
     <>
       {/* سبب الرفض */}
@@ -73,26 +26,6 @@ export default function RequestInfo({ request, adminInfo }: RequestInfoProps) {
           <p className="text-red-700 text-xs sm:text-sm">{request.rejection_reason}</p>
         </div>
       )}
-
-      {/* شريط مشاركة سريع */}
-      <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 mb-3 sm:mb-4">
-        <button
-          type="button"
-          onClick={handleShare}
-          className="inline-flex items-center justify-center gap-2 px-3 py-2 rounded-lg bg-gray-900 text-white hover:bg-gray-800 transition text-sm font-semibold"
-        >
-          <Share2 className="w-4 h-4" />
-          مشاركة التفاصيل
-        </button>
-        <button
-          type="button"
-          onClick={handleSendToSupportWhatsApp}
-          className="inline-flex items-center justify-center gap-2 px-3 py-2 rounded-lg bg-green-600 text-white hover:bg-green-700 transition text-sm font-semibold"
-        >
-          <MessageCircle className="w-4 h-4" />
-          إرسال للدعم عبر واتساب
-        </button>
-      </div>
 
       {/* ملخص اختيارات الطلب (خصوصاً خدمة الأردن) */}
       {adminInfo && (adminInfo.tourismCompany || adminInfo.note || adminInfo.purpose || isJordanVisit) && (

@@ -8,6 +8,7 @@ import { LogOut, Bus, MapPin, Users, Route, Settings } from 'lucide-react'
 import toast from 'react-hot-toast'
 import DriverRoutes from '@/components/driver/DriverRoutes'
 import DriverPassengers from '@/components/driver/DriverPassengers'
+import DriverTripSchedule from '@/components/driver/DriverTripSchedule'
 import NotificationsDropdown from '@/components/NotificationsDropdown'
 
 type DriverProfile = {
@@ -22,7 +23,7 @@ export default function DriverDashboard() {
   const supabase = createSupabaseBrowserClient()
   const [loading, setLoading] = useState(true)
   const [driverProfile, setDriverProfile] = useState<DriverProfile | null>(null)
-  const [activeTab, setActiveTab] = useState<'routes' | 'passengers'>('routes')
+  const [activeTab, setActiveTab] = useState<'schedule' | 'routes' | 'passengers'>('schedule')
 
   useEffect(() => {
     loadDriverProfile()
@@ -161,6 +162,17 @@ export default function DriverDashboard() {
           <div className="border-b border-gray-200">
             <div className="flex">
               <button
+                onClick={() => setActiveTab('schedule')}
+                className={`flex items-center gap-2 px-4 sm:px-6 py-3 sm:py-4 text-sm sm:text-base font-medium border-b-2 transition-colors ${
+                  activeTab === 'schedule'
+                    ? 'border-blue-500 text-blue-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                <MapPin className="w-4 h-4 sm:w-5 sm:h-5" />
+                جدول الرحلات
+              </button>
+              <button
                 onClick={() => setActiveTab('routes')}
                 className={`flex items-center gap-2 px-4 sm:px-6 py-3 sm:py-4 text-sm sm:text-base font-medium border-b-2 transition-colors ${
                   activeTab === 'routes'
@@ -187,10 +199,12 @@ export default function DriverDashboard() {
         </div>
 
         {/* Content */}
+        {activeTab === 'schedule' && <DriverTripSchedule />}
         {activeTab === 'routes' && <DriverRoutes />}
         {activeTab === 'passengers' && <DriverPassengers />}
       </div>
     </div>
   )
 }
+
 

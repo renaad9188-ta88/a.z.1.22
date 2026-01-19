@@ -26,6 +26,12 @@ export default async function DashboardPage() {
   if ((profile?.role || '').toLowerCase() === 'admin') {
     redirect('/admin')
   }
+  if ((profile?.role || '').toLowerCase() === 'supervisor') {
+    redirect('/admin')
+  }
+  if ((profile?.role || '').toLowerCase() === 'driver') {
+    redirect('/driver')
+  }
 
   return <DashboardContent userId={user.id} />
 }

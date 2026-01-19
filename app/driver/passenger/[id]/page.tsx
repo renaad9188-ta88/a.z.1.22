@@ -6,9 +6,11 @@ import { createSupabaseBrowserClient } from '@/lib/supabase'
 import { ArrowLeft, User, Phone, MapPin, Calendar, Users, Navigation } from 'lucide-react'
 import Link from 'next/link'
 import toast from 'react-hot-toast'
+import DropoffPointSelector from '@/components/DropoffPointSelector'
 
 type PassengerDetails = {
   id: string
+  route_id?: string | null
   visitor_name: string
   companions_count: number | null
   travel_date: string
@@ -37,6 +39,7 @@ export default function PassengerDetails() {
   const supabase = createSupabaseBrowserClient()
   const [passenger, setPassenger] = useState<PassengerDetails | null>(null)
   const [loading, setLoading] = useState(true)
+  const [showDropoffSelector, setShowDropoffSelector] = useState(false)
 
   useEffect(() => {
     if (params.id) {
@@ -88,6 +91,7 @@ export default function PassengerDetails() {
         .from('visit_requests')
         .select(`
           id,
+          route_id,
           visitor_name,
           companions_count,
           travel_date,
@@ -121,6 +125,7 @@ export default function PassengerDetails() {
 
       const formattedPassenger: PassengerDetails = {
         id: requestData.id,
+        route_id: (requestData as any).route_id || null,
         visitor_name: requestData.visitor_name,
         companions_count: requestData.companions_count,
         travel_date: requestData.travel_date,
@@ -239,6 +244,45 @@ export default function PassengerDetails() {
 
   const companions = getCompanionsList()
   const totalPeople = 1 + companions.length
+
+  const saveDropoffPoint = async (point: { name: string; address: string; lat: number; lng: number }) => {
+    if (!passenger?.id) return
+    try {
+      const { error } = await supabase
+        .from('request_dropoff_points')
+        .upsert(
+          {
+            request_id: passenger.id,
+            route_id: passenger.route_id || null,
+            name: point.name,
+            address: point.address || null,
+            lat: point.lat,
+            lng: point.lng,
+          },
+          { onConflict: 'request_id' }
+        )
+
+      if (error) throw error
+      toast.success('تم حفظ نقطة النزول')
+      setPassenger((p) =>
+        p
+          ? {
+              ...p,
+              dropoff_point: {
+                name: point.name,
+                address: point.address,
+                lat: point.lat,
+                lng: point.lng,
+              },
+            }
+          : p
+      )
+      setShowDropoffSelector(false)
+    } catch (e: any) {
+      console.error('saveDropoffPoint error:', e)
+      toast.error(e?.message || 'تعذر حفظ نقطة النزول (تحقق من الصلاحيات)')
+    }
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-white overflow-x-hidden">
@@ -365,13 +409,23 @@ export default function PassengerDetails() {
               </div>
             </div>
 
-            {/* Dropoff Point */}
-            {passenger.dropoff_point && (
-              <div className="bg-white rounded-lg sm:rounded-xl shadow-md p-4 sm:p-6">
-                <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
+            {/* Dropoff Point (Driver can set/edit) */}
+            <div className="bg-white rounded-lg sm:rounded-xl shadow-md p-4 sm:p-6">
+              <div className="flex items-center justify-between gap-3 mb-3">
+                <h3 className="text-lg font-bold text-gray-800 flex items-center gap-2">
                   <MapPin className="w-5 h-5 text-orange-600" />
                   نقطة النزول
                 </h3>
+                <button
+                  type="button"
+                  onClick={() => setShowDropoffSelector(true)}
+                  className="px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm font-bold"
+                >
+                  {passenger.dropoff_point ? 'تعديل' : 'تحديد'}
+                </button>
+              </div>
+
+              {passenger.dropoff_point ? (
                 <div className="space-y-2">
                   <p className="font-medium text-gray-800">{passenger.dropoff_point.name}</p>
                   {passenger.dropoff_point.address && (
@@ -382,8 +436,12 @@ export default function PassengerDetails() {
                     <p>خط الطول: {passenger.dropoff_point.lng.toFixed(6)}</p>
                   </div>
                 </div>
-              </div>
-            )}
+              ) : (
+                <div className="text-sm text-gray-600 bg-yellow-50 border border-yellow-200 rounded-lg p-3 leading-relaxed">
+                  لم يتم تحديد نقطة نزول بعد. يمكنك تحديدها الآن من الخريطة لتظهر على تتبع الرحلة.
+                </div>
+              )}
+            </div>
 
             {/* Actions */}
             <div className="bg-white rounded-lg sm:rounded-xl shadow-md p-4 sm:p-6">
@@ -406,6 +464,41 @@ export default function PassengerDetails() {
           </div>
         </div>
       </div>
+
+      {/* Dropoff Selector Modal */}
+      {showDropoffSelector && passenger?.id && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-3 sm:p-4 overflow-y-auto">
+          <div className="bg-white rounded-lg max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+            <div className="p-4 sm:p-6">
+              <div className="flex items-center justify-between gap-3 mb-4">
+                <h3 className="text-lg sm:text-xl font-bold text-gray-800">تحديد نقطة النزول</h3>
+                <button
+                  type="button"
+                  onClick={() => setShowDropoffSelector(false)}
+                  className="px-3 py-1.5 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition text-sm font-semibold"
+                >
+                  إغلاق
+                </button>
+              </div>
+              <DropoffPointSelector
+                requestId={passenger.id}
+                routeId={passenger.route_id || undefined}
+                initialPoint={
+                  passenger.dropoff_point
+                    ? {
+                        name: passenger.dropoff_point.name,
+                        address: passenger.dropoff_point.address || null,
+                        lat: passenger.dropoff_point.lat,
+                        lng: passenger.dropoff_point.lng,
+                      }
+                    : null
+                }
+                onSelect={saveDropoffPoint}
+              />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

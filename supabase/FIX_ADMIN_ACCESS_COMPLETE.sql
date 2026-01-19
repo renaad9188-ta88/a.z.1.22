@@ -167,3 +167,4 @@ SELECT 'اختبار is_admin():' as check_type, is_admin() as is_admin_result;
 
 
 
+

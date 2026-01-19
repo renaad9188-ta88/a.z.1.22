@@ -63,6 +63,9 @@ export const parseAdminNotes = (notes: string): AdminInfo | null => {
     }
 
     // post-approval details (visit requests)
+    if (trimmed.startsWith('حالة الاستكمال:')) {
+      info.postApprovalStatus = trimmed.split('حالة الاستكمال:')[1]?.trim()
+    }
     if (trimmed.startsWith('طريقة توقيع الكفالة:')) {
       info.guaranteeMethod = trimmed.split('طريقة توقيع الكفالة:')[1]?.trim()
     }
@@ -71,6 +74,9 @@ export const parseAdminNotes = (notes: string): AdminInfo | null => {
     }
     if (trimmed.startsWith('طريقة دفع المتبقي:')) {
       info.remainingPaymentMethod = trimmed.split('طريقة دفع المتبقي:')[1]?.trim()
+    }
+    if (trimmed.startsWith('المبلغ المتبقي:')) {
+      info.remainingAmountText = trimmed.split('المبلغ المتبقي:')[1]?.trim()
     }
 
     if (line.includes('الغرض:')) {

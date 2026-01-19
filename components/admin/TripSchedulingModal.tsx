@@ -24,6 +24,20 @@ const DEPARTURE_DAYS = [6, 1, 3] // 6 = السبت، 1 = الاثنين، 3 = ا
 
 const DAY_NAMES = ['الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت']
 
+// Helpers to avoid timezone shifts when dealing with date-only values (YYYY-MM-DD)
+const toDateOnlyLocal = (d: Date): string => {
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
+}
+
+const parseDateOnlyLocal = (s: string): Date => {
+  const [yy, mm, dd] = (s || '').split('-').map((v) => Number(v))
+  if (!yy || !mm || !dd) return new Date(s)
+  return new Date(yy, mm - 1, dd)
+}
+
 export default function TripSchedulingModal({
   request,
   onClose,
@@ -239,8 +253,8 @@ export default function TripSchedulingModal({
 
       // التأكد من أن القيم صحيحة
       const updateData: any = {
-        arrival_date: arrivalDate.toISOString().split('T')[0],
-        departure_date: finalDepartureDate.toISOString().split('T')[0],
+        arrival_date: toDateOnlyLocal(arrivalDate),
+        departure_date: toDateOnlyLocal(finalDepartureDate),
         trip_status: tripStatus,
         route_id: effectiveRouteId,
         arrival_time: arrivalTime || null,
@@ -266,11 +280,11 @@ export default function TripSchedulingModal({
       if (isAdmin) {
         toast.success('تم حجز موعد الرحلة بنجاح')
         // إشعار عند الموافقة المباشرة من الإدمن
-        await notifyTripApproved(request.user_id, request.id, arrivalDate.toISOString().split('T')[0])
+        await notifyTripApproved(request.user_id, request.id, toDateOnlyLocal(arrivalDate))
       } else {
         // إرسال إشعار للمستخدم (تم إرسال طلب الحجز)
         try {
-          const arrivalDateStr = arrivalDate.toISOString().split('T')[0]
+          const arrivalDateStr = toDateOnlyLocal(arrivalDate)
           
           let formattedDate = arrivalDateStr
           try {
@@ -325,7 +339,7 @@ export default function TripSchedulingModal({
             console.warn('⚠️ [TRIP SCHEDULING] Could not fetch user profile:', profileError)
           }
 
-          const arrivalDateStr = arrivalDate.toISOString().split('T')[0]
+          const arrivalDateStr = toDateOnlyLocal(arrivalDate)
           const userName = profile?.full_name || 'مستخدم'
           
           console.log('🔔 [TRIP SCHEDULING] Calling notifyAdminTripRequest with:', {
@@ -481,14 +495,14 @@ export default function TripSchedulingModal({
                       <Plane className="w-4 h-4 text-blue-600" />
                       <span className="text-gray-600">تاريخ القدوم:</span>
                       <span className="font-bold text-gray-800">{formatDate(request.arrival_date)}</span>
-                      <span className="text-gray-500">({DAY_NAMES[new Date(request.arrival_date).getDay()]})</span>
+                      <span className="text-gray-500">({DAY_NAMES[parseDateOnlyLocal(request.arrival_date).getDay()]})</span>
                     </div>
                     {request.departure_date && (
                       <div className="flex items-center gap-2">
                         <Plane className="w-4 h-4 text-green-600 rotate-180" />
                         <span className="text-gray-600">تاريخ المغادرة:</span>
                         <span className="font-bold text-gray-800">{formatDate(request.departure_date)}</span>
-                        <span className="text-gray-500">({DAY_NAMES[new Date(request.departure_date).getDay()]})</span>
+                        <span className="text-gray-500">({DAY_NAMES[parseDateOnlyLocal(request.departure_date).getDay()]})</span>
                       </div>
                     )}
                     <div className="sm:col-span-2">
@@ -531,7 +545,7 @@ export default function TripSchedulingModal({
                     تم حجز موعد القدوم: {formatDate(request.arrival_date!)}
                   </p>
                   <p className="text-sm text-green-600 mt-1">
-                    يوم {DAY_NAMES[new Date(request.arrival_date!).getDay()]}
+                    يوم {DAY_NAMES[parseDateOnlyLocal(request.arrival_date!).getDay()]}
                   </p>
                 </div>
                 
@@ -578,17 +592,17 @@ export default function TripSchedulingModal({
                     >
                       {request?.arrival_date && (
                         <option value={request.arrival_date}>
-                          {formatDate(request.arrival_date)} - {DAY_NAMES[new Date(request.arrival_date).getDay()]} (الحالي)
+                          {formatDate(request.arrival_date)} - {DAY_NAMES[parseDateOnlyLocal(request.arrival_date).getDay()]} (الحالي)
                         </option>
                       )}
                       {availableArrivalDates
                         .filter(date => {
-                          const dateStr = date.toISOString().split('T')[0]
+                          const dateStr = toDateOnlyLocal(date)
                           return dateStr !== request.arrival_date
                         })
                         .map((date, index) => (
-                          <option key={index} value={date.toISOString().split('T')[0]}>
-                            {formatDate(date.toISOString())} - {DAY_NAMES[date.getDay()]}
+                          <option key={index} value={toDateOnlyLocal(date)}>
+                            {formatDate(toDateOnlyLocal(date))} - {DAY_NAMES[date.getDay()]}
                           </option>
                         ))}
                     </select>
@@ -609,8 +623,8 @@ export default function TripSchedulingModal({
                 >
                   <option value="">اختر تاريخ القدوم</option>
                   {availableArrivalDates.map((date, index) => (
-                    <option key={index} value={date.toISOString().split('T')[0]}>
-                      {formatDate(date.toISOString())} - {DAY_NAMES[date.getDay()]}
+                    <option key={index} value={toDateOnlyLocal(date)}>
+                      {formatDate(toDateOnlyLocal(date))} - {DAY_NAMES[date.getDay()]}
                     </option>
                   ))}
                 </select>
@@ -620,7 +634,7 @@ export default function TripSchedulingModal({
                       <strong>تاريخ القدوم المختار:</strong> {formatDate(selectedArrivalDate)}
                     </p>
                     <p className="text-sm text-blue-600 mt-1">
-                      يوم {DAY_NAMES[new Date(selectedArrivalDate).getDay()]}
+                      يوم {DAY_NAMES[parseDateOnlyLocal(selectedArrivalDate).getDay()]}
                     </p>
                   </div>
                 )}
@@ -668,7 +682,7 @@ export default function TripSchedulingModal({
                     تاريخ المغادرة: {formatDate(request.departure_date)}
                   </p>
                   <p className="text-sm text-green-600 mt-1">
-                    يوم {DAY_NAMES[new Date(request.departure_date).getDay()]}
+                    يوم {DAY_NAMES[parseDateOnlyLocal(request.departure_date).getDay()]}
                   </p>
                 </div>
               ) : (
@@ -774,7 +788,16 @@ export default function TripSchedulingModal({
         {/* Footer */}
         {/* إذا كان الحجز بانتظار الموافقة وكان الإدمن، أظهر أزرار الموافقة/الرفض */}
         {isPendingApproval && isAdmin && hasArrivalDate ? (
-          <div className="sticky bottom-0 bg-white border-t border-gray-200 p-4 sm:p-6 flex flex-col sm:flex-row justify-end gap-3">
+          <div className="sticky bottom-0 bg-white border-t border-gray-200 p-4 sm:p-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div className="text-xs sm:text-sm text-gray-600 leading-relaxed">
+              <span className="inline-flex items-center gap-2">
+                <MapPin className="w-4 h-4 text-blue-600" />
+                <span>
+                  سيتم تتبّع الرحلة بأمان ومعرفة الموقع ووقت الوصول، مع إمكانية التواصل مع السائق لحظة بلحظة.
+                </span>
+              </span>
+            </div>
+            <div className="flex flex-col sm:flex-row justify-end gap-3">
             <button
               onClick={onClose}
               className="px-6 py-2.5 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition text-sm sm:text-base font-medium"
@@ -815,9 +838,19 @@ export default function TripSchedulingModal({
                 </>
               )}
             </button>
+            </div>
           </div>
         ) : !hasArrivalDate || (hasArrivalDate && !isAdmin && canEditSchedule().canEdit && selectedArrivalDate && selectedArrivalDate !== request.arrival_date) ? (
-          <div className="sticky bottom-0 bg-white border-t border-gray-200 p-4 sm:p-6 flex flex-col sm:flex-row justify-end gap-3">
+          <div className="sticky bottom-0 bg-white border-t border-gray-200 p-4 sm:p-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div className="text-xs sm:text-sm text-gray-600 leading-relaxed">
+              <span className="inline-flex items-center gap-2">
+                <MapPin className="w-4 h-4 text-blue-600" />
+                <span>
+                  سيتم تتبّع الرحلة بأمان ومعرفة الموقع ووقت الوصول، مع إمكانية التواصل مع السائق لحظة بلحظة.
+                </span>
+              </span>
+            </div>
+            <div className="flex flex-col sm:flex-row justify-end gap-3">
             <button
               onClick={onClose}
               className="px-6 py-2.5 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition text-sm sm:text-base font-medium"
@@ -841,6 +874,7 @@ export default function TripSchedulingModal({
                 </>
               )}
             </button>
+            </div>
           </div>
         ) : null}
       </div>

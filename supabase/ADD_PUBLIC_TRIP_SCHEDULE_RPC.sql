@@ -52,3 +52,4 @@ GRANT EXECUTE ON FUNCTION public.get_public_trip_schedule(text, int) TO authenti
 
 
 
+

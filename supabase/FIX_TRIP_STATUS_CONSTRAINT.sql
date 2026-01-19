@@ -29,3 +29,4 @@ ALTER COLUMN trip_status SET DEFAULT 'pending_arrival';
 
 
 
+

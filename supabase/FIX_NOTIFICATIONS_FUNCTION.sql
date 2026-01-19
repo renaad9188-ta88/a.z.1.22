@@ -71,3 +71,4 @@ GRANT EXECUTE ON FUNCTION create_notification(UUID, TEXT, TEXT, TEXT, TEXT, UUID
 -- هذا مفيد عندما يريد المستخدم العادي إرسال إشعار للإدمن
 
 
+

@@ -74,6 +74,12 @@ export default function RequestHeader({ requestId, status, trackingHref }: Reque
         </div>
       </div>
       <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2">
+        <Link
+          href={`/dashboard/request/${requestId}/follow`}
+          className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-gray-200 bg-white hover:bg-gray-50 text-sm font-semibold text-gray-800"
+        >
+          متابعة الطلب
+        </Link>
         {trackingHref && (
           <Link
             href={trackingHref}

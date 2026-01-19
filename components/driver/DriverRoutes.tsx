@@ -1,9 +1,10 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { createSupabaseBrowserClient } from '@/lib/supabase'
 import { MapPin, Plus, Edit, Trash2, Bus, Route as RouteIcon } from 'lucide-react'
 import toast from 'react-hot-toast'
+import StopPointSelector from '@/components/driver/StopPointSelector'
 
 type Route = {
   id: string
@@ -34,10 +35,153 @@ export default function DriverRoutes() {
   const [loading, setLoading] = useState(true)
   const [showAddStop, setShowAddStop] = useState(false)
   const [editingStop, setEditingStop] = useState<RouteStopPoint | null>(null)
+  const [showStopPicker, setShowStopPicker] = useState(false)
+
+  // Map preview (route + stops)
+  const mapRef = useRef<HTMLDivElement | null>(null)
+  const mapObjRef = useRef<google.maps.Map | null>(null)
+  const markersRef = useRef<google.maps.Marker[]>([])
+  const polylineRef = useRef<google.maps.Polyline | null>(null)
+  const [mapsReady, setMapsReady] = useState(false)
+  const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || ''
 
   useEffect(() => {
     loadDriverRoutes()
   }, [])
+
+  useEffect(() => {
+    let mounted = true
+    ;(async () => {
+      try {
+        if (!apiKey) return
+        if (typeof window === 'undefined') return
+        if ((window as any).google?.maps) {
+          if (mounted) setMapsReady(true)
+          return
+        }
+        const existing = document.querySelector('script[data-google-maps="1"]') as HTMLScriptElement | null
+        if (existing) {
+          existing.addEventListener('load', () => mounted && setMapsReady(true))
+          return
+        }
+        const script = document.createElement('script')
+        script.dataset.googleMaps = '1'
+        script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places&language=ar`
+        script.async = true
+        script.defer = true
+        script.onload = () => mounted && setMapsReady(true)
+        script.onerror = () => {
+          // ignore (we show a message in UI)
+        }
+        document.head.appendChild(script)
+      } catch (e) {
+        console.error('DriverRoutes maps load error:', e)
+      }
+    })()
+    return () => {
+      mounted = false
+    }
+  }, [apiKey])
+
+  const clearMap = () => {
+    markersRef.current.forEach((m) => m.setMap(null))
+    markersRef.current = []
+    if (polylineRef.current) {
+      polylineRef.current.setMap(null)
+      polylineRef.current = null
+    }
+  }
+
+  const renderRoutePreview = () => {
+    if (!mapsReady || !mapRef.current || !(window as any).google?.maps || !selectedRoute) return
+    const googleMaps = (window as any).google.maps as typeof google.maps
+
+    if (!mapObjRef.current) {
+      mapObjRef.current = new googleMaps.Map(mapRef.current, {
+        center: { lat: selectedRoute.start_lat, lng: selectedRoute.start_lng },
+        zoom: 7,
+        mapTypeId: googleMaps.MapTypeId.ROADMAP,
+        mapTypeControl: true,
+        mapTypeControlOptions: { position: googleMaps.ControlPosition.TOP_LEFT },
+        zoomControl: true,
+        fullscreenControl: true,
+        streetViewControl: false,
+        gestureHandling: 'greedy',
+        scrollwheel: true,
+      })
+    }
+
+    const map = mapObjRef.current
+    clearMap()
+
+    const bounds = new googleMaps.LatLngBounds()
+    const path: { lat: number; lng: number }[] = []
+
+    const start = { lat: selectedRoute.start_lat, lng: selectedRoute.start_lng }
+    const end = { lat: selectedRoute.end_lat, lng: selectedRoute.end_lng }
+    path.push(start)
+    bounds.extend(start)
+
+    markersRef.current.push(
+      new googleMaps.Marker({
+        position: start,
+        map,
+        title: selectedRoute.start_location_name,
+        icon: { url: 'http://maps.google.com/mapfiles/ms/icons/green-dot.png' },
+      })
+    )
+
+    const sortedStops = [...routeStops].sort((a, b) => a.order_index - b.order_index)
+    for (const s of sortedStops) {
+      const pos = { lat: s.lat, lng: s.lng }
+      path.push(pos)
+      bounds.extend(pos)
+      markersRef.current.push(
+        new googleMaps.Marker({
+          position: pos,
+          map,
+          title: s.name,
+          icon: {
+            url: 'http://maps.google.com/mapfiles/ms/icons/bus.png',
+            scaledSize: new googleMaps.Size(38, 38),
+          },
+          label: {
+            text: String(s.order_index + 1),
+            color: '#ffffff',
+            fontWeight: 'bold',
+            fontSize: '12px',
+          },
+        })
+      )
+    }
+
+    path.push(end)
+    bounds.extend(end)
+    markersRef.current.push(
+      new googleMaps.Marker({
+        position: end,
+        map,
+        title: selectedRoute.end_location_name,
+        icon: { url: 'http://maps.google.com/mapfiles/ms/icons/red-dot.png' },
+      })
+    )
+
+    polylineRef.current = new googleMaps.Polyline({
+      path,
+      geodesic: true,
+      strokeColor: '#2563eb',
+      strokeOpacity: 0.85,
+      strokeWeight: 4,
+    })
+    polylineRef.current.setMap(map)
+
+    map.fitBounds(bounds)
+  }
+
+  useEffect(() => {
+    renderRoutePreview()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mapsReady, selectedRoute?.id, routeStops.length])
 
   const loadDriverRoutes = async () => {
     try {
@@ -146,6 +290,28 @@ export default function DriverRoutes() {
       loadRouteStops(selectedRoute.id)
     } catch (error: any) {
       toast.error(error.message || 'حدث خطأ أثناء إضافة نقطة التوقف')
+    }
+  }
+
+  const addStopFromMap = async (point: { name: string; description: string; lat: number; lng: number }) => {
+    if (!selectedRoute) return
+    try {
+      const { error } = await supabase.from('route_stop_points').insert({
+        route_id: selectedRoute.id,
+        name: point.name,
+        description: point.description || null,
+        lat: point.lat,
+        lng: point.lng,
+        order_index: routeStops.length,
+        is_active: true,
+      })
+      if (error) throw error
+      toast.success('تمت إضافة نقطة التوقف من الخريطة')
+      setShowStopPicker(false)
+      await loadRouteStops(selectedRoute.id)
+    } catch (e: any) {
+      console.error('addStopFromMap error:', e)
+      toast.error(e?.message || 'تعذر إضافة نقطة التوقف')
     }
   }
 
@@ -273,13 +439,42 @@ export default function DriverRoutes() {
               <div className="border-t border-gray-100 pt-4">
                 <div className="flex justify-between items-center mb-3">
                   <h4 className="text-sm sm:text-base font-semibold text-gray-800">نقاط التوقف:</h4>
-                  <button
-                    onClick={() => setShowAddStop(true)}
-                    className="flex items-center gap-2 px-3 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition text-sm"
-                  >
-                    <Plus className="w-4 h-4" />
-                    إضافة نقطة توقف
-                  </button>
+                  <div className="flex flex-wrap gap-2 justify-end">
+                    <button
+                      onClick={() => setShowStopPicker(true)}
+                      className="flex items-center gap-2 px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm"
+                      title="إضافة نقطة توقف من الخريطة"
+                    >
+                      <MapPin className="w-4 h-4" />
+                      إضافة من الخريطة
+                    </button>
+                    <button
+                      onClick={() => setShowAddStop(true)}
+                      className="flex items-center gap-2 px-3 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition text-sm"
+                      title="إضافة نقطة توقف يدوياً"
+                    >
+                      <Plus className="w-4 h-4" />
+                      إضافة يدوياً
+                    </button>
+                  </div>
+                </div>
+
+                {/* Route map preview */}
+                <div className="mb-4">
+                  <div className="rounded-xl border border-gray-200 overflow-hidden bg-white">
+                    <div className="px-3 py-2 border-b border-gray-100 flex items-center justify-between gap-2">
+                      <p className="text-xs sm:text-sm font-bold text-gray-800">معاينة المسار على الخريطة</p>
+                      {!apiKey && (
+                        <span className="text-[11px] sm:text-xs px-2 py-1 rounded-full bg-yellow-50 border border-yellow-200 text-yellow-800">
+                          مفتاح Google Maps غير موجود
+                        </span>
+                      )}
+                    </div>
+                    <div ref={mapRef} className="w-full h-[260px] sm:h-[340px]" />
+                  </div>
+                  <p className="mt-2 text-[11px] sm:text-xs text-gray-500">
+                    الخط: {route.start_location_name} → {route.end_location_name} (تظهر نقاط التوقف كرمز باص)
+                  </p>
                 </div>
 
                 {routeStops.length > 0 ? (
@@ -466,6 +661,36 @@ export default function DriverRoutes() {
           </div>
         </div>
       )}
+
+      {/* Stop Picker Modal (Map) */}
+      {showStopPicker && selectedRoute && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-3 sm:p-4 overflow-y-auto">
+          <div className="bg-white rounded-lg max-w-lg w-full mx-4 max-h-[90vh] overflow-y-auto">
+            <div className="p-4 sm:p-6">
+              <div className="flex items-center justify-between gap-3 mb-4">
+                <h3 className="text-lg sm:text-xl font-bold text-gray-800">إضافة نقطة توقف من الخريطة</h3>
+                <button
+                  type="button"
+                  onClick={() => setShowStopPicker(false)}
+                  className="px-3 py-1.5 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition text-sm font-semibold"
+                >
+                  إغلاق
+                </button>
+              </div>
+              <StopPointSelector
+                title={`اختر نقطة توقف للخط: ${selectedRoute.name}`}
+                onSelect={addStopFromMap}
+              />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
+}
+
+declare global {
+  interface Window {
+    google: typeof google
+  }
 }

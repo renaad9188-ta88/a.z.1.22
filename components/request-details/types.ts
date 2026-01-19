@@ -49,6 +49,8 @@ export interface AdminInfo {
   // post-approval (visit requests)
   guaranteeMethod?: string
   remainingPaymentMethod?: string
+  postApprovalStatus?: string
+  remainingAmountText?: string
 }
 
 

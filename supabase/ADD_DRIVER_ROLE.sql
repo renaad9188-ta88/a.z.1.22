@@ -171,3 +171,4 @@ WHERE r.name = 'دمشق - عمان'
   AND p.full_name = 'سائق تجريبي'
 ON CONFLICT (route_id, driver_id) DO NOTHING;
 
+

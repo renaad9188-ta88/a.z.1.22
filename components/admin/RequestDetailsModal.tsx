@@ -613,6 +613,52 @@ export default function RequestDetailsModal({
               </div>
 
               {/* بوابة الدفع -> فتح الحجز */}
+              {(adminInfo?.postApprovalStatus ||
+                adminInfo?.guaranteeMethod ||
+                adminInfo?.remainingPaymentMethod ||
+                adminInfo?.remainingAmountText) && (
+                <div className="p-3 rounded-lg bg-blue-50 border border-blue-100">
+                  <p className="text-sm font-extrabold text-gray-900 mb-2">
+                    استكمال بعد الموافقة (من المستخدم)
+                  </p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs sm:text-sm text-gray-700">
+                    <div className="flex items-center justify-between gap-2 bg-white border border-gray-200 rounded-lg p-2">
+                      <span className="text-gray-500">الحالة</span>
+                      <span className="font-bold">
+                        {adminInfo?.postApprovalStatus || 'غير محدد'}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between gap-2 bg-white border border-gray-200 rounded-lg p-2">
+                      <span className="text-gray-500">طريقة الكفالة</span>
+                      <span className="font-bold truncate">
+                        {adminInfo?.guaranteeMethod || 'غير محدد'}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between gap-2 bg-white border border-gray-200 rounded-lg p-2">
+                      <span className="text-gray-500">طريقة دفع المتبقي</span>
+                      <span className="font-bold truncate">
+                        {adminInfo?.remainingPaymentMethod || 'غير محدد'}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between gap-2 bg-white border border-gray-200 rounded-lg p-2">
+                      <span className="text-gray-500">المبلغ المتبقي</span>
+                      <span className="font-bold">
+                        {adminInfo?.remainingAmountText || (request as any)?.remaining_amount || '—'}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between gap-2 bg-white border border-gray-200 rounded-lg p-2 sm:col-span-2">
+                      <span className="text-gray-500">إثبات دفع كليك</span>
+                      <span className={`font-bold ${paymentImages.length > 0 ? 'text-green-700' : 'text-gray-500'}`}>
+                        {paymentImages.length > 0 ? `موجود (${paymentImages.length})` : 'غير موجود'}
+                      </span>
+                    </div>
+                  </div>
+                  <p className="mt-2 text-[11px] text-gray-600 leading-relaxed">
+                    بعد مراجعة هذه البيانات يمكنك تفعيل "تم تأكيد الدفعة" لفتح الحجز للمستخدم.
+                  </p>
+                </div>
+              )}
+
               <div className="flex items-start gap-3 p-3 rounded-lg bg-white border border-yellow-200">
                 <input
                   id="paymentVerified"

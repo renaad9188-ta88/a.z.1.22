@@ -40,6 +40,8 @@ export default function RequestDetails({ requestId, userId }: { requestId: strin
   const [newPaymentFiles, setNewPaymentFiles] = useState<File[]>([])
   const [newPaymentPreviews, setNewPaymentPreviews] = useState<string[]>([])
   const [savingPostApproval, setSavingPostApproval] = useState(false)
+  const [postApprovalSaved, setPostApprovalSaved] = useState(false)
+  const [postApprovalSubmitted, setPostApprovalSubmitted] = useState(false)
 
   useEffect(() => {
     loadRequest()
@@ -193,6 +195,7 @@ export default function RequestDetails({ requestId, userId }: { requestId: strin
 
   const POST_APPROVAL_START = '=== استكمال بعد الموافقة ==='
   const POST_APPROVAL_END = '=== نهاية الاستكمال ==='
+  const POST_APPROVAL_SUBMITTED_MARK = 'حالة الاستكمال: مرسل'
 
   const upsertNotesBlock = (notes: string, start: string, end: string, block: string) => {
     const n = notes || ''
@@ -263,6 +266,7 @@ export default function RequestDetails({ requestId, userId }: { requestId: strin
       const remaining = request.remaining_amount ?? 20
       const blockLines: string[] = []
       blockLines.push(POST_APPROVAL_START)
+      blockLines.push('حالة الاستكمال: محفوظ')
       blockLines.push(`طريقة توقيع الكفالة: ${guaranteeMethod || 'غير محدد'}`)
       blockLines.push(
         `طريقة دفع المتبقي: ${
@@ -278,6 +282,62 @@ export default function RequestDetails({ requestId, userId }: { requestId: strin
         blockLines.push('صور الدفعات:')
         uploadedUrls.forEach((u) => blockLines.push(u))
       }
+      blockLines.push(`تاريخ الحفظ: ${new Date().toISOString()}`)
+      blockLines.push(POST_APPROVAL_END)
+
+      const updatedNotes = upsertNotesBlock(request.admin_notes || '', POST_APPROVAL_START, POST_APPROVAL_END, blockLines.join('\n'))
+
+      const { error } = await supabase
+        .from('visit_requests')
+        .update({ admin_notes: updatedNotes, updated_at: new Date().toISOString() } as any)
+        .eq('id', request.id)
+        .eq('user_id', userId)
+
+      if (error) throw error
+
+      toast.success('تم حفظ استكمال الإجراءات. يمكنك الآن إرسال الطلب المكتمل للإدارة.')
+      setPostApprovalSaved(true)
+      setNewPaymentFiles([])
+      newPaymentPreviews.forEach((u) => URL.revokeObjectURL(u))
+      setNewPaymentPreviews([])
+      await loadRequest()
+    } catch (e: any) {
+      console.error('Save post-approval error:', e)
+      toast.error(e?.message || 'تعذر حفظ استكمال الإجراءات')
+    } finally {
+      setSavingPostApproval(false)
+    }
+  }
+
+  const handleSubmitPostApproval = async () => {
+    if (!request) return
+    try {
+      setSavingPostApproval(true)
+
+      // If payment method is click, require at least one remaining payment proof (new upload or already uploaded)
+      if (remainingPaymentMethod === 'click') {
+        const hasExistingRemaining = ((request.admin_notes || '') as string).includes('/payments/remaining/')
+        if (newPaymentFiles.length === 0 && !hasExistingRemaining) {
+          toast.error('يرجى رفع صورة الدفعة (للكليك) قبل إرسال الطلب المكتمل.')
+          return
+        }
+      }
+
+      const remaining = request.remaining_amount ?? 20
+      const blockLines: string[] = []
+      blockLines.push(POST_APPROVAL_START)
+      blockLines.push(POST_APPROVAL_SUBMITTED_MARK)
+      blockLines.push(`طريقة توقيع الكفالة: ${guaranteeMethod || 'غير محدد'}`)
+      blockLines.push(
+        `طريقة دفع المتبقي: ${
+          remainingPaymentMethod === 'click'
+            ? 'كليك (تحويل)'
+            : remainingPaymentMethod === 'office'
+            ? 'في المكتب'
+            : 'في الباص مع المندوب'
+        }`
+      )
+      blockLines.push(`المبلغ المتبقي: ${remaining} دينار`)
       blockLines.push(`تاريخ الإرسال: ${new Date().toISOString()}`)
       blockLines.push(POST_APPROVAL_END)
 
@@ -291,14 +351,12 @@ export default function RequestDetails({ requestId, userId }: { requestId: strin
 
       if (error) throw error
 
-      toast.success('تم حفظ استكمال الإجراءات. سيتم مراجعتها من الإدارة لتأكيد الدفعة.')
-      setNewPaymentFiles([])
-      newPaymentPreviews.forEach((u) => URL.revokeObjectURL(u))
-      setNewPaymentPreviews([])
+      toast.success('تم إرسال الطلب المكتمل. بانتظار مراجعة الإدارة وتأكيد الدفع/فتح الحجز.')
+      setPostApprovalSubmitted(true)
       await loadRequest()
     } catch (e: any) {
-      console.error('Save post-approval error:', e)
-      toast.error(e?.message || 'تعذر حفظ استكمال الإجراءات')
+      console.error('Submit post-approval error:', e)
+      toast.error(e?.message || 'تعذر إرسال الطلب المكتمل')
     } finally {
       setSavingPostApproval(false)
     }
@@ -320,6 +378,8 @@ export default function RequestDetails({ requestId, userId }: { requestId: strin
   }
 
   const adminInfo = parseAdminNotes(request.admin_notes || '')
+  const notesText = (request.admin_notes || '') as string
+  const alreadySubmittedPostApproval = notesText.includes(POST_APPROVAL_SUBMITTED_MARK)
   const companions = request.companions_data && Array.isArray(request.companions_data) 
     ? request.companions_data 
     : []
@@ -468,6 +528,12 @@ export default function RequestDetails({ requestId, userId }: { requestId: strin
                 )}
               </div>
 
+              {(alreadySubmittedPostApproval || postApprovalSubmitted) && (
+                <div className="mt-3 text-xs sm:text-sm text-green-800 bg-green-50 border border-green-200 rounded-lg p-3">
+                  تم إرسال استكمال الإجراءات للإدارة. بانتظار الرد/فتح الحجز على الطلب.
+                </div>
+              )}
+
               <div className="mt-4 grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4">
                 {/* 1) توقيع الكفالة */}
                 <div className="bg-white rounded-lg border border-gray-200 p-3 sm:p-4">
@@ -610,43 +676,27 @@ export default function RequestDetails({ requestId, userId }: { requestId: strin
                   <div className="mt-3 flex flex-col sm:flex-row gap-2">
                     <button
                       type="button"
-                      onClick={handleSavePostApproval}
-                      disabled={savingPostApproval}
+                      onClick={() => {
+                        if (alreadySubmittedPostApproval || postApprovalSubmitted) return
+                        if (postApprovalSaved) return handleSubmitPostApproval()
+                        return handleSavePostApproval()
+                      }}
+                      disabled={savingPostApproval || alreadySubmittedPostApproval || postApprovalSubmitted}
                       className="w-full sm:w-auto px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm font-semibold disabled:opacity-50"
                     >
-                      {savingPostApproval ? 'جاري الحفظ...' : 'حفظ استكمال الإجراءات'}
+                      {savingPostApproval
+                        ? postApprovalSaved
+                          ? 'جارٍ الإرسال...'
+                          : 'جارٍ الحفظ...'
+                        : alreadySubmittedPostApproval || postApprovalSubmitted
+                        ? 'تم إرسال الطلب'
+                        : postApprovalSaved
+                        ? 'إرسال الطلب المكتمل'
+                        : 'حفظ استكمال الإجراءات'}
                     </button>
                   </div>
                 </div>
 
-                {/* 3) تحديد موعد القدوم */}
-                <div className="bg-white rounded-lg border border-gray-200 p-3 sm:p-4 lg:col-span-2">
-                  <p className="font-bold text-gray-800 text-sm sm:text-base mb-2">3) تحديد موعد القدوم</p>
-                  <p className="text-xs sm:text-sm text-gray-600 mb-3">
-                    {request.arrival_date ? `الموعد الحالي: ${formatDate(request.arrival_date)}` : 'لم يتم تحديد موعد القدوم بعد.'}
-                  </p>
-                  <button
-                    type="button"
-                    onClick={() => setShowSchedulingModal(true)}
-                    className="w-full px-4 py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition text-sm font-semibold"
-                  >
-                    {request.arrival_date ? 'تعديل موعد القدوم' : 'تحديد موعد القدوم'}
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* فاصل بين الاستكمال وباقي التفاصيل */}
-          {request.status === 'approved' && (
-            <div className="border-t border-gray-200 pt-4 sm:pt-6 mb-4 sm:mb-6">
-              <div className="flex items-center justify-between gap-3">
-                <h2 className="text-base sm:text-lg md:text-xl font-extrabold text-gray-900">
-                  تفاصيل الطلب
-                </h2>
-                <span className="text-[11px] sm:text-xs text-gray-500">
-                  معلومات عامة + صور + رد الإدارة
-                </span>
               </div>
             </div>
           )}
