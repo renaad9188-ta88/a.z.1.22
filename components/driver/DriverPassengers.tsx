@@ -100,7 +100,6 @@ export default function DriverPassengers() {
           created_at,
           user_id,
           assigned_driver_id,
-          profiles!inner(full_name, phone),
           request_dropoff_points(name, address, lat, lng)
         `)
         .eq('status', 'approved') // فقط الطلبات المقبولة
@@ -123,6 +122,19 @@ export default function DriverPassengers() {
 
       if (error) throw error
 
+      const userIds = Array.from(new Set((passengersData || []).map((p: any) => p.user_id).filter(Boolean)))
+      let profilesMap: Record<string, { full_name: string | null; phone: string | null }> = {}
+      if (userIds.length > 0) {
+        const { data: profs, error: profErr } = await supabase
+          .from('profiles')
+          .select('user_id, full_name, phone')
+          .in('user_id', userIds)
+        if (profErr) throw profErr
+        ;(profs || []).forEach((p: any) => {
+          profilesMap[p.user_id] = { full_name: p.full_name || null, phone: p.phone || null }
+        })
+      }
+
       // تنسيق البيانات
       const formattedPassengers: PassengerRequest[] = (passengersData || []).map((passenger: any) => ({
         id: passenger.id,
@@ -138,8 +150,8 @@ export default function DriverPassengers() {
         user_id: passenger.user_id,
         assigned_driver_id: passenger.assigned_driver_id || null,
         user_profile: {
-          full_name: passenger.profiles?.full_name || null,
-          phone: passenger.profiles?.phone || null,
+          full_name: profilesMap[passenger.user_id]?.full_name || null,
+          phone: profilesMap[passenger.user_id]?.phone || null,
         },
         dropoff_point: passenger.request_dropoff_points?.[0] ? {
           name: passenger.request_dropoff_points[0].name,
