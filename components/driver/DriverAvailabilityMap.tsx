@@ -297,21 +297,22 @@ export default function DriverAvailabilityMap() {
       }
       setDriverId(driverRow.id)
 
-      // Read current live status
+      // Read current live status (فقط للحالة "متاح"، مش للموقع)
       const { data: liveRow } = await supabase
         .from('driver_live_status')
-        .select('is_available,lat,lng')
+        .select('is_available')
         .eq('driver_id', driverRow.id)
         .maybeSingle()
       const wasAvailable = Boolean((liveRow as any)?.is_available)
       setIsAvailable(wasAvailable)
-      if ((liveRow as any)?.lat && (liveRow as any)?.lng) {
-        setMyLoc({ lat: Number((liveRow as any).lat), lng: Number((liveRow as any).lng) })
-      }
       
-      // إذا كان السائق متاح من قبل، شغّل watchPosition تلقائياً
+      // مهم: ما نقرأ الموقع القديم من قاعدة البيانات - لازم نجيب الموقع الحقيقي من المتصفح
+      // لأن الموقع القديم ممكن يكون غير دقيق أو قديم
+      console.log('Driver availability status:', wasAvailable ? 'متاح' : 'غير متاح')
+      
+      // إذا كان السائق متاح من قبل، شغّل watchPosition تلقائياً (وهو رح يجيب الموقع الحقيقي)
       if (wasAvailable && driverRow.id) {
-        console.log('Driver was already available, starting watchPosition...')
+        console.log('Driver was already available, starting watchPosition to get REAL location...')
         // تأخير بسيط لضمان أن load() انتهى
         setTimeout(() => {
           startWatch(driverRow.id)
@@ -358,55 +359,69 @@ export default function DriverAvailabilityMap() {
     lastSentAtRef.current = 0
     console.log('Starting geolocation watchPosition...')
     
-    // طلب الموقع مباشرة أولاً (بدون تأخير)
+    // طلب الموقع الحقيقي مباشرة (maximumAge: 0 يعني لا تستخدم cached location)
+    console.log('Requesting REAL current location from browser (not cached)...')
     navigator.geolocation.getCurrentPosition(
       async (pos) => {
         const lat = pos.coords.latitude
         const lng = pos.coords.longitude
-        console.log('Got initial location:', lat, lng)
+        const accuracy = pos.coords.accuracy // دقة الموقع بالمتر
+        console.log('✅ Got REAL current location:', lat, lng, `(accuracy: ${accuracy}m)`)
+        console.log('📍 Location timestamp:', new Date(pos.timestamp).toLocaleString('ar-JO'))
         setMyLoc({ lat, lng })
         try {
           await upsertLive(driverId, { is_available: true, lat, lng })
-          console.log('Initial location saved to database')
+          console.log('✅ Real location saved to database')
+          toast.success(`تم تحديد موقعك الحالي بدقة ${Math.round(accuracy)} متر`)
         } catch (e) {
-          console.error('Failed to save initial location:', e)
+          console.error('❌ Failed to save initial location:', e)
+          toast.error('تعذر حفظ الموقع في قاعدة البيانات')
         }
       },
       (err) => {
-        console.error('getCurrentPosition error:', err)
+        console.error('❌ getCurrentPosition error:', err)
         if (err.code === 1) {
           toast.error('تم رفض صلاحية الموقع. يرجى تفعيل صلاحيات الموقع في إعدادات المتصفح.')
+        } else if (err.code === 3) {
+          toast.error('انتهت مهلة الحصول على الموقع. تحقق من اتصال الإنترنت.')
         } else {
           toast.error('تعذر الحصول على الموقع: ' + err.message)
         }
         setIsAvailable(false)
       },
-      { enableHighAccuracy: true, maximumAge: 0, timeout: 15000 }
+      { 
+        enableHighAccuracy: true, // استخدم GPS للحصول على موقع دقيق
+        maximumAge: 0, // لا تستخدم cached location - اجلب موقع جديد دائماً
+        timeout: 20000 // مهلة 20 ثانية للحصول على موقع دقيق
+      }
     )
     
-    // بعدها شغّل watchPosition للتحديث المستمر
+    // بعدها شغّل watchPosition للتحديث المستمر (بعد الحصول على الموقع الأول)
     watchIdRef.current = navigator.geolocation.watchPosition(
       async (pos) => {
         const lat = pos.coords.latitude
         const lng = pos.coords.longitude
-        console.log('Location update:', lat, lng)
+        const accuracy = pos.coords.accuracy
+        console.log('📍 Location update:', lat, lng, `(accuracy: ${accuracy}m)`)
         setMyLoc({ lat, lng })
 
         const now = Date.now()
-        if (now - lastSentAtRef.current < 10000) {
-          console.log('Skipping save (throttled, last sent:', now - lastSentAtRef.current, 'ms ago)')
+        const THROTTLE_MS = 60000 // تحديث كل دقيقة (60 ثانية) بدل كل 10 ثوانٍ لتقليل الاستهلاك
+        if (now - lastSentAtRef.current < THROTTLE_MS) {
+          const secondsAgo = Math.round((now - lastSentAtRef.current) / 1000)
+          console.log(`⏭️ Skipping save (throttled, last sent: ${secondsAgo}s ago, next update in ${60 - secondsAgo}s)`)
           return
         }
         lastSentAtRef.current = now
         try {
           await upsertLive(driverId, { is_available: true, lat, lng })
-          console.log('Location saved to database (every 10s)')
+          console.log('✅ Location saved to database (every 60s / 1 minute)')
         } catch (e) {
-          console.error('Failed to save location:', e)
+          console.error('❌ Failed to save location:', e)
         }
       },
       (err) => {
-        console.error('watchPosition error:', err)
+        console.error('❌ watchPosition error:', err)
         if (err.code === 1) {
           toast.error('تم رفض صلاحية الموقع. يرجى تفعيل صلاحيات الموقع في إعدادات المتصفح.')
         } else {
@@ -418,7 +433,11 @@ export default function DriverAvailabilityMap() {
           watchIdRef.current = null
         }
       },
-      { enableHighAccuracy: true, maximumAge: 5000, timeout: 15000 }
+      { 
+        enableHighAccuracy: true, // استخدم GPS للموقع الدقيق
+        maximumAge: 60000, // اقبل موقع cached إذا عمره أقل من 60 ثانية (كل دقيقة)
+        timeout: 15000 
+      }
     )
     console.log('watchPosition started, watchId:', watchIdRef.current)
   }
