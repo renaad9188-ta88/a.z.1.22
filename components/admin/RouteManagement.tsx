@@ -290,6 +290,31 @@ export default function RouteManagement() {
     }
   }
 
+  const toggleDriverActive = async (driverId: string, nextActive: boolean) => {
+    try {
+      const { error } = await supabase.from('drivers').update({ is_active: nextActive }).eq('id', driverId)
+      if (error) throw error
+      toast.success(nextActive ? 'تم تفعيل السائق' : 'تم تعطيل السائق')
+      loadData()
+    } catch (e: any) {
+      console.error('toggleDriverActive error:', e)
+      toast.error(e?.message || 'تعذر تحديث حالة السائق')
+    }
+  }
+
+  const deleteDriver = async (driverId: string) => {
+    if (!confirm('هل أنت متأكد من حذف السائق؟ سيتم إزالة ربطه بالخطوط وإلغاء تعيينه من الرحلات.')) return
+    try {
+      const { error } = await supabase.from('drivers').delete().eq('id', driverId)
+      if (error) throw error
+      toast.success('تم حذف السائق')
+      loadData()
+    } catch (e: any) {
+      console.error('deleteDriver error:', e)
+      toast.error(e?.message || 'تعذر حذف السائق')
+    }
+  }
+
   const handleAddDriver = async (formData: FormData) => {
     try {
       const userIdRaw = String(formData.get('user_id') || '').trim()
@@ -735,6 +760,29 @@ export default function RouteManagement() {
                           معرف الحساب
                         </button>
                       )}
+
+                      <button
+                        type="button"
+                        onClick={() => toggleDriverActive(d.id, !d.is_active)}
+                        className={`px-3 py-2 rounded-lg text-xs sm:text-sm font-bold transition ${
+                          d.is_active
+                            ? 'bg-yellow-50 text-yellow-800 hover:bg-yellow-100 border border-yellow-200'
+                            : 'bg-green-50 text-green-800 hover:bg-green-100 border border-green-200'
+                        }`}
+                        title={d.is_active ? 'تعطيل السائق (لن يظهر للحجز/التعيين)' : 'تفعيل السائق'}
+                      >
+                        {d.is_active ? 'تعطيل' : 'تفعيل'}
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => deleteDriver(d.id)}
+                        className="px-3 py-2 rounded-lg bg-red-50 text-red-700 hover:bg-red-100 border border-red-200 text-xs sm:text-sm font-bold transition inline-flex items-center gap-2"
+                        title="حذف السائق"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                        حذف
+                      </button>
                     </div>
                   </div>
                 </div>
