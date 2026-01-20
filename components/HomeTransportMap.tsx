@@ -63,6 +63,8 @@ export default function HomeTransportMap() {
   const mapRef = useRef<google.maps.Map | null>(null)
   const markersRef = useRef<google.maps.Marker[]>([])
   const polylineRef = useRef<google.maps.Polyline | null>(null)
+  const directionsRendererRef = useRef<google.maps.DirectionsRenderer | null>(null)
+  const directionsServiceRef = useRef<google.maps.DirectionsService | null>(null)
 
   const [ready, setReady] = useState(false)
   const [errorText, setErrorText] = useState<string | null>(null)
@@ -87,9 +89,17 @@ export default function HomeTransportMap() {
     }
   }
 
+  const clearDirections = () => {
+    if (directionsRendererRef.current) {
+      directionsRendererRef.current.setMap(null)
+      directionsRendererRef.current = null
+    }
+  }
+
   const clearMap = () => {
     clearMarkers()
     clearPolyline()
+    clearDirections()
   }
 
   const iconStop = (googleMaps: typeof google.maps) =>
@@ -250,18 +260,52 @@ export default function HomeTransportMap() {
       })
     )
 
-    // Polyline path (start -> stops -> end)
+    // Draw route on roads (preferred) using Directions API; fallback to polyline if it fails
     const path: LatLng[] = [start, ...stops.map((s) => ({ lat: Number(s.lat), lng: Number(s.lng) })), end]
-    polylineRef.current = new googleMaps.Polyline({
-      path,
-      geodesic: true,
-      strokeColor: '#2563eb',
-      strokeOpacity: 0.85,
-      strokeWeight: 4,
-    })
-    polylineRef.current.setMap(map)
-
     map.fitBounds(bounds, 60)
+
+    const waypoints: google.maps.DirectionsWaypoint[] = path
+      .slice(1, Math.max(1, path.length - 1))
+      .slice(0, 23) // Google max waypoints
+      .map((p) => ({ location: { lat: p.lat, lng: p.lng }, stopover: true }))
+
+    if (!directionsServiceRef.current) {
+      directionsServiceRef.current = new googleMaps.DirectionsService()
+    }
+    if (!directionsRendererRef.current) {
+      directionsRendererRef.current = new googleMaps.DirectionsRenderer({
+        suppressMarkers: true,
+        preserveViewport: true,
+        polylineOptions: { strokeColor: '#2563eb', strokeOpacity: 0.9, strokeWeight: 5 },
+      })
+      directionsRendererRef.current.setMap(map)
+    } else {
+      directionsRendererRef.current.setMap(map)
+    }
+
+    directionsServiceRef.current
+      .route({
+        origin: start,
+        destination: end,
+        waypoints,
+        travelMode: googleMaps.TravelMode.DRIVING,
+        optimizeWaypoints: false,
+      })
+      .then((res) => {
+        directionsRendererRef.current?.setDirections(res)
+      })
+      .catch((e) => {
+        console.warn('HomeTransportMap directions failed; falling back to polyline', e)
+        clearDirections()
+        polylineRef.current = new googleMaps.Polyline({
+          path,
+          geodesic: true,
+          strokeColor: '#2563eb',
+          strokeOpacity: 0.85,
+          strokeWeight: 4,
+        })
+        polylineRef.current.setMap(map)
+      })
   }
 
   const loadUserHint = async () => {

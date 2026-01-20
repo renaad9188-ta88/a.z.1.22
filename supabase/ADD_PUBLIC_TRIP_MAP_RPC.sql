@@ -50,7 +50,7 @@ AS $$
       -- closest departure_time to now (NULLs last)
       CASE
         WHEN c.departure_time IS NULL THEN 999999999
-        ELSE abs(extract(epoch from ((c.departure_time - CURRENT_TIME))))
+        ELSE abs(extract(epoch from (c.departure_time - (CURRENT_TIME::time))))
       END ASC,
       c.departure_time ASC NULLS LAST,
       c.created_at ASC
@@ -64,10 +64,15 @@ AS $$
     ORDER BY c.trip_date ASC, c.departure_time ASC NULLS LAST, c.created_at ASC
     LIMIT 1
   ),
+  -- Latest created trip for this kind (explicitly requested for homepage "latest entered trip")
+  latest_pick AS (
+    SELECT c.*
+    FROM candidates c
+    ORDER BY c.created_at DESC
+    LIMIT 1
+  ),
   chosen AS (
-    SELECT * FROM today_pick
-    UNION ALL
-    SELECT * FROM future_pick
+    SELECT * FROM latest_pick
     LIMIT 1
   ),
   trip_stops AS (
@@ -83,6 +88,21 @@ AS $$
       ) AS j
     FROM public.route_trip_stop_points s
     WHERE s.trip_id = (SELECT id FROM chosen)
+  ),
+  route_stops_fallback AS (
+    SELECT
+      jsonb_agg(
+        jsonb_build_object(
+          'name', sp.name,
+          'lat', sp.lat,
+          'lng', sp.lng,
+          'order_index', sp.order_index
+        )
+        ORDER BY sp.order_index ASC
+      ) AS j
+    FROM public.route_stop_points sp
+    WHERE sp.route_id = (SELECT route_id FROM chosen)
+      AND sp.is_active = true
   ),
   demo_route AS (
     SELECT
@@ -120,7 +140,7 @@ AS $$
     (SELECT end_location_name FROM chosen) AS end_location_name,
     (SELECT end_lat FROM chosen) AS end_lat,
     (SELECT end_lng FROM chosen) AS end_lng,
-    COALESCE((SELECT j FROM trip_stops), '[]'::jsonb) AS stops,
+    COALESCE((SELECT j FROM trip_stops), (SELECT j FROM route_stops_fallback), '[]'::jsonb) AS stops,
     false AS is_demo
   WHERE (SELECT count(*) FROM chosen) > 0
 
