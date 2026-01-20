@@ -6,6 +6,13 @@ import { MapPin, Search } from 'lucide-react'
 
 type LatLng = { lat: number; lng: number }
 
+type PreviewPoint = {
+  lat: number
+  lng: number
+  kind: 'start' | 'stop' | 'end'
+  label?: string
+}
+
 function loadGoogleMaps(apiKey: string): Promise<void> {
   if (typeof window === 'undefined') return Promise.resolve()
   if ((window as any).google?.maps) return Promise.resolve()
@@ -32,16 +39,22 @@ function loadGoogleMaps(apiKey: string): Promise<void> {
 export default function LocationSelector({
   title,
   initial,
+  selectionKind = 'stop',
+  previewPoints = [],
   onSelect,
 }: {
   title: string
   initial?: { name: string; lat: number; lng: number } | null
+  selectionKind?: 'start' | 'stop' | 'end'
+  previewPoints?: PreviewPoint[]
   onSelect: (p: { name: string; lat: number; lng: number }) => void
 }) {
   const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || ''
   const mapRef = useRef<HTMLDivElement | null>(null)
   const mapObjRef = useRef<google.maps.Map | null>(null)
   const markerRef = useRef<google.maps.Marker | null>(null)
+  const previewMarkersRef = useRef<google.maps.Marker[]>([])
+  const previewPolylineRef = useRef<google.maps.Polyline | null>(null)
   const searchInputRef = useRef<HTMLInputElement | null>(null)
   const autocompleteRef = useRef<google.maps.places.Autocomplete | null>(null)
 
@@ -68,6 +81,75 @@ export default function LocationSelector({
     }
   }, [apiKey])
 
+  const iconForKind = (googleMaps: typeof google.maps, kind: 'start' | 'stop' | 'end') => {
+    if (kind === 'start') return { url: 'http://maps.google.com/mapfiles/ms/icons/green-dot.png' }
+    if (kind === 'end') return { url: 'http://maps.google.com/mapfiles/ms/icons/red-dot.png' }
+    // stop
+    return {
+      path: googleMaps.SymbolPath.CIRCLE,
+      scale: 9,
+      fillColor: '#2563eb',
+      fillOpacity: 1,
+      strokeColor: '#ffffff',
+      strokeWeight: 2,
+    } as any
+  }
+
+  const clearPreview = () => {
+    previewMarkersRef.current.forEach((m) => m.setMap(null))
+    previewMarkersRef.current = []
+    if (previewPolylineRef.current) {
+      previewPolylineRef.current.setMap(null)
+      previewPolylineRef.current = null
+    }
+  }
+
+  const renderPreview = () => {
+    if (!mapObjRef.current || !(window as any).google?.maps) return
+    const googleMaps = (window as any).google.maps as typeof google.maps
+    clearPreview()
+
+    const pts = (previewPoints || []).filter((p) => typeof p.lat === 'number' && typeof p.lng === 'number')
+    if (pts.length === 0) return
+
+    // markers
+    pts.forEach((p) => {
+      const marker = new googleMaps.Marker({
+        position: { lat: p.lat, lng: p.lng },
+        map: mapObjRef.current!,
+        title: p.label || '',
+        icon: iconForKind(googleMaps, p.kind),
+        label:
+          p.kind === 'stop' && p.label
+            ? {
+                text: String(p.label),
+                color: 'white',
+                fontWeight: 'bold',
+                fontSize: '10px',
+              }
+            : undefined,
+        zIndex: 10,
+      })
+      previewMarkersRef.current.push(marker)
+    })
+
+    // polyline in order
+    previewPolylineRef.current = new googleMaps.Polyline({
+      path: pts.map((p) => ({ lat: p.lat, lng: p.lng })),
+      geodesic: true,
+      strokeColor: '#2563eb',
+      strokeOpacity: 0.85,
+      strokeWeight: 4,
+    })
+    previewPolylineRef.current.setMap(mapObjRef.current!)
+
+    // fit bounds
+    const bounds = new googleMaps.LatLngBounds()
+    pts.forEach((p) => bounds.extend({ lat: p.lat, lng: p.lng }))
+    if (selectedLocation) bounds.extend(selectedLocation)
+    mapObjRef.current!.fitBounds(bounds, 40)
+  }
+
   const updateMarker = (loc: LatLng) => {
     if (!mapObjRef.current || !(window as any).google?.maps) return
     const googleMaps = (window as any).google.maps as typeof google.maps
@@ -80,7 +162,7 @@ export default function LocationSelector({
       map: mapObjRef.current,
       title: 'الموقع',
       draggable: true,
-      icon: { url: 'http://maps.google.com/mapfiles/ms/icons/red-dot.png' },
+      icon: iconForKind(googleMaps, selectionKind),
     })
     markerRef.current.addListener('dragend', (e: google.maps.MapMouseEvent) => {
       if (!e.latLng) return
@@ -139,7 +221,13 @@ export default function LocationSelector({
         mapObjRef.current?.setZoom(14)
       })
     }
-  }, [mapsReady, selectedLocation, pointName])
+  }, [mapsReady, selectedLocation, pointName, selectionKind])
+
+  useEffect(() => {
+    if (!mapsReady) return
+    renderPreview()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mapsReady, JSON.stringify(previewPoints), selectedLocation])
 
   const save = () => {
     if (!selectedLocation) {

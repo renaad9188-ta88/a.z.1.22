@@ -55,6 +55,21 @@ export default function CreateTripModal({
   const [showStopSelector, setShowStopSelector] = useState(false)
   const [editingStopIndex, setEditingStopIndex] = useState<number | null>(null)
 
+  const buildPreviewPoints = (override?: { selection?: 'start' | 'stop' | 'end'; editingIdx?: number | null }) => {
+    const pts: Array<{ lat: number; lng: number; kind: 'start' | 'stop' | 'end'; label?: string }> = []
+    if (startLocation) pts.push({ lat: startLocation.lat, lng: startLocation.lng, kind: 'start', label: 'بداية' })
+    stopPoints.forEach((s, idx) => {
+      // If editing a stop, keep its position too (initial is already placed); label is index+1
+      if (override?.editingIdx != null && idx === override.editingIdx) {
+        pts.push({ lat: s.lat, lng: s.lng, kind: 'stop', label: String(idx + 1) })
+        return
+      }
+      pts.push({ lat: s.lat, lng: s.lng, kind: 'stop', label: String(idx + 1) })
+    })
+    if (endLocation) pts.push({ lat: endLocation.lat, lng: endLocation.lng, kind: 'end', label: 'نهاية' })
+    return pts
+  }
+
   // Set default date to today
   useEffect(() => {
     const today = new Date()
@@ -339,6 +354,8 @@ export default function CreateTripModal({
                 <LocationSelector
                   title="نقطة الانطلاق"
                   initial={startLocation}
+                  selectionKind="start"
+                  previewPoints={buildPreviewPoints()}
                   onSelect={(loc) => {
                     setStartLocation(loc)
                     setShowStartSelector(false)
@@ -364,6 +381,8 @@ export default function CreateTripModal({
                 <LocationSelector
                   title="نقطة الوصول"
                   initial={endLocation}
+                  selectionKind="end"
+                  previewPoints={buildPreviewPoints()}
                   onSelect={(loc) => {
                     setEndLocation(loc)
                     setShowEndSelector(false)
@@ -401,6 +420,8 @@ export default function CreateTripModal({
                       : 'محطة التوقف'
                   }
                   initial={editingStopIndex !== null ? stopPoints[editingStopIndex] : null}
+                  selectionKind="stop"
+                  previewPoints={buildPreviewPoints({ editingIdx: editingStopIndex })}
                   onSelect={handleAddStop}
                 />
                 <button
