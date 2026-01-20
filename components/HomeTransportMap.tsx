@@ -159,6 +159,42 @@ export default function HomeTransportMap() {
     }
   }
 
+  const ensureDemoStops = (
+    stopsIn: Array<{ name: string; lat: number; lng: number; order_index: number }>,
+    start: LatLng,
+    end: LatLng
+  ) => {
+    // We want a nicer "demo" with exactly 4 visible stop points.
+    const target = 4
+    const base = (stopsIn || [])
+      .filter((s) => Number.isFinite(Number(s.lat)) && Number.isFinite(Number(s.lng)))
+      .map((s, idx) => ({
+        name: s.name || `نقطة توقف ${idx + 1}`,
+        lat: Number(s.lat),
+        lng: Number(s.lng),
+        order_index: Number.isFinite(Number(s.order_index)) ? Number(s.order_index) : idx,
+      }))
+      .sort((a, b) => (a.order_index ?? 0) - (b.order_index ?? 0))
+
+    if (base.length >= target) return base.slice(0, target)
+
+    const out = [...base]
+    // Generate missing stops by interpolating between start/end with a slight zigzag so it looks "متعرّج"
+    for (let i = out.length; i < target; i++) {
+      const t = (i + 1) / (target + 1) // between 0..1
+      const lat = start.lat + (end.lat - start.lat) * t
+      const lng = start.lng + (end.lng - start.lng) * t
+      const zig = (i % 2 === 0 ? 1 : -1) * 0.08
+      out.push({
+        name: `نقطة توقف ${i + 1}`,
+        lat: lat + zig * 0.02,
+        lng: lng + zig * 0.03,
+        order_index: i,
+      })
+    }
+    return out
+  }
+
   const fetchTripMap = async (kind: 'arrivals' | 'departures') => {
     try {
       setLoadingTrip(true)
@@ -191,10 +227,13 @@ export default function HomeTransportMap() {
         ? { lat: Number(tripRow.end_lat), lng: Number(tripRow.end_lng) }
         : null
 
-    const stops = normalizeStops(tripRow?.stops)
+    const baseStops = normalizeStops(tripRow?.stops)
       .slice()
       .sort((a, b) => (a.order_index ?? 0) - (b.order_index ?? 0))
       .slice(0, 7)
+
+    const stops =
+      tripRow?.is_demo && start && end ? ensureDemoStops(baseStops as any, start, end) : (baseStops as any)
 
     if (!start || !end) {
       // fallback center
@@ -235,7 +274,7 @@ export default function HomeTransportMap() {
     )
 
     // Stop markers (blue numbered circles)
-    stops.forEach((s, idx) => {
+    stops.forEach((s: { name: string; lat: number; lng: number; order_index: number }, idx: number) => {
       const pos = { lat: Number(s.lat), lng: Number(s.lng) }
       if (!Number.isFinite(pos.lat) || !Number.isFinite(pos.lng)) return
       bounds.extend(pos)
@@ -261,7 +300,11 @@ export default function HomeTransportMap() {
     )
 
     // Draw route on roads (preferred) using Directions API; fallback to polyline if it fails
-    const path: LatLng[] = [start, ...stops.map((s) => ({ lat: Number(s.lat), lng: Number(s.lng) })), end]
+    const path: LatLng[] = [
+      start,
+      ...stops.map((s: { lat: number; lng: number }) => ({ lat: Number(s.lat), lng: Number(s.lng) })),
+      end,
+    ]
     map.fitBounds(bounds, 60)
 
     const waypoints: google.maps.DirectionsWaypoint[] = path
@@ -418,6 +461,15 @@ export default function HomeTransportMap() {
   }, [mode, tripRow])
 
   const dateText = useMemo(() => {
+    // Demo: always show today's date (each day by itself)
+    if (tripRow?.is_demo) {
+      const today = new Date().toISOString().slice(0, 10)
+      try {
+        return formatDate(today)
+      } catch {
+        return today
+      }
+    }
     if (!tripRow?.trip_date) return null
     try {
       return formatDate(tripRow.trip_date)
@@ -427,6 +479,8 @@ export default function HomeTransportMap() {
   }, [tripRow?.trip_date])
 
   const timeText = useMemo(() => {
+    // Demo: always show a morning time
+    if (tripRow?.is_demo) return '06:30'
     const t = tripRow?.departure_time || tripRow?.meeting_time
     if (!t) return null
     return String(t).slice(0, 5)
