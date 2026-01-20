@@ -4,7 +4,18 @@ import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { createSupabaseBrowserClient } from '@/lib/supabase'
-import { ArrowLeft, LogOut, User, ChevronDown, LayoutDashboard, FileText, Settings, Shield, Users } from 'lucide-react'
+import {
+  ArrowLeft,
+  LogOut,
+  User,
+  ChevronDown,
+  LayoutDashboard,
+  FileText,
+  Settings,
+  Shield,
+  Users,
+  FolderOpen,
+} from 'lucide-react'
 import toast from 'react-hot-toast'
 import NotificationsDropdown from './NotificationsDropdown'
 
@@ -259,6 +270,14 @@ export default function Header() {
                           >
                             <FileText className="w-4 h-4 text-purple-600" />
                             طلباتي
+                          </Link>
+                          <Link
+                            href="/dashboard/files"
+                            onClick={() => setMenuOpen(false)}
+                            className="flex items-center gap-2 px-4 py-3 text-sm text-gray-700 hover:bg-gray-50"
+                          >
+                            <FolderOpen className="w-4 h-4 text-blue-600" />
+                            ملفاتي
                           </Link>
                           <Link
                             href="/dashboard/profile"
