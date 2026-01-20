@@ -17,6 +17,7 @@ type Trip = {
   end_location_name: string
   end_lat: number
   end_lng: number
+  trip_type?: 'arrival' | 'departure'
 }
 
 type StopPoint = {
@@ -385,6 +386,15 @@ export default function TripCardWithMap({
             <span>التاريخ: {trip.trip_date}</span>
             {trip.meeting_time && <span>تجمع: {trip.meeting_time}</span>}
             {trip.departure_time && <span>انطلاق: {trip.departure_time}</span>}
+            {trip.trip_type && (
+              <span className={`px-2 py-0.5 rounded-full text-[11px] font-bold border ${
+                trip.trip_type === 'departure'
+                  ? 'bg-purple-50 text-purple-800 border-purple-200'
+                  : 'bg-green-50 text-green-800 border-green-200'
+              }`}>
+                {trip.trip_type === 'departure' ? 'المغادرون' : 'القادمون'}
+              </span>
+            )}
           </div>
         </div>
         <div className="flex gap-2">

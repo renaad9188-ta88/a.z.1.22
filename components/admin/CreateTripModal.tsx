@@ -20,11 +20,17 @@ type StopPoint = {
 export default function CreateTripModal({
   routeId,
   routeName,
+  tripType = 'arrival',
+  defaultStart,
+  defaultEnd,
   onClose,
   onSuccess,
 }: {
   routeId: string
   routeName: string
+  tripType?: 'arrival' | 'departure'
+  defaultStart?: { name: string; lat: number; lng: number } | null
+  defaultEnd?: { name: string; lat: number; lng: number } | null
   onClose: () => void
   onSuccess?: () => void
 }) {
@@ -37,8 +43,8 @@ export default function CreateTripModal({
   const [departureTime, setDepartureTime] = useState('')
   
   // Locations
-  const [startLocation, setStartLocation] = useState<{ name: string; lat: number; lng: number } | null>(null)
-  const [endLocation, setEndLocation] = useState<{ name: string; lat: number; lng: number } | null>(null)
+  const [startLocation, setStartLocation] = useState<{ name: string; lat: number; lng: number } | null>(defaultStart || null)
+  const [endLocation, setEndLocation] = useState<{ name: string; lat: number; lng: number } | null>(defaultEnd || null)
   const [stopPoints, setStopPoints] = useState<StopPoint[]>([])
   
   // Location selector modals
@@ -104,6 +110,7 @@ export default function CreateTripModal({
         .from('route_trips')
         .insert({
           route_id: routeId,
+          trip_type: tripType,
           trip_date: tripDate,
           meeting_time: meetingTime || null,
           departure_time: departureTime,
@@ -153,7 +160,9 @@ export default function CreateTripModal({
       <div className="bg-white rounded-lg max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
         {/* Header */}
         <div className="sticky top-0 bg-white border-b border-gray-200 p-4 sm:p-6 flex items-center justify-between z-10">
-          <h3 className="text-lg sm:text-xl font-bold text-gray-800">إنشاء رحلة جديدة - {routeName}</h3>
+          <h3 className="text-lg sm:text-xl font-bold text-gray-800">
+            {tripType === 'departure' ? 'إنشاء رحلة المغادرين' : 'إنشاء رحلة القادمين'} - {routeName}
+          </h3>
           <button
             type="button"
             onClick={onClose}

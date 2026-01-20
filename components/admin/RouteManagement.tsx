@@ -72,6 +72,7 @@ type RouteTripLite = {
   start_lng?: number
   end_lat?: number
   end_lng?: number
+  trip_type?: 'arrival' | 'departure'
 }
 
 export default function RouteManagement() {
@@ -84,6 +85,7 @@ export default function RouteManagement() {
   const [showAddRoute, setShowAddRoute] = useState(false)
   const [showAddDriver, setShowAddDriver] = useState(false)
   const [showCreateTrip, setShowCreateTrip] = useState(false)
+  const [createTripType, setCreateTripType] = useState<'arrival' | 'departure'>('arrival')
   const [selectedRoute, setSelectedRoute] = useState<Route | null>(null)
   const [selectedRouteForTrip, setSelectedRouteForTrip] = useState<Route | null>(null)
   const [selectedTripId, setSelectedTripId] = useState<string | null>(null)
@@ -299,7 +301,7 @@ export default function RouteManagement() {
       // Load trips from route_trips table (admin-created trips)
       const { data: tripsData, error: tripsErr } = await supabase
         .from('route_trips')
-        .select('id,trip_date,meeting_time,departure_time,start_location_name,start_lat,start_lng,end_location_name,end_lat,end_lng,is_active,created_at')
+        .select('id,trip_type,trip_date,meeting_time,departure_time,start_location_name,start_lat,start_lng,end_location_name,end_lat,end_lng,is_active,created_at')
         .eq('route_id', routeId)
         .eq('is_active', true)
         .order('trip_date', { ascending: true })
@@ -324,6 +326,7 @@ export default function RouteManagement() {
         start_lng: trip.start_lng,
         end_lat: trip.end_lat,
         end_lng: trip.end_lng,
+        trip_type: (trip.trip_type as any) || 'arrival',
       }))
       
       setRouteTrips((p) => ({ ...p, [routeId]: formattedTrips as any[] }))
@@ -547,22 +550,30 @@ export default function RouteManagement() {
         <h2 className="text-lg sm:text-xl md:text-2xl font-bold text-gray-800">إدارة الخطوط والسائقين</h2>
         <div className="flex gap-2 w-full sm:w-auto">
           {routes.length > 0 && (
-            <button
-              onClick={() => {
-                if (routes.length === 1) {
+            <>
+              <button
+                onClick={() => {
                   setSelectedRouteForTrip(routes[0])
+                  setCreateTripType('arrival')
                   setShowCreateTrip(true)
-                } else {
-                  // إذا في أكثر من خط، اختر الخط الأول (يمكن تحسينه لاختيار الخط)
+                }}
+                className="flex-1 sm:flex-none px-3 sm:px-4 py-2 sm:py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition text-sm sm:text-base font-medium"
+              >
+                <Plus className="w-4 h-4 inline mr-2" />
+                إنشاء رحلات القادمين
+              </button>
+              <button
+                onClick={() => {
                   setSelectedRouteForTrip(routes[0])
+                  setCreateTripType('departure')
                   setShowCreateTrip(true)
-                }
-              }}
-              className="flex-1 sm:flex-none px-3 sm:px-4 py-2 sm:py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition text-sm sm:text-base font-medium"
-            >
-              <Plus className="w-4 h-4 inline mr-2" />
-              إنشاء رحلة جديدة
-            </button>
+                }}
+                className="flex-1 sm:flex-none px-3 sm:px-4 py-2 sm:py-2.5 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition text-sm sm:text-base font-medium"
+              >
+                <Plus className="w-4 h-4 inline mr-2" />
+                إنشاء رحلات المغادرين
+              </button>
+            </>
           )}
           <button
             onClick={() => setShowAddDriver(true)}
@@ -655,6 +666,30 @@ export default function RouteManagement() {
                       <button
                         type="button"
                         onClick={() => {
+                          setSelectedRouteForTrip(route)
+                          setCreateTripType('arrival')
+                          setShowCreateTrip(true)
+                        }}
+                        className="px-3 py-2 rounded-lg bg-green-600 text-white hover:bg-green-700 transition text-xs sm:text-sm font-bold"
+                        title="إنشاء رحلة القادمين"
+                      >
+                        + القادمين
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedRouteForTrip(route)
+                          setCreateTripType('departure')
+                          setShowCreateTrip(true)
+                        }}
+                        className="px-3 py-2 rounded-lg bg-purple-600 text-white hover:bg-purple-700 transition text-xs sm:text-sm font-bold"
+                        title="إنشاء رحلة المغادرين"
+                      >
+                        + المغادرين
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
                           setExpandedRouteTrips((p) => ({ ...p, [route.id]: !p[route.id] }))
                           // lazy-load when opening
                           const willOpen = !expandedRouteTrips[route.id]
@@ -705,13 +740,35 @@ export default function RouteManagement() {
 
                   {expandedRouteTrips[route.id] && (
                     <div className="mt-3">
+                      <div className="flex flex-wrap gap-2 mb-2">
+                        <button
+                          type="button"
+                          onClick={() => setExpandedRouteTrips((p) => ({ ...p, [`${route.id}__tab`]: true }))}
+                          className="px-3 py-1.5 rounded-lg bg-green-50 text-green-800 border border-green-200 text-xs font-bold"
+                        >
+                          القادمون
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setExpandedRouteTrips((p) => ({ ...p, [`${route.id}__tab`]: false }))}
+                          className="px-3 py-1.5 rounded-lg bg-purple-50 text-purple-800 border border-purple-200 text-xs font-bold"
+                        >
+                          المغادرون
+                        </button>
+                      </div>
+
                       {(routeTrips[route.id] || []).length === 0 ? (
                         <div className="text-sm text-gray-600 bg-gray-50 border border-gray-200 rounded-lg p-3">
                           لا توجد رحلات مجدولة لهذا الخط بعد. استخدم زر "تحديد موعد" داخل طلب الزيارة أو من القائمة أدناه بعد ظهورها.
                         </div>
                       ) : (
                         <div className="space-y-2">
-                          {(routeTrips[route.id] || []).map((t) => {
+                          {(routeTrips[route.id] || [])
+                            .filter((t) => {
+                              const tabIsArrival = Boolean((expandedRouteTrips as any)[`${route.id}__tab`] ?? true)
+                              return tabIsArrival ? (t.trip_type || 'arrival') === 'arrival' : (t.trip_type || 'arrival') === 'departure'
+                            })
+                            .map((t) => {
                             return (
                               <TripCardWithMap
                                 key={t.id}
@@ -726,6 +783,7 @@ export default function RouteManagement() {
                                   end_location_name: t.end_location_name || '',
                                   end_lat: t.end_lat || 0,
                                   end_lng: t.end_lng || 0,
+                                  trip_type: (t.trip_type as any) || 'arrival',
                                 }}
                                 onUpdate={() => loadTripsForRoute(route.id)}
                                 onEditTrip={() => setSelectedTripId(t.id)}
@@ -977,6 +1035,17 @@ export default function RouteManagement() {
         <CreateTripModal
           routeId={selectedRouteForTrip.id}
           routeName={selectedRouteForTrip.name}
+          tripType={createTripType}
+          defaultStart={
+            createTripType === 'departure'
+              ? { name: selectedRouteForTrip.end_location_name, lat: selectedRouteForTrip.end_lat, lng: selectedRouteForTrip.end_lng }
+              : { name: selectedRouteForTrip.start_location_name, lat: selectedRouteForTrip.start_lat, lng: selectedRouteForTrip.start_lng }
+          }
+          defaultEnd={
+            createTripType === 'departure'
+              ? { name: selectedRouteForTrip.start_location_name, lat: selectedRouteForTrip.start_lat, lng: selectedRouteForTrip.start_lng }
+              : { name: selectedRouteForTrip.end_location_name, lat: selectedRouteForTrip.end_lat, lng: selectedRouteForTrip.end_lng }
+          }
           onClose={() => {
             setShowCreateTrip(false)
             setSelectedRouteForTrip(null)
