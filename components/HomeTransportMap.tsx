@@ -435,17 +435,17 @@ export default function HomeTransportMap() {
   return (
     <div className="max-w-6xl mx-auto">
       <div className="bg-white rounded-2xl shadow-md border border-gray-100 overflow-hidden">
-        <div className="p-4 sm:p-5 border-b border-gray-100 flex items-center justify-between gap-3">
+        <div className="p-4 sm:p-5 border-b border-gray-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="min-w-0">
             <h3 className="text-sm sm:text-base md:text-lg font-extrabold text-gray-900 flex items-center gap-2">
               <MapPin className="w-5 h-5 text-blue-600" />
               خريطة تسلسل الرحلة والمسار
             </h3>
-            <p className="text-xs sm:text-sm text-gray-600 mt-1">
+            <p className="text-xs sm:text-sm text-gray-600 mt-1 break-words">
               رحلة حالية إن وجدت — وإن لم توجد نعرض نموذج رحلة مع نقاط التوقف ورسم المسار
             </p>
           </div>
-          <div className="flex items-center gap-2 flex-shrink-0">
+          <div className="flex flex-wrap items-center gap-2 flex-shrink-0">
             <button
               type="button"
               onClick={() => setMode('arrivals')}
@@ -497,8 +497,8 @@ export default function HomeTransportMap() {
 
             {/* Overlay: Trip meta */}
             {shouldLoad && (
-              <div className="pointer-events-none absolute top-3 left-3 right-3 flex items-start justify-between gap-3">
-                <div className="pointer-events-auto bg-white/90 backdrop-blur-md rounded-xl shadow-lg border border-gray-200 p-2.5 sm:p-3 min-w-0">
+              <div className="pointer-events-none absolute top-3 left-3 right-3 flex flex-col lg:flex-row items-stretch lg:items-start justify-between gap-2 sm:gap-3">
+                <div className="pointer-events-auto bg-white/90 backdrop-blur-md rounded-xl shadow-lg border border-gray-200 p-2.5 sm:p-3 min-w-0 w-full lg:w-auto">
                   <div className="flex items-center gap-2 min-w-0">
                     <div className="w-9 h-9 rounded-xl bg-amber-50 flex items-center justify-center flex-shrink-0">
                       <Bus className="w-5 h-5 text-amber-700" />
@@ -512,16 +512,16 @@ export default function HomeTransportMap() {
                       </div>
                     </div>
                   </div>
-                  <div className="mt-2 flex items-center gap-2 text-[11px] text-gray-700">
-                    <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-gray-50 border border-gray-200">
+                  <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px] text-gray-700">
+                    <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-gray-50 border border-gray-200 whitespace-nowrap">
                       <Calendar className="w-3.5 h-3.5 text-gray-600" />
                       {dateText || '—'}
                     </span>
-                    <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-gray-50 border border-gray-200">
+                    <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-gray-50 border border-gray-200 whitespace-nowrap">
                       <Clock className="w-3.5 h-3.5 text-gray-600" />
                       {timeText || '—'}
                     </span>
-                    <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-blue-50 border border-blue-100 text-blue-700 font-bold">
+                    <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-blue-50 border border-blue-100 text-blue-700 font-bold whitespace-nowrap">
                       <Route className="w-3.5 h-3.5" />
                       نقاط توقف: {normalizeStops(tripRow?.stops).length}
                     </span>
@@ -530,8 +530,8 @@ export default function HomeTransportMap() {
 
                 {/* Overlay: user hint */}
                 {userHint && (
-                  <div className="pointer-events-auto bg-white/90 backdrop-blur-md rounded-xl shadow-lg border border-gray-200 p-2.5 sm:p-3 w-[min(20rem,100%)]">
-                    <div className="text-xs sm:text-sm font-extrabold text-gray-900 truncate">
+                  <div className="pointer-events-auto bg-white/90 backdrop-blur-md rounded-xl shadow-lg border border-gray-200 p-2.5 sm:p-3 w-full lg:w-[min(20rem,100%)]">
+                    <div className="text-xs sm:text-sm font-extrabold text-gray-900 break-words leading-tight">
                       {userHint.visitor_name}
                     </div>
                     <div className="text-[11px] text-gray-700 mt-1 leading-relaxed">
