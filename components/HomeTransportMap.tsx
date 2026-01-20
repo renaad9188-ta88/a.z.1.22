@@ -486,6 +486,12 @@ export default function HomeTransportMap() {
     return String(t).slice(0, 5)
   }, [tripRow?.departure_time, tripRow?.meeting_time])
 
+  const stopsCountText = useMemo(() => {
+    // In demo mode we generate 4 stops even if DB has fewer.
+    if (tripRow?.is_demo) return 4
+    return normalizeStops(tripRow?.stops).length
+  }, [tripRow?.is_demo, tripRow?.stops])
+
   return (
     <div className="max-w-6xl mx-auto">
       <div className="bg-white rounded-2xl shadow-md border border-gray-100 overflow-hidden">
@@ -579,7 +585,7 @@ export default function HomeTransportMap() {
                     </span>
                     <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-blue-50 border border-blue-100 text-blue-700 font-bold whitespace-nowrap">
                       <Route className="w-3.5 h-3.5" />
-                      نقاط توقف: {normalizeStops(tripRow?.stops).length}
+                      نقاط توقف: {stopsCountText}
                     </span>
                   </div>
                   </div>
