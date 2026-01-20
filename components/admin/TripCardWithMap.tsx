@@ -215,8 +215,12 @@ export default function TripCardWithMap({
         map,
         title: `${idx + 1}. ${stop.name}`,
         icon: {
-          url: 'http://maps.google.com/mapfiles/ms/icons/blue-dot.png',
-          scaledSize: new googleMaps.Size(28, 28),
+          path: googleMaps.SymbolPath.CIRCLE,
+          scale: 9,
+          fillColor: '#2563eb',
+          fillOpacity: 1,
+          strokeColor: '#ffffff',
+          strokeWeight: 2,
         },
         label: {
           text: String(idx + 1),

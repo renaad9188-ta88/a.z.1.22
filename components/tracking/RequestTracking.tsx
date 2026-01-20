@@ -237,7 +237,14 @@ export default function RequestTracking({ requestId, userId }: { requestId: stri
               position: pos,
               map,
               title: s.title,
-              icon: { url: 'http://maps.google.com/mapfiles/ms/icons/blue-dot.png' },
+              icon: {
+                path: googleMaps.SymbolPath.CIRCLE,
+                scale: 9,
+                fillColor: '#2563eb',
+                fillOpacity: 1,
+                strokeColor: '#ffffff',
+                strokeWeight: 2,
+              },
               label: {
                 text: String((s.order_index ?? 0) + 1),
                 color: '#ffffff',
@@ -253,15 +260,19 @@ export default function RequestTracking({ requestId, userId }: { requestId: stri
         for (const stop of sortedRouteStops) {
           const pos: LatLng = { lat: stop.lat, lng: stop.lng }
           bounds.extend(pos)
-          // أيقونة حافلة للنقاط الثابتة
+          // أيقونة نقطة توقف (دائرة زرقاء مرقمة)
           markersRef.current.push(
             new googleMaps.Marker({
               position: pos,
               map,
               title: stop.name,
               icon: {
-                url: 'http://maps.google.com/mapfiles/ms/icons/bus.png',
-                scaledSize: new googleMaps.Size(40, 40),
+                path: googleMaps.SymbolPath.CIRCLE,
+                scale: 9,
+                fillColor: '#2563eb',
+                fillOpacity: 1,
+                strokeColor: '#ffffff',
+                strokeWeight: 2,
               },
               label: {
                 text: String(stop.order_index + 1),

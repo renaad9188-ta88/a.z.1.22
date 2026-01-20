@@ -145,7 +145,14 @@ export default function DriverAvailabilityMap() {
             position: pos,
             map,
             title: s.name,
-            icon: { url: 'http://maps.google.com/mapfiles/ms/icons/blue-dot.png' },
+            icon: {
+              path: googleMaps.SymbolPath.CIRCLE,
+              scale: 9,
+              fillColor: '#2563eb',
+              fillOpacity: 1,
+              strokeColor: '#ffffff',
+              strokeWeight: 2,
+            },
             label: { text: String(s.order_index + 1), color: '#fff', fontWeight: '900' },
           })
         )
