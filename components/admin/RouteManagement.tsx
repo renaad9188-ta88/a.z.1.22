@@ -6,6 +6,8 @@ import { MapPin, Plus, Trash2, Edit, Bus, Users, Phone, Navigation, Copy } from 
 import toast from 'react-hot-toast'
 import TripSchedulingModal from './TripSchedulingModal'
 import CreateTripModal from './CreateTripModal'
+import TripDetailsModal from './TripDetailsModal'
+import TripCardWithMap from './TripCardWithMap'
 import type { VisitRequest } from './types'
 
 type Route = {
@@ -66,6 +68,10 @@ type RouteTripLite = {
   departure_time?: string | null
   start_location_name?: string
   end_location_name?: string
+  start_lat?: number
+  start_lng?: number
+  end_lat?: number
+  end_lng?: number
 }
 
 export default function RouteManagement() {
@@ -80,6 +86,7 @@ export default function RouteManagement() {
   const [showCreateTrip, setShowCreateTrip] = useState(false)
   const [selectedRoute, setSelectedRoute] = useState<Route | null>(null)
   const [selectedRouteForTrip, setSelectedRouteForTrip] = useState<Route | null>(null)
+  const [selectedTripId, setSelectedTripId] = useState<string | null>(null)
   const [driverSearch, setDriverSearch] = useState('')
   const [driverLocLoading, setDriverLocLoading] = useState<Record<string, boolean>>({})
   const [driverLastLoc, setDriverLastLoc] = useState<Record<string, DriverLocationLite | null>>({})
@@ -292,7 +299,7 @@ export default function RouteManagement() {
       // Load trips from route_trips table (admin-created trips)
       const { data: tripsData, error: tripsErr } = await supabase
         .from('route_trips')
-        .select('id,trip_date,meeting_time,departure_time,start_location_name,end_location_name,is_active,created_at')
+        .select('id,trip_date,meeting_time,departure_time,start_location_name,start_lat,start_lng,end_location_name,end_lat,end_lng,is_active,created_at')
         .eq('route_id', routeId)
         .eq('is_active', true)
         .order('trip_date', { ascending: true })
@@ -313,6 +320,10 @@ export default function RouteManagement() {
         departure_time: trip.departure_time,
         start_location_name: trip.start_location_name,
         end_location_name: trip.end_location_name,
+        start_lat: trip.start_lat,
+        start_lng: trip.start_lng,
+        end_lat: trip.end_lat,
+        end_lng: trip.end_lng,
       }))
       
       setRouteTrips((p) => ({ ...p, [routeId]: formattedTrips as any[] }))
@@ -701,69 +712,27 @@ export default function RouteManagement() {
                       ) : (
                         <div className="space-y-2">
                           {(routeTrips[route.id] || []).map((t) => {
-                            const people = 1 + (Number(t.companions_count || 0) || 0)
                             return (
-                              <div key={t.id} className="border border-gray-200 rounded-lg p-3 space-y-3">
-                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                                  <div className="min-w-0 flex-1">
-                                    <div className="font-bold text-gray-900 truncate">{t.visitor_name || `${t.start_location_name} → ${t.end_location_name}`}</div>
-                                    <div className="text-xs text-gray-600 flex flex-wrap gap-x-3 gap-y-1 mt-1">
-                                      <span>التاريخ: {t.arrival_date || 'غير محدد'}</span>
-                                      {t.meeting_time && <span>تجمع: {t.meeting_time}</span>}
-                                      {t.departure_time && <span>انطلاق: {t.departure_time}</span>}
-                                      <span>الحالة: {t.trip_status || 'غير محددة'}</span>
-                                    </div>
-                                  </div>
-                                </div>
-                                
-                                {/* Assigned Drivers Display */}
-                                {(tripAssignedDrivers[t.id] || []).length > 0 && (
-                                  <div className="border-t border-gray-100 pt-2">
-                                    <label className="block text-xs font-semibold text-gray-700 mb-2">
-                                      السائقون المعيّنون:
-                                    </label>
-                                    <div className="flex flex-wrap gap-2">
-                                      {tripAssignedDrivers[t.id].map((driver) => (
-                                        <span
-                                          key={driver.id}
-                                          className="inline-flex items-center gap-1.5 px-2 sm:px-3 py-1 bg-green-50 text-green-700 rounded-full text-xs sm:text-sm font-medium border border-green-200"
-                                        >
-                                          <Bus className="w-3 h-3 sm:w-4 sm:h-4 flex-shrink-0" />
-                                          <span className="truncate">{driver.name}</span>
-                                          <span className="hidden sm:inline">({driver.vehicle_type})</span>
-                                        </span>
-                                      ))}
-                                    </div>
-                                  </div>
-                                )}
-                                
-                                {/* Assign Driver to Trip */}
-                                <div className="border-t border-gray-100 pt-2">
-                                  <label className="block text-xs font-semibold text-gray-700 mb-2">
-                                    {tripAssignedDrivers[t.id]?.length > 0 ? 'إضافة سائق آخر:' : 'تعيين سائق للرحلة:'}
-                                  </label>
-                                  <div className="flex gap-2">
-                                    <select
-                                      onChange={(e) => {
-                                        if (e.target.value) {
-                                          handleAssignDriverToTrip(t.id, e.target.value, route.id)
-                                          e.target.value = ''
-                                        }
-                                      }}
-                                      className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-xs sm:text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                                    >
-                                      <option value="">اختر سائق...</option>
-                                      {drivers
-                                        .filter(d => d.is_active !== false && !tripAssignedDrivers[t.id]?.find(ad => ad.id === d.id))
-                                        .map(driver => (
-                                          <option key={driver.id} value={driver.id}>
-                                            {driver.name} - {driver.vehicle_type}
-                                          </option>
-                                        ))}
-                                    </select>
-                                  </div>
-                                </div>
-                              </div>
+                              <TripCardWithMap
+                                key={t.id}
+                                trip={{
+                                  id: t.id,
+                                  trip_date: t.arrival_date || '',
+                                  meeting_time: t.meeting_time || null,
+                                  departure_time: t.departure_time || null,
+                                  start_location_name: t.start_location_name || '',
+                                  start_lat: t.start_lat || 0,
+                                  start_lng: t.start_lng || 0,
+                                  end_location_name: t.end_location_name || '',
+                                  end_lat: t.end_lat || 0,
+                                  end_lng: t.end_lng || 0,
+                                }}
+                                onUpdate={() => loadTripsForRoute(route.id)}
+                                onEditTrip={() => setSelectedTripId(t.id)}
+                                assignedDrivers={tripAssignedDrivers[t.id]}
+                                allDrivers={drivers}
+                                onAssignDriver={(tripId, driverId) => handleAssignDriverToTrip(tripId, driverId, route.id)}
+                              />
                             )
                           })}
                         </div>
@@ -1016,6 +985,20 @@ export default function RouteManagement() {
             // Reload trips for this route
             loadTripsForRoute(selectedRouteForTrip.id)
             toast.success('تم إنشاء الرحلة بنجاح')
+          }}
+        />
+      )}
+
+      {/* Trip Details Modal */}
+      {selectedTripId && (
+        <TripDetailsModal
+          tripId={selectedTripId}
+          onClose={() => setSelectedTripId(null)}
+          onUpdate={() => {
+            // Reload trips if needed
+            if (selectedRouteForTrip) {
+              loadTripsForRoute(selectedRouteForTrip.id)
+            }
           }}
         />
       )}
