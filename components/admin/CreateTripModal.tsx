@@ -17,6 +17,8 @@ type StopPoint = {
   lng: number
 }
 
+const MAX_STOP_POINTS = 7
+
 export default function CreateTripModal({
   routeId,
   routeName,
@@ -71,8 +73,8 @@ export default function CreateTripModal({
       setEditingStopIndex(null)
     } else {
       // Add new stop
-      if (stopPoints.length >= 3) {
-        toast.error('يمكنك إضافة 3 محطات توقف كحد أقصى')
+      if (stopPoints.length >= MAX_STOP_POINTS) {
+        toast.error(`يمكنك إضافة ${MAX_STOP_POINTS} محطات توقف كحد أقصى`)
         return
       }
       setStopPoints([...stopPoints, point])
@@ -236,7 +238,7 @@ export default function CreateTripModal({
           {/* Stop Points */}
           <div>
             <label className="block text-sm font-bold text-gray-800 mb-2">
-              محطات التوقف ({stopPoints.length}/3)
+              محطات التوقف ({stopPoints.length}/{MAX_STOP_POINTS}) (اختياري)
             </label>
             <div className="space-y-2">
               {stopPoints.map((stop, idx) => (
@@ -265,7 +267,7 @@ export default function CreateTripModal({
                   </button>
                 </div>
               ))}
-              {stopPoints.length < 3 && (
+              {stopPoints.length < MAX_STOP_POINTS && (
                 <button
                   type="button"
                   onClick={() => {
