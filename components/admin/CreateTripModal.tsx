@@ -238,7 +238,7 @@ export default function CreateTripModal({
           {/* Stop Points */}
           <div>
             <label className="block text-sm font-bold text-gray-800 mb-2">
-              محطات التوقف ({stopPoints.length}/{MAX_STOP_POINTS}) (اختياري)
+              {tripType === 'departure' ? 'نقاط الصعود' : 'محطات التوقف'} ({stopPoints.length}/{MAX_STOP_POINTS}) (اختياري)
             </label>
             <div className="space-y-2">
               {stopPoints.map((stop, idx) => (
@@ -277,7 +277,7 @@ export default function CreateTripModal({
                   className="w-full px-4 py-2 border-2 border-dashed border-gray-300 rounded-lg hover:border-blue-500 hover:bg-blue-50 transition text-sm font-semibold text-gray-700"
                 >
                   <Plus className="w-4 h-4 inline mr-2" />
-                  إضافة محطة توقف
+                  {tripType === 'departure' ? 'إضافة نقطة صعود' : 'إضافة محطة توقف'}
                 </button>
               )}
             </div>
@@ -386,10 +386,20 @@ export default function CreateTripModal({
             <div className="bg-white rounded-lg max-w-md w-full max-h-[90vh] overflow-y-auto">
               <div className="p-4 sm:p-6">
                 <h4 className="text-lg font-bold text-gray-800 mb-4">
-                  {editingStopIndex !== null ? `تعديل محطة التوقف ${editingStopIndex + 1}` : 'إضافة محطة توقف جديدة'}
+                  {editingStopIndex !== null
+                    ? `${tripType === 'departure' ? 'تعديل نقطة الصعود' : 'تعديل محطة التوقف'} ${editingStopIndex + 1}`
+                    : tripType === 'departure'
+                    ? 'إضافة نقطة صعود جديدة'
+                    : 'إضافة محطة توقف جديدة'}
                 </h4>
                 <LocationSelector
-                  title={editingStopIndex !== null ? `محطة التوقف ${editingStopIndex + 1}` : 'محطة التوقف'}
+                  title={
+                    editingStopIndex !== null
+                      ? `${tripType === 'departure' ? 'نقطة الصعود' : 'محطة التوقف'} ${editingStopIndex + 1}`
+                      : tripType === 'departure'
+                      ? 'نقطة الصعود'
+                      : 'محطة التوقف'
+                  }
                   initial={editingStopIndex !== null ? stopPoints[editingStopIndex] : null}
                   onSelect={handleAddStop}
                 />
