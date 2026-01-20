@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import toast from 'react-hot-toast'
-import { CheckCircle, Clock, ArrowRight, MapPin } from 'lucide-react'
+import { CheckCircle, Clock, ArrowRight, MapPin, Navigation, Bus, Calendar } from 'lucide-react'
 import { createSupabaseBrowserClient } from '@/lib/supabase'
 import TripSchedulingModal from '@/components/admin/TripSchedulingModal'
 import { formatDate } from '@/lib/date-utils'
@@ -19,6 +19,7 @@ type ReqRow = {
   remaining_amount: number | null
   trip_status: string | null
   admin_notes: string | null
+  trip_id: string | null
   created_at: string
   updated_at: string
 }
@@ -31,13 +32,17 @@ export default function RequestFollow({ requestId, userId }: { requestId: string
   const [loading, setLoading] = useState(true)
   const [activeStep, setActiveStep] = useState(1)
   const [showSchedule, setShowSchedule] = useState(false)
+  const [showAvailableTrips, setShowAvailableTrips] = useState(false)
+  const [availableTrips, setAvailableTrips] = useState<any[]>([])
+  const [loadingTrips, setLoadingTrips] = useState(false)
+  const [bookedTrip, setBookedTrip] = useState<any | null>(null)
 
   const load = async () => {
     try {
       const { data, error } = await supabase
         .from('visit_requests')
         .select(
-          'id,user_id,visitor_name,visit_type,status,arrival_date,payment_verified,remaining_amount,trip_status,admin_notes,created_at,updated_at'
+          'id,user_id,visitor_name,visit_type,status,arrival_date,payment_verified,remaining_amount,trip_status,admin_notes,trip_id,created_at,updated_at'
         )
         .eq('id', requestId)
         .eq('user_id', userId)
@@ -49,6 +54,13 @@ export default function RequestFollow({ requestId, userId }: { requestId: string
         return
       }
       setRequest(data as any)
+      
+      // تحميل الرحلة المحجوزة إن وجدت
+      if ((data as any).trip_id) {
+        loadBookedTrip((data as any).trip_id)
+      } else {
+        setBookedTrip(null)
+      }
     } catch (e: any) {
       console.error('Follow load error:', e)
       toast.error('تعذر تحميل متابعة الطلب')
@@ -71,6 +83,101 @@ export default function RequestFollow({ requestId, userId }: { requestId: string
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [requestId, userId])
+
+  const loadBookedTrip = async (tripId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('route_trips')
+        .select('id,trip_date,meeting_time,departure_time,start_location_name,end_location_name')
+        .eq('id', tripId)
+        .maybeSingle()
+      
+      if (error) throw error
+      setBookedTrip(data)
+    } catch (e: any) {
+      console.error('Error loading booked trip:', e)
+      setBookedTrip(null)
+    }
+  }
+
+  const loadAvailableTrips = async () => {
+    try {
+      setLoadingTrips(true)
+      const today = new Date().toISOString().split('T')[0]
+      
+      const { data, error } = await supabase
+        .from('route_trips')
+        .select('id,trip_date,meeting_time,departure_time,start_location_name,end_location_name,route_id')
+        .eq('is_active', true)
+        .gte('trip_date', today)
+        .order('trip_date', { ascending: true })
+        .order('departure_time', { ascending: true })
+        .limit(50)
+      
+      if (error) throw error
+      setAvailableTrips(data || [])
+    } catch (e: any) {
+      console.error('Error loading available trips:', e)
+      toast.error('تعذر تحميل الرحلات المتاحة')
+      setAvailableTrips([])
+    } finally {
+      setLoadingTrips(false)
+    }
+  }
+
+  const handleBookTrip = async (tripId: string) => {
+    if (!request) return
+    
+    try {
+      const { error } = await supabase
+        .from('visit_requests')
+        .update({ trip_id: tripId, updated_at: new Date().toISOString() })
+        .eq('id', request.id)
+      
+      if (error) throw error
+      
+      toast.success('تم حجز الرحلة بنجاح')
+      setShowAvailableTrips(false)
+      load()
+      
+      // إشعار للمستخدم
+      try {
+        const { createNotification } = await import('@/lib/notifications')
+        await createNotification({
+          userId: request.user_id,
+          title: 'تم حجز الرحلة',
+          message: 'تم حجز رحلتك بنجاح. يمكنك متابعة تفاصيل الرحلة من هنا.',
+          type: 'success',
+          relatedType: 'trip',
+          relatedId: request.id,
+        })
+      } catch (notifyError) {
+        console.error('Error sending notification:', notifyError)
+      }
+      
+      // إشعار للإدمن
+      try {
+        const { notifyAllAdmins } = await import('@/lib/notifications')
+        await notifyAllAdmins({
+          title: 'حجز رحلة جديد',
+          message: `تم حجز رحلة للمستخدم ${request.visitor_name}`,
+          type: 'info',
+          relatedType: 'trip',
+          relatedId: request.id,
+        })
+      } catch (notifyError) {
+        console.error('Error sending admin notification:', notifyError)
+      }
+    } catch (e: any) {
+      console.error('Error booking trip:', e)
+      toast.error(e.message || 'حدث خطأ أثناء حجز الرحلة')
+    }
+  }
+
+  const handleChangeBooking = () => {
+    setShowAvailableTrips(true)
+    loadAvailableTrips()
+  }
 
   const steps = useMemo(() => {
     const notes = (request?.admin_notes || '') as string
@@ -299,33 +406,103 @@ export default function RequestFollow({ requestId, userId }: { requestId: string
                 )}
 
                 {activeStep === 5 && (
-                  <div className="flex flex-col sm:flex-row gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setShowSchedule(true)}
-                      disabled={!Boolean(request.payment_verified)}
-                      className={`px-4 py-2.5 rounded-lg transition text-sm font-semibold ${
-                        Boolean(request.payment_verified)
-                          ? 'bg-green-600 text-white hover:bg-green-700'
-                          : 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                      }`}
-                      title={!Boolean(request.payment_verified) ? 'بانتظار فتح الحجز من الإدارة' : 'حجز موعد القدوم'}
-                    >
-                      {request.arrival_date ? 'تعديل موعد القدوم' : 'حجز موعد القدوم'}
-                    </button>
-                    <Link
-                      href={trackingHref}
-                      className="px-4 py-2.5 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition text-sm font-semibold inline-flex items-center justify-center gap-2"
-                      title="تتبّع على الخريطة"
-                    >
-                      <MapPin className="w-4 h-4 text-blue-600" />
-                      تتبّع على الخريطة
-                    </Link>
-                    {request.arrival_date && (
-                      <div className="px-4 py-2.5 bg-white border border-gray-200 rounded-lg text-sm text-gray-700">
-                        الموعد الحالي: <span className="font-bold text-gray-900">{formatDate(request.arrival_date)}</span>
+                  <div className="space-y-3">
+                    {/* عرض الرحلة المحجوزة */}
+                    {request.trip_id && bookedTrip ? (
+                      <div className="bg-green-50 border-2 border-green-200 rounded-lg p-4">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-2">
+                              <Bus className="w-5 h-5 text-green-600" />
+                              <h4 className="font-bold text-green-800">رحلة محجوزة</h4>
+                            </div>
+                            <div className="space-y-2 text-sm">
+                              <div className="flex items-center gap-2">
+                                <Calendar className="w-4 h-4 text-blue-600" />
+                                <span className="text-gray-700">التاريخ:</span>
+                                <span className="font-bold text-gray-900">{formatDate(bookedTrip.trip_date)}</span>
+                              </div>
+                              {bookedTrip.meeting_time && (
+                                <div className="flex items-center gap-2">
+                                  <Clock className="w-4 h-4 text-blue-600" />
+                                  <span className="text-gray-700">وقت التجمع:</span>
+                                  <span className="font-bold text-gray-900">{bookedTrip.meeting_time}</span>
+                                </div>
+                              )}
+                              {bookedTrip.departure_time && (
+                                <div className="flex items-center gap-2">
+                                  <Navigation className="w-4 h-4 text-blue-600" />
+                                  <span className="text-gray-700">وقت الانطلاق:</span>
+                                  <span className="font-bold text-gray-900">{bookedTrip.departure_time}</span>
+                                </div>
+                              )}
+                              <div className="flex items-center gap-2">
+                                <MapPin className="w-4 h-4 text-orange-600" />
+                                <span className="text-gray-700">المسار:</span>
+                                <span className="font-bold text-gray-900">
+                                  {bookedTrip.start_location_name} → {bookedTrip.end_location_name}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                          <button
+                            onClick={handleChangeBooking}
+                            className="px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm font-semibold whitespace-nowrap"
+                          >
+                            تغيير الحجز
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="bg-blue-50 border-2 border-blue-200 rounded-lg p-4">
+                        <p className="text-sm text-blue-800 mb-3">
+                          لم يتم حجز رحلة بعد. يمكنك حجز رحلة من الرحلات المتاحة أو تحديد موعد قدوم مخصص.
+                        </p>
+                        <div className="flex flex-col sm:flex-row gap-2">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setShowAvailableTrips(true)
+                              loadAvailableTrips()
+                            }}
+                            className="px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm font-semibold inline-flex items-center justify-center gap-2"
+                          >
+                            <Bus className="w-4 h-4" />
+                            عرض الرحلات المتاحة
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setShowSchedule(true)}
+                            disabled={!Boolean(request.payment_verified)}
+                            className={`px-4 py-2.5 rounded-lg transition text-sm font-semibold inline-flex items-center justify-center gap-2 ${
+                              Boolean(request.payment_verified)
+                                ? 'bg-green-600 text-white hover:bg-green-700'
+                                : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                            }`}
+                            title={!Boolean(request.payment_verified) ? 'بانتظار فتح الحجز من الإدارة' : 'حجز موعد مخصص'}
+                          >
+                            <Calendar className="w-4 h-4" />
+                            حجز موعد مخصص
+                          </button>
+                        </div>
                       </div>
                     )}
+                    
+                    <div className="flex flex-col sm:flex-row gap-2">
+                      <Link
+                        href={trackingHref}
+                        className="px-4 py-2.5 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition text-sm font-semibold inline-flex items-center justify-center gap-2"
+                        title="تتبّع على الخريطة"
+                      >
+                        <MapPin className="w-4 h-4 text-blue-600" />
+                        تتبّع على الخريطة
+                      </Link>
+                      {request.arrival_date && !request.trip_id && (
+                        <div className="px-4 py-2.5 bg-white border border-gray-200 rounded-lg text-sm text-gray-700">
+                          الموعد الحالي: <span className="font-bold text-gray-900">{formatDate(request.arrival_date)}</span>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 )}
               </div>
@@ -343,6 +520,86 @@ export default function RequestFollow({ requestId, userId }: { requestId: string
           onUpdate={load}
           isAdmin={false}
         />
+      )}
+
+      {/* Available Trips Modal */}
+      {showAvailableTrips && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-3 sm:p-4 overflow-y-auto">
+          <div className="bg-white rounded-lg max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+            <div className="sticky top-0 bg-white border-b border-gray-200 p-4 sm:p-6 flex items-center justify-between z-10">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-blue-100 rounded-lg">
+                  <Bus className="w-5 h-5 sm:w-6 sm:h-6 text-blue-600" />
+                </div>
+                <div>
+                  <h2 className="text-xl sm:text-2xl font-bold text-gray-800">الرحلات المتاحة</h2>
+                  <p className="text-sm text-gray-600 mt-1">اختر رحلة من القائمة</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowAvailableTrips(false)}
+                className="p-2 hover:bg-gray-100 rounded-lg transition"
+              >
+                <ArrowRight className="w-5 h-5 sm:w-6 sm:h-6" />
+              </button>
+            </div>
+
+            <div className="p-4 sm:p-6">
+              {loadingTrips ? (
+                <div className="text-center py-8">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-2"></div>
+                  <p className="text-sm text-gray-600">جاري تحميل الرحلات...</p>
+                </div>
+              ) : availableTrips.length === 0 ? (
+                <div className="text-center py-8">
+                  <Bus className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                  <p className="text-gray-600">لا توجد رحلات متاحة حالياً</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {availableTrips.map((trip) => (
+                    <div key={trip.id} className="bg-white border-2 border-gray-200 rounded-lg p-4 hover:border-blue-300 transition">
+                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-2">
+                            <MapPin className="w-4 h-4 text-blue-600" />
+                            <span className="font-bold text-gray-900">
+                              {trip.start_location_name} → {trip.end_location_name}
+                            </span>
+                          </div>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm text-gray-600">
+                            <div className="flex items-center gap-2">
+                              <Calendar className="w-4 h-4 text-blue-600" />
+                              <span>{formatDate(trip.trip_date)}</span>
+                            </div>
+                            {trip.meeting_time && (
+                              <div className="flex items-center gap-2">
+                                <Clock className="w-4 h-4 text-blue-600" />
+                                <span>وقت التجمع: {trip.meeting_time}</span>
+                              </div>
+                            )}
+                            {trip.departure_time && (
+                              <div className="flex items-center gap-2">
+                                <Navigation className="w-4 h-4 text-blue-600" />
+                                <span>وقت الانطلاق: {trip.departure_time}</span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => handleBookTrip(trip.id)}
+                          className="w-full sm:w-auto px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm font-semibold"
+                        >
+                          حجز هذه الرحلة
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )

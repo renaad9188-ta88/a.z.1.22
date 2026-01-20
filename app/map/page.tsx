@@ -1,30 +1,48 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { createSupabaseBrowserClient } from '@/lib/supabase'
 import { MapPin, Navigation } from 'lucide-react'
 
 export default function MapPage() {
   const [mapLoaded, setMapLoaded] = useState(false)
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null)
+  const [errorText, setErrorText] = useState<string>('')
+  const mapObjRef = useRef<any | null>(null)
   const supabase = createSupabaseBrowserClient()
+  const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || ''
 
   useEffect(() => {
     // Load Google Maps
-    if (typeof window !== 'undefined' && window.google) {
-      setMapLoaded(true)
-      initMap()
-    } else {
-      const script = document.createElement('script')
-      script.src = `https://maps.googleapis.com/maps/api/js?key=${process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY}&libraries=places&language=ar`
-      script.async = true
-      script.defer = true
-      script.onload = () => {
-        setMapLoaded(true)
-        initMap()
-      }
-      document.head.appendChild(script)
+    if (!apiKey) {
+      setErrorText('مفتاح Google Maps غير موجود. يرجى إضافة NEXT_PUBLIC_GOOGLE_MAPS_API_KEY في ملف .env.local ثم إعادة تشغيل السيرفر.')
+      return
     }
+
+    if (typeof window !== 'undefined' && (window as any).google?.maps) {
+      setMapLoaded(true)
+      return
+    }
+
+    const existing = document.querySelector('script[data-google-maps="1"]') as HTMLScriptElement | null
+    if (existing) {
+      existing.addEventListener('load', () => setMapLoaded(true))
+      existing.addEventListener('error', () =>
+        setErrorText('فشل تحميل Google Maps. تحقق من صحة المفتاح وتفعيل APIs (Maps JavaScript + Places) وBilling وقيود Referrer.')
+      )
+      return
+    }
+
+    const script = document.createElement('script')
+    script.dataset.googleMaps = '1'
+    script.setAttribute('data-google-maps', '1')
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places&language=ar`
+    script.async = true
+    script.defer = true
+    script.onload = () => setMapLoaded(true)
+    script.onerror = () =>
+      setErrorText('فشل تحميل Google Maps. تحقق من صحة المفتاح وتفعيل APIs (Maps JavaScript + Places) وBilling وقيود Referrer.')
+    document.head.appendChild(script)
 
     // Get user location
     if (navigator.geolocation) {
@@ -40,21 +58,39 @@ export default function MapPage() {
         }
       )
     }
-  }, [])
+  }, [apiKey])
+
+  useEffect(() => {
+    if (!mapLoaded) return
+    initMap()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mapLoaded, userLocation])
 
   const initMap = () => {
-    if (typeof window === 'undefined' || !window.google) return
+    if (typeof window === 'undefined' || !(window as any).google?.maps) return
     const googleMaps = (window as any).google as any
 
     // Default to Jaber Border Crossing (المعبر جابر)
     const defaultLocation = { lat: 32.5456, lng: 35.8250 } // Approximate location
-    const map = new googleMaps.maps.Map(document.getElementById('map') as HTMLElement, {
-      center: userLocation || defaultLocation,
-      zoom: 13,
-      mapTypeControl: true,
-      streetViewControl: true,
-      fullscreenControl: true,
-    })
+    const center = userLocation || defaultLocation
+    const el = document.getElementById('map') as HTMLElement | null
+    if (!el) return
+
+    const map =
+      mapObjRef.current ||
+      new googleMaps.maps.Map(el, {
+        center,
+        zoom: 13,
+        mapTypeControl: true,
+        streetViewControl: true,
+        fullscreenControl: true,
+      })
+    mapObjRef.current = map
+    try {
+      map.setCenter(center)
+    } catch {
+      // ignore
+    }
 
     // Add marker for Jaber Border Crossing
     new googleMaps.maps.Marker({
@@ -145,7 +181,11 @@ export default function MapPage() {
 
       <div className="container mx-auto px-4 pb-8">
         <div className="bg-white rounded-lg shadow-lg overflow-hidden">
-          <div id="map" style={{ width: '100%', height: '600px' }}></div>
+          {errorText ? (
+            <div className="p-6 text-sm text-red-700 bg-red-50 border-t border-red-200">{errorText}</div>
+          ) : (
+            <div id="map" style={{ width: '100%', height: '600px' }}></div>
+          )}
         </div>
 
         <div className="mt-6 grid md:grid-cols-2 gap-6">

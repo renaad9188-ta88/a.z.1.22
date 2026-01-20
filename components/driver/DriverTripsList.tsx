@@ -20,6 +20,7 @@ export default function DriverTripsList({ driverRowId }: { driverRowId: string }
   const supabase = createSupabaseBrowserClient()
   const [trips, setTrips] = useState<Trip[]>([])
   const [loading, setLoading] = useState(true)
+  const [hint, setHint] = useState<string>('')
 
   useEffect(() => {
     loadTrips()
@@ -28,6 +29,7 @@ export default function DriverTripsList({ driverRowId }: { driverRowId: string }
   const loadTrips = async () => {
     try {
       setLoading(true)
+      setHint('')
       
       // 1) Get trip IDs assigned to this driver
       const { data: assignments, error: assignErr } = await supabase
@@ -36,7 +38,13 @@ export default function DriverTripsList({ driverRowId }: { driverRowId: string }
         .eq('driver_id', driverRowId)
         .eq('is_active', true)
       
-      if (assignErr) throw assignErr
+      if (assignErr) {
+        console.error('route_trip_drivers select error:', assignErr)
+        setHint(
+          'تعذر قراءة تعيينات الرحلات. غالباً تحتاج لتطبيق RLS للسائق على route_trip_drivers. شغّل سكربت supabase/FIX_DRIVER_RLS_FOR_TRIP_ASSIGNMENTS.sql في Supabase SQL Editor.'
+        )
+        throw assignErr
+      }
       
       const tripIds = (assignments || []).map((a: any) => a.trip_id).filter(Boolean)
       if (tripIds.length === 0) {
@@ -53,7 +61,10 @@ export default function DriverTripsList({ driverRowId }: { driverRowId: string }
         .order('trip_date', { ascending: true })
         .order('departure_time', { ascending: true })
       
-      if (tripsErr) throw tripsErr
+      if (tripsErr) {
+        console.error('route_trips select error:', tripsErr)
+        throw tripsErr
+      }
       setTrips((tripsData || []) as Trip[])
     } catch (e: any) {
       console.error('Load driver trips error:', e)
@@ -85,6 +96,11 @@ export default function DriverTripsList({ driverRowId }: { driverRowId: string }
       <div className="bg-white rounded-lg sm:rounded-xl shadow-md p-4 sm:p-6">
         <h3 className="text-base sm:text-lg font-extrabold text-gray-900 mb-2">رحلاتي المعيّنة</h3>
         <p className="text-sm text-gray-600">لا توجد رحلات معيّنة لك حالياً. اطلب من الإدارة تعيين رحلة لك.</p>
+        {hint && (
+          <div className="mt-3 text-xs sm:text-sm bg-amber-50 border border-amber-200 text-amber-900 rounded-lg p-3">
+            {hint}
+          </div>
+        )}
       </div>
     )
   }

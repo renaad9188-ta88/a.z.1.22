@@ -16,6 +16,7 @@ type PassengerRequest = {
   arrival_date: string | null
   departure_date: string | null
   trip_status: string | null
+  trip_id: string | null
   created_at: string
   user_id: string
   assigned_driver_id?: string | null
@@ -71,6 +72,16 @@ export default function DriverPassengers() {
         return
       }
 
+      // Get trips assigned to this driver
+      const { data: tripAssignments, error: tripAssignErr } = await supabase
+        .from('route_trip_drivers')
+        .select('trip_id')
+        .eq('driver_id', driverRow.id)
+        .eq('is_active', true)
+
+      if (tripAssignErr) throw tripAssignErr
+      const assignedTripIds = (tripAssignments || []).map((a: any) => a.trip_id).filter(Boolean)
+
       const { data: rdRows, error: rdErr } = await supabase
         .from('route_drivers')
         .select('route_id')
@@ -79,12 +90,12 @@ export default function DriverPassengers() {
 
       if (rdErr) throw rdErr
       const routeIds = (rdRows || []).map(r => r.route_id).filter(Boolean)
-      if (routeIds.length === 0) {
+      if (routeIds.length === 0 && assignedTripIds.length === 0) {
         setPassengers([])
         return
       }
 
-      // الحصول على طلبات الركاب في خطوط السائق
+      // الحصول على طلبات الركاب في خطوط السائق أو الرحلات المخصصة له
       let query = supabase
         .from('visit_requests')
         .select(`
@@ -97,6 +108,7 @@ export default function DriverPassengers() {
           arrival_date,
           departure_date,
           trip_status,
+          trip_id,
           created_at,
           user_id,
           assigned_driver_id,
@@ -104,9 +116,19 @@ export default function DriverPassengers() {
         `)
         .eq('status', 'approved') // فقط الطلبات المقبولة
         .in('trip_status', ['pending_arrival', 'arrived']) // الرحلات النشطة
-        .in('route_id', routeIds)
+
+      // إذا كان هناك رحلات مخصصة للسائق، فلتر حسب trip_id
+      if (assignedTripIds.length > 0) {
+        query = query.in('trip_id', assignedTripIds)
+      } else if (routeIds.length > 0) {
+        // إذا لم تكن هناك رحلات مخصصة، استخدم route_id كسابقاً
+        query = query.in('route_id', routeIds)
         // إذا تم تعيين سائق للطلب: لا يظهر إلا لهذا السائق (أو إذا لم يتم تعيين سائق)
-        .or(`assigned_driver_id.is.null,assigned_driver_id.eq.${driverRow.id}`)
+        query = query.or(`assigned_driver_id.is.null,assigned_driver_id.eq.${driverRow.id}`)
+      } else {
+        setPassengers([])
+        return
+      }
 
       // تطبيق الفلتر
       if (filter === 'today') {
@@ -146,6 +168,7 @@ export default function DriverPassengers() {
         arrival_date: passenger.arrival_date,
         departure_date: passenger.departure_date,
         trip_status: passenger.trip_status,
+        trip_id: passenger.trip_id || null,
         created_at: passenger.created_at,
         user_id: passenger.user_id,
         assigned_driver_id: passenger.assigned_driver_id || null,
