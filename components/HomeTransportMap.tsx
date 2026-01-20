@@ -1,17 +1,10 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { createSupabaseBrowserClient } from '@/lib/supabase'
-import { MapPin } from 'lucide-react'
-
-type DriverRow = {
-  id: string
-  name: string
-  phone: string
-  vehicle_type: string
-  seats_count: number
-  is_active: boolean
-}
+import Link from 'next/link'
+import { Bus, Calendar, Clock, MapPin, Plane, Route } from 'lucide-react'
+import { formatDate } from '@/lib/date-utils'
 
 const BORDER_CENTER = { lat: 32.5456, lng: 35.825 } // معبر جابر تقريباً
 
@@ -29,8 +22,8 @@ function loadGoogleMaps(apiKey: string): Promise<void> {
 
     const script = document.createElement('script')
     script.dataset.googleMaps = '1'
-    // Note: no need for Places library on this public demo map -> faster load
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&language=ar`
+    // Important: use places library to avoid breaking other pages in SPA navigation.
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places&language=ar`
     script.async = true
     script.defer = true
     script.onload = () => resolve()
@@ -39,16 +32,46 @@ function loadGoogleMaps(apiKey: string): Promise<void> {
   })
 }
 
+type LatLng = { lat: number; lng: number }
+
+type PublicTripMapRow = {
+  trip_id: string | null
+  trip_type: 'arrivals' | 'departures' | string | null
+  trip_date: string | null
+  meeting_time: string | null
+  departure_time: string | null
+  start_location_name: string | null
+  start_lat: number | null
+  start_lng: number | null
+  end_location_name: string | null
+  end_lat: number | null
+  end_lng: number | null
+  stops: Array<{ name: string; lat: number; lng: number; order_index: number }> | any
+  is_demo: boolean | null
+}
+
+type UserHint = {
+  request_id: string
+  visitor_name: string
+  trip_id: string | null
+}
+
 export default function HomeTransportMap() {
   const supabase = createSupabaseBrowserClient()
   const mapElRef = useRef<HTMLDivElement | null>(null)
   const inViewRef = useRef<HTMLDivElement | null>(null)
   const mapRef = useRef<google.maps.Map | null>(null)
   const markersRef = useRef<google.maps.Marker[]>([])
+  const polylineRef = useRef<google.maps.Polyline | null>(null)
 
   const [ready, setReady] = useState(false)
   const [errorText, setErrorText] = useState<string | null>(null)
   const [shouldLoad, setShouldLoad] = useState(false)
+  const [mode, setMode] = useState<'arrivals' | 'departures'>('arrivals')
+  const [loadingTrip, setLoadingTrip] = useState(false)
+  const [tripRow, setTripRow] = useState<PublicTripMapRow | null>(null)
+  const [userHint, setUserHint] = useState<UserHint | null>(null)
+  const [loadingUserHint, setLoadingUserHint] = useState(false)
 
   const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || ''
 
@@ -56,6 +79,38 @@ export default function HomeTransportMap() {
     markersRef.current.forEach(m => m.setMap(null))
     markersRef.current = []
   }
+
+  const clearPolyline = () => {
+    if (polylineRef.current) {
+      polylineRef.current.setMap(null)
+      polylineRef.current = null
+    }
+  }
+
+  const clearMap = () => {
+    clearMarkers()
+    clearPolyline()
+  }
+
+  const iconStop = (googleMaps: typeof google.maps) =>
+    ({
+      path: googleMaps.SymbolPath.CIRCLE,
+      scale: 9,
+      fillColor: '#2563eb',
+      fillOpacity: 1,
+      strokeColor: '#ffffff',
+      strokeWeight: 2,
+    }) as any
+
+  const iconBus = (googleMaps: typeof google.maps) =>
+    ({
+      path: googleMaps.SymbolPath.CIRCLE,
+      scale: 10,
+      fillColor: '#f59e0b',
+      fillOpacity: 1,
+      strokeColor: '#ffffff',
+      strokeWeight: 2,
+    }) as any
 
   const initMap = () => {
     if (!mapElRef.current || !(window as any).google?.maps) return
@@ -80,65 +135,171 @@ export default function HomeTransportMap() {
         scrollwheel: true,
       })
     }
-
-    const map = mapRef.current
-    clearMarkers()
-
-    // نقطة مرجعية: المعبر جابر
-    markersRef.current.push(
-      new googleMaps.Marker({
-        position: BORDER_CENTER,
-        map,
-        title: 'المعبر جابر',
-        icon: { url: 'http://maps.google.com/mapfiles/ms/icons/blue-dot.png' },
-      })
-    )
   }
 
-  const loadDrivers = async () => {
+  const normalizeStops = (raw: any): Array<{ name: string; lat: number; lng: number; order_index: number }> => {
+    if (!raw) return []
+    if (Array.isArray(raw)) return raw
+    // sometimes comes as json string
     try {
-      const { data, error } = await supabase
-        .from('drivers')
-        .select('id,name,phone,vehicle_type,seats_count,is_active')
-        .eq('is_active', true)
+      const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw
+      return Array.isArray(parsed) ? parsed : []
+    } catch {
+      return []
+    }
+  }
 
+  const fetchTripMap = async (kind: 'arrivals' | 'departures') => {
+    try {
+      setLoadingTrip(true)
+      const { data, error } = await supabase.rpc('get_public_trip_map', { p_kind: kind })
       if (error) throw error
-      const drivers = (data || []) as DriverRow[]
+      const row = (Array.isArray(data) ? data[0] : data) as PublicTripMapRow | null
+      setTripRow(row || null)
+    } catch (e: any) {
+      console.error('HomeTransportMap load trip map error:', e)
+      setTripRow(null)
+    } finally {
+      setLoadingTrip(false)
+    }
+  }
 
-      if (!mapRef.current || !(window as any).google?.maps) return
-      const googleMaps = (window as any).google.maps as typeof google.maps
-      const map = mapRef.current
+  const renderTrip = () => {
+    if (!mapRef.current || !(window as any).google?.maps) return
+    const googleMaps = (window as any).google.maps as typeof google.maps
+    const map = mapRef.current
 
-      // نضعهم بشكل “رمزي” قرب المعبر (لاحقاً: نقاط GPS حقيقية)
-      drivers.forEach((d, idx) => {
-        const jitter = 0.04
-        const pos = {
-          lat: BORDER_CENTER.lat + (Math.random() - 0.5) * jitter,
-          lng: BORDER_CENTER.lng + (Math.random() - 0.5) * jitter,
-        }
-        const marker = new googleMaps.Marker({
+    clearMap()
+
+    const start: LatLng | null =
+      tripRow?.start_lat != null && tripRow?.start_lng != null
+        ? { lat: Number(tripRow.start_lat), lng: Number(tripRow.start_lng) }
+        : null
+
+    const end: LatLng | null =
+      tripRow?.end_lat != null && tripRow?.end_lng != null
+        ? { lat: Number(tripRow.end_lat), lng: Number(tripRow.end_lng) }
+        : null
+
+    const stops = normalizeStops(tripRow?.stops)
+      .slice()
+      .sort((a, b) => (a.order_index ?? 0) - (b.order_index ?? 0))
+      .slice(0, 7)
+
+    if (!start || !end) {
+      // fallback center
+      map.setCenter(BORDER_CENTER)
+      map.setZoom(10)
+      return
+    }
+
+    const bounds = new googleMaps.LatLngBounds()
+    bounds.extend(start)
+    bounds.extend(end)
+
+    // Start marker (green)
+    markersRef.current.push(
+      new googleMaps.Marker({
+        position: start,
+        map,
+        title: tripRow?.start_location_name || 'نقطة البداية',
+        icon: { url: 'http://maps.google.com/mapfiles/ms/icons/green-dot.png' },
+      })
+    )
+
+    // Bus marker (amber) near start (slight offset so it doesn't overlap)
+    markersRef.current.push(
+      new googleMaps.Marker({
+        position: { lat: start.lat + 0.002, lng: start.lng + 0.002 },
+        map,
+        title: 'الباص',
+        icon: iconBus(googleMaps),
+        label: {
+          text: '🚌',
+          color: '#111827',
+          fontWeight: '900',
+          fontSize: '14px',
+        },
+        zIndex: 50,
+      })
+    )
+
+    // Stop markers (blue numbered circles)
+    stops.forEach((s, idx) => {
+      const pos = { lat: Number(s.lat), lng: Number(s.lng) }
+      if (!Number.isFinite(pos.lat) || !Number.isFinite(pos.lng)) return
+      bounds.extend(pos)
+      markersRef.current.push(
+        new googleMaps.Marker({
           position: pos,
           map,
-          title: d.name,
-          icon: { url: 'http://maps.google.com/mapfiles/ms/icons/red-dot.png' },
+          title: s.name || `نقطة توقف ${idx + 1}`,
+          icon: iconStop(googleMaps),
+          label: { text: String(idx + 1), color: '#ffffff', fontWeight: '900', fontSize: '12px' },
         })
+      )
+    })
 
-        const info = new googleMaps.InfoWindow({
-          content: `
-            <div style="padding: 10px; font-family: Arial;">
-              <div style="font-weight: 800; margin-bottom: 6px;">${d.name}</div>
-              <div style="font-size: 12px; color: #374151;">نوع المركبة: ${d.vehicle_type}</div>
-              <div style="font-size: 12px; color: #374151;">المقاعد: ${d.seats_count}</div>
-            </div>
-          `,
-        })
-
-        marker.addListener('click', () => info.open(map, marker))
-        markersRef.current.push(marker)
+    // End marker (red)
+    markersRef.current.push(
+      new googleMaps.Marker({
+        position: end,
+        map,
+        title: tripRow?.end_location_name || 'نقطة النهاية',
+        icon: { url: 'http://maps.google.com/mapfiles/ms/icons/red-dot.png' },
       })
-    } catch (e: any) {
-      console.error('HomeTransportMap load drivers error:', e)
-      // لا نوقف الصفحة — فقط نخفي السائقين إذا في مشكلة
+    )
+
+    // Polyline path (start -> stops -> end)
+    const path: LatLng[] = [start, ...stops.map((s) => ({ lat: Number(s.lat), lng: Number(s.lng) })), end]
+    polylineRef.current = new googleMaps.Polyline({
+      path,
+      geodesic: true,
+      strokeColor: '#2563eb',
+      strokeOpacity: 0.85,
+      strokeWeight: 4,
+    })
+    polylineRef.current.setMap(map)
+
+    map.fitBounds(bounds, 60)
+  }
+
+  const loadUserHint = async () => {
+    try {
+      setLoadingUserHint(true)
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
+      if (!user) {
+        setUserHint(null)
+        return
+      }
+
+      const { data, error } = await supabase
+        .from('visit_requests')
+        .select('id, visitor_name, trip_id, created_at, admin_notes')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+
+      if (error) throw error
+      if (!data) {
+        setUserHint(null)
+        return
+      }
+
+      // show even if draft; but keep it safe/minimal
+      setUserHint({
+        request_id: data.id,
+        visitor_name: (data as any).visitor_name || 'الراكب',
+        trip_id: (data as any).trip_id || null,
+      })
+    } catch (e) {
+      console.error('HomeTransportMap load user hint error:', e)
+      setUserHint(null)
+    } finally {
+      setLoadingUserHint(false)
     }
   }
 
@@ -185,9 +346,47 @@ export default function HomeTransportMap() {
   useEffect(() => {
     if (!ready) return
     initMap()
-    loadDrivers()
+    fetchTripMap(mode)
+    loadUserHint()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready])
+
+  useEffect(() => {
+    if (!ready) return
+    fetchTripMap(mode)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode, ready])
+
+  useEffect(() => {
+    if (!ready) return
+    renderTrip()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ready, JSON.stringify(tripRow)])
+
+  const tripLabel = useMemo(() => {
+    const isArr = mode === 'arrivals'
+    const badge = isArr ? 'القادمون' : 'المغادرون'
+    const demo = tripRow?.is_demo ? 'نموذج' : 'رحلة حالية'
+    const startName = tripRow?.start_location_name || ''
+    const endName = tripRow?.end_location_name || ''
+    const route = startName && endName ? `${startName} → ${endName}` : null
+    return { badge, demo, route }
+  }, [mode, tripRow])
+
+  const dateText = useMemo(() => {
+    if (!tripRow?.trip_date) return null
+    try {
+      return formatDate(tripRow.trip_date)
+    } catch {
+      return tripRow.trip_date
+    }
+  }, [tripRow?.trip_date])
+
+  const timeText = useMemo(() => {
+    const t = tripRow?.departure_time || tripRow?.meeting_time
+    if (!t) return null
+    return String(t).slice(0, 5)
+  }, [tripRow?.departure_time, tripRow?.meeting_time])
 
   return (
     <div className="max-w-6xl mx-auto">
@@ -196,21 +395,52 @@ export default function HomeTransportMap() {
           <div className="min-w-0">
             <h3 className="text-sm sm:text-base md:text-lg font-extrabold text-gray-900 flex items-center gap-2">
               <MapPin className="w-5 h-5 text-blue-600" />
-              خريطة حركة النقل (تجريبية)
+              خريطة تسلسل الرحلة والمسار
             </h3>
             <p className="text-xs sm:text-sm text-gray-600 mt-1">
-              عرض رمزي للسائقين ومحطات التوقف — لاحقاً نربطها بتتبّع حقيقي لكل طلب
+              رحلة حالية إن وجدت — وإن لم توجد نعرض نموذج رحلة مع نقاط التوقف ورسم المسار
             </p>
           </div>
-          <span className="text-[10px] sm:text-xs font-semibold px-2 py-1 rounded-full bg-blue-50 border border-blue-100 text-blue-700 flex-shrink-0">
-            Demo
-          </span>
+          <div className="flex items-center gap-2 flex-shrink-0">
+            <button
+              type="button"
+              onClick={() => setMode('arrivals')}
+              className={[
+                'px-3 py-1.5 rounded-full text-[11px] font-extrabold border transition',
+                mode === 'arrivals'
+                  ? 'bg-blue-600 text-white border-blue-600'
+                  : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50',
+              ].join(' ')}
+              aria-label="القادمون"
+            >
+              <span className="inline-flex items-center gap-1.5">
+                <Plane className="w-3.5 h-3.5" />
+                القادمون
+              </span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setMode('departures')}
+              className={[
+                'px-3 py-1.5 rounded-full text-[11px] font-extrabold border transition',
+                mode === 'departures'
+                  ? 'bg-green-600 text-white border-green-600'
+                  : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50',
+              ].join(' ')}
+              aria-label="المغادرون"
+            >
+              <span className="inline-flex items-center gap-1.5">
+                <Plane className="w-3.5 h-3.5 rotate-180" />
+                المغادرون
+              </span>
+            </button>
+          </div>
         </div>
 
         {errorText ? (
           <div className="p-5 text-sm text-gray-700">{errorText}</div>
         ) : (
-          <div ref={inViewRef} className="w-full">
+          <div ref={inViewRef} className="w-full relative">
             {!shouldLoad && (
               <div className="w-full h-[280px] sm:h-[360px] md:h-[420px] flex items-center justify-center bg-gray-50 text-sm text-gray-600">
                 جاري تحميل الخريطة...
@@ -220,6 +450,72 @@ export default function HomeTransportMap() {
               ref={mapElRef}
               className={`${shouldLoad ? '' : 'hidden'} w-full h-[280px] sm:h-[360px] md:h-[420px]`}
             />
+
+            {/* Overlay: Trip meta */}
+            {shouldLoad && (
+              <div className="pointer-events-none absolute top-3 left-3 right-3 flex items-start justify-between gap-3">
+                <div className="pointer-events-auto bg-white/90 backdrop-blur-md rounded-xl shadow-lg border border-gray-200 p-2.5 sm:p-3 min-w-0">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <div className="w-9 h-9 rounded-xl bg-amber-50 flex items-center justify-center flex-shrink-0">
+                      <Bus className="w-5 h-5 text-amber-700" />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="text-xs sm:text-sm font-extrabold text-gray-900 truncate">
+                        {tripLabel.badge} — {loadingTrip ? 'جاري التحميل...' : tripLabel.demo}
+                      </div>
+                      <div className="text-[11px] text-gray-600 truncate">
+                        {tripLabel.route || 'مسار افتراضي'}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="mt-2 flex items-center gap-2 text-[11px] text-gray-700">
+                    <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-gray-50 border border-gray-200">
+                      <Calendar className="w-3.5 h-3.5 text-gray-600" />
+                      {dateText || '—'}
+                    </span>
+                    <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-gray-50 border border-gray-200">
+                      <Clock className="w-3.5 h-3.5 text-gray-600" />
+                      {timeText || '—'}
+                    </span>
+                    <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-blue-50 border border-blue-100 text-blue-700 font-bold">
+                      <Route className="w-3.5 h-3.5" />
+                      نقاط توقف: {normalizeStops(tripRow?.stops).length}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Overlay: user hint */}
+                {userHint && (
+                  <div className="pointer-events-auto bg-white/90 backdrop-blur-md rounded-xl shadow-lg border border-gray-200 p-2.5 sm:p-3 w-[min(20rem,100%)]">
+                    <div className="text-xs sm:text-sm font-extrabold text-gray-900 truncate">
+                      {userHint.visitor_name}
+                    </div>
+                    <div className="text-[11px] text-gray-700 mt-1 leading-relaxed">
+                      {userHint.trip_id
+                        ? 'تتبّع الرحلة متاح الآن.'
+                        : 'سيتوفر لك تتبّع الرحلة عند بداية رحلة الراكب.'}
+                    </div>
+                    <div className="mt-2">
+                      {userHint.trip_id ? (
+                        <Link
+                          href={`/dashboard/request/${userHint.request_id}/track`}
+                          className="inline-flex items-center justify-center w-full px-3 py-2 rounded-lg bg-green-600 text-white text-xs font-extrabold hover:bg-green-700 transition"
+                        >
+                          فتح تتبّع الرحلة
+                        </Link>
+                      ) : (
+                        <Link
+                          href={`/dashboard/request/${userHint.request_id}/follow`}
+                          className="inline-flex items-center justify-center w-full px-3 py-2 rounded-lg bg-blue-600 text-white text-xs font-extrabold hover:bg-blue-700 transition"
+                        >
+                          متابعة الطلب
+                        </Link>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         )}
       </div>
