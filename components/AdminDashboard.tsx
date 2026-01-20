@@ -127,13 +127,10 @@ export default function AdminDashboard() {
         return
       }
 
-      // إخفاء الطلبات غير المرسلة (Draft) من لوحة الإدارة
-      const visibleRequests = (requestsData || []).filter((r: any) => {
-        const notes = (r?.admin_notes || '') as string
-        return !notes.startsWith('[DRAFT]')
-      })
-
       // تحميل ملفات المستخدمين
+      const visibleRequests = (requestsData || []) as any[]
+
+      // تحميل ملفات المستخدمين (لكل الطلبات، بما فيها المسودات)
       const userIds = Array.from(new Set((visibleRequests || []).map((r: any) => r.user_id)))
       let profilesMap: { [key: string]: UserProfile } = {}
       
@@ -153,8 +150,9 @@ export default function AdminDashboard() {
         }
       }
 
+      // ملاحظة: المشرف يرى فقط الطلبات المعيّنة له (المسودات عادة لا تكون معيّنة)
       const scoped = isSupervisor
-        ? (visibleRequests || []).filter((r: any) => (r?.assigned_to || null) === user.id)
+        ? (visibleRequests || []).filter((r: any) => (r?.assigned_to || null) === user.id && !String((r?.admin_notes || '') as string).startsWith('[DRAFT]'))
         : (visibleRequests || [])
 
       setRequests(scoped || [])
@@ -228,7 +226,9 @@ export default function AdminDashboard() {
       request.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
       request.city.toLowerCase().includes(searchQuery.toLowerCase())
 
-    const isNew = request.status === 'pending' && (Date.now() - new Date(request.created_at).getTime()) < 24 * 60 * 60 * 1000
+    const notes = (request.admin_notes || '') as string
+    const isDraft = notes.startsWith('[DRAFT]')
+    const isNew = request.status === 'pending' && !isDraft && (Date.now() - new Date(request.created_at).getTime()) < 24 * 60 * 60 * 1000
     const isReceived = request.status === 'pending'
     const isInProgress = request.status === 'approved' && (request.trip_status === 'pending_arrival' || request.trip_status === 'arrived')
     const isBooking = Boolean(request.trip_status) || Boolean(request.arrival_date) || Boolean(request.departure_date)
@@ -236,6 +236,8 @@ export default function AdminDashboard() {
     const matchesStatus =
       statusFilter === 'all'
         ? true
+        : statusFilter === 'drafts'
+          ? isDraft
         : statusFilter === 'new'
           ? isNew
           : statusFilter === 'received'
@@ -275,6 +277,7 @@ export default function AdminDashboard() {
   // حساب الإحصائيات
   const stats: StatsType = {
     total: requests.length,
+    // ملاحظة: نعتبر المسودات "غير مكتملة" وهي ظاهرة فقط للإدمن (ليس المشرف)
     newRequests: requests.filter(r => r.status === 'pending' && (Date.now() - new Date(r.created_at).getTime()) < 24 * 60 * 60 * 1000).length,
     received: requests.filter(r => r.status === 'pending').length,
     underReview: requests.filter(r => r.status === 'under_review').length,

@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import toast from 'react-hot-toast'
-import { ArrowRight, CheckCircle, Clock, Save } from 'lucide-react'
+import { ArrowRight, CheckCircle, Clock, Save, MessageCircle, Phone } from 'lucide-react'
 import { createSupabaseBrowserClient } from '@/lib/supabase'
 import TripSchedulingModal from '@/components/admin/TripSchedulingModal'
 import { formatDate } from '@/lib/date-utils'
@@ -11,6 +11,7 @@ import { parseAdminNotes } from '@/components/request-details/utils'
 import { notifyRequestApproved, notifyRequestRejected, notifyPaymentVerified, notifyCustomMessage } from '@/lib/notifications'
 
 type Role = 'admin' | 'supervisor'
+type ContactProfile = { full_name: string | null; phone: string | null; jordan_phone?: string | null; whatsapp_phone?: string | null }
 
 type ReqRow = {
   id: string
@@ -82,6 +83,7 @@ export default function AdminRequestFollow({
   const [showSchedule, setShowSchedule] = useState(false)
   const [saving, setSaving] = useState(false)
   const [newResponse, setNewResponse] = useState('')
+  const [userProfile, setUserProfile] = useState<ContactProfile | null>(null)
 
   const load = async () => {
     try {
@@ -103,6 +105,18 @@ export default function AdminRequestFollow({
       }
 
       setRequest(row)
+
+      // Load contact profile for WhatsApp/phone buttons
+      try {
+        const { data: prof } = await supabase
+          .from('profiles')
+          .select('full_name,phone,jordan_phone,whatsapp_phone')
+          .eq('user_id', row.user_id)
+          .maybeSingle()
+        setUserProfile((prof as any) || null)
+      } catch {
+        setUserProfile(null)
+      }
     } catch (e: any) {
       console.error('Admin follow load error:', e)
       toast.error(e?.message || 'تعذر تحميل الطلب')
@@ -242,6 +256,32 @@ export default function AdminRequestFollow({
     }
   }
 
+  const appendAdminResponseAndNotify = async (msg: string, alsoMarkReceived?: boolean) => {
+    if (!request) return
+    const clean = (msg || '').trim()
+    if (!clean) return toast.error('لا يوجد نص لإرساله')
+    try {
+      setSaving(true)
+      const stamp = new Date().toISOString()
+      const section = `\n\n=== رد الإدارة ===\n${clean}\nتاريخ الرد: ${stamp}`
+      const nextNotes = ((request.admin_notes || '') as string) + section
+      const update: any = { admin_notes: nextNotes, updated_at: new Date().toISOString() }
+      if (alsoMarkReceived && request.status === 'pending') {
+        update.status = 'under_review'
+      }
+      const { error } = await supabase.from('visit_requests').update(update).eq('id', request.id)
+      if (error) throw error
+      await notifyCustomMessage(request.user_id, request.id, clean)
+      toast.success('تم إرسال الرسالة للمستخدم')
+      await load()
+    } catch (e: any) {
+      console.error('appendAdminResponseAndNotify error:', e)
+      toast.error(e?.message || 'تعذر إرسال الرسالة')
+    } finally {
+      setSaving(false)
+    }
+  }
+
   if (loading) {
     return (
       <div className="page">
@@ -257,6 +297,9 @@ export default function AdminRequestFollow({
   if (!request) return null
 
   const remaining = request.remaining_amount ?? 20
+  const contactRaw = String(userProfile?.whatsapp_phone || adminInfo?.syrianPhone || userProfile?.phone || adminInfo?.jordanPhone || '')
+  const waDigits = contactRaw.replace(/[^\d]/g, '')
+  const callDigits = String(userProfile?.phone || adminInfo?.syrianPhone || adminInfo?.jordanPhone || '').replace(/[^\d+]/g, '')
 
   return (
     <div className="page">
@@ -336,6 +379,67 @@ export default function AdminRequestFollow({
 
               {/* Actions */}
               <div className="mt-4 space-y-2">
+                {activeStep === 1 && (
+                  <div className="bg-white border border-gray-200 rounded-lg p-3 space-y-3">
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="font-extrabold text-gray-900 text-sm">خيارات سريعة</p>
+                        <p className="text-xs text-gray-600">اضغط لإرسال رد جاهز للمستخدم وتسجيله في ملاحظات الطلب.</p>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        {waDigits && (
+                          <a
+                            href={`https://wa.me/${waDigits}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="px-3 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition text-xs font-semibold inline-flex items-center gap-2"
+                            title="واتساب"
+                          >
+                            <MessageCircle className="w-4 h-4" />
+                            واتساب
+                          </a>
+                        )}
+                        {callDigits && (
+                          <a
+                            href={`tel:${callDigits}`}
+                            className="px-3 py-2 bg-gray-800 text-white rounded-lg hover:bg-black transition text-xs font-semibold inline-flex items-center gap-2"
+                            title="اتصال"
+                          >
+                            <Phone className="w-4 h-4" />
+                            اتصال
+                          </a>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="flex flex-col sm:flex-row gap-2">
+                      <button
+                        type="button"
+                        onClick={() => appendAdminResponseAndNotify('تم استلام طلبك وسيتم التواصل معك قريباً.', true)}
+                        disabled={saving}
+                        className="px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm font-semibold disabled:opacity-50"
+                      >
+                        تم استلام الطلب
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => appendAdminResponseAndNotify('يرجى تزويدنا بصورة جواز أوضح/صالحة لإكمال الطلب.')}
+                        disabled={saving}
+                        className="px-4 py-2.5 bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition text-sm font-semibold disabled:opacity-50"
+                      >
+                        طلب صورة أوضح للجواز
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => appendAdminResponseAndNotify('يرجى مراجعة بيانات الطلب وإكمال النواقص ثم إعادة الإرسال.')}
+                        disabled={saving}
+                        className="px-4 py-2.5 bg-gray-800 text-white rounded-lg hover:bg-black transition text-sm font-semibold disabled:opacity-50"
+                      >
+                        طلب إكمال النواقص
+                      </button>
+                    </div>
+                  </div>
+                )}
                 {activeStep === 2 && (
                   <div className="flex flex-col sm:flex-row gap-2">
                     <button

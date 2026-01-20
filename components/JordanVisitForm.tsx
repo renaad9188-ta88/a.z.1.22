@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { createSupabaseBrowserClient } from '@/lib/supabase'
 import toast from 'react-hot-toast'
 import { ArrowLeft, Calendar, Upload, Trash2, X, Plus, User, Phone, MessageCircle, Lock, AlertTriangle } from 'lucide-react'
+import { notifyAllAdmins } from '@/lib/notifications'
 
 const DEPARTURE_CITIES = [
   'الشام', 'درعا', 'حلب', 'حمص', 'حماة', 'اللاذقية', 'طرطوس', 
@@ -343,6 +344,19 @@ export default function JordanVisitForm() {
         .single()
 
       if (error) throw error
+
+      // إشعار للإدمن: تم إنشاء مسودة (طلب غير مكتمل) مع صور جوازات
+      try {
+        await notifyAllAdmins({
+          title: 'طلب غير مكتمل (مسودة)',
+          message: `قام ${accountName || 'مستخدم'} بحفظ مسودة طلب زيارة الأردن لـ ${primaryVisitorName}. يرجى التواصل لإكمال الطلب.`,
+          type: 'warning',
+          relatedType: 'request',
+          relatedId: requestData.id,
+        })
+      } catch (e) {
+        console.warn('Could not notify admins about draft request:', e)
+      }
 
       toast.success('تم حفظ بيانات الزوار. أكمل المتابعة.')
       router.push(`/services/jordan-visit/payment/${requestData.id}`)

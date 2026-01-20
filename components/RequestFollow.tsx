@@ -36,6 +36,9 @@ export default function RequestFollow({ requestId, userId }: { requestId: string
   const [availableTrips, setAvailableTrips] = useState<any[]>([])
   const [loadingTrips, setLoadingTrips] = useState(false)
   const [bookedTrip, setBookedTrip] = useState<any | null>(null)
+  const [tripStopsById, setTripStopsById] = useState<Record<string, any[]>>({})
+  const [loadingStopsId, setLoadingStopsId] = useState<string | null>(null)
+  const [expandedTripId, setExpandedTripId] = useState<string | null>(null)
 
   const load = async () => {
     try {
@@ -179,6 +182,28 @@ export default function RequestFollow({ requestId, userId }: { requestId: string
     loadAvailableTrips()
   }
 
+  const toggleTripStops = async (tripId: string) => {
+    const next = expandedTripId === tripId ? null : tripId
+    setExpandedTripId(next)
+    if (!next) return
+    if (tripStopsById[tripId]) return
+    try {
+      setLoadingStopsId(tripId)
+      const { data, error } = await supabase
+        .from('route_trip_stop_points')
+        .select('id,name,order_index,lat,lng')
+        .eq('trip_id', tripId)
+        .order('order_index', { ascending: true })
+      if (error) throw error
+      setTripStopsById((p) => ({ ...p, [tripId]: data || [] }))
+    } catch (e: any) {
+      console.error('Error loading stop points:', e)
+      setTripStopsById((p) => ({ ...p, [tripId]: [] }))
+    } finally {
+      setLoadingStopsId(null)
+    }
+  }
+
   const steps = useMemo(() => {
     const notes = (request?.admin_notes || '') as string
     const isDraft = notes.startsWith('[DRAFT]')
@@ -199,29 +224,22 @@ export default function RequestFollow({ requestId, userId }: { requestId: string
       },
       {
         id: 2,
-        title: 'موافقة الإدارة',
-        done: Boolean(hasDecision),
-        help:
-          request?.status === 'rejected'
-            ? 'تم رفض الطلب. يمكنك مراجعة سبب الرفض من التفاصيل.'
-            : isApproved
-            ? 'تمت الموافقة على الطلب.'
-            : 'بانتظار موافقة الإدارة على الطلب.',
+        title: 'استكمال بعد الموافقة',
+        done: (Boolean(postApprovalSubmitted) || paymentVerified) && Boolean(isApproved),
+        help: !hasDecision
+          ? 'بانتظار موافقة الإدارة على الطلب.'
+          : request?.status === 'rejected'
+          ? 'تم رفض الطلب. يمكنك مراجعة سبب الرفض من التفاصيل.'
+          : 'بعد الموافقة: اختر الكفالة وطريقة الدفع ثم احفظ وأرسل الاستكمال.',
       },
       {
         id: 3,
-        title: 'استكمال بعد الموافقة',
-        done: Boolean(postApprovalSubmitted) || paymentVerified,
-        help: 'اختر الكفالة وطريقة الدفع ثم احفظ وأرسل الاستكمال.',
-      },
-      {
-        id: 4,
         title: 'تأكيد الدفع',
         done: paymentVerified,
         help: 'بانتظار تأكيد الإدارة للدفع لفتح الحجز.',
       },
       {
-        id: 5,
+        id: 4,
         title: 'حجز موعد القدوم',
         done: hasArrival,
         help: 'حدد موعد القدوم بعد فتح الحجز.',
@@ -235,7 +253,7 @@ export default function RequestFollow({ requestId, userId }: { requestId: string
   }, [steps])
 
   const current = steps.find((s) => s.id === activeStep)
-  const canGoNext = activeStep < 5 && Boolean(steps.find((s) => s.id === activeStep)?.done)
+  const canGoNext = activeStep < 4 && Boolean(steps.find((s) => s.id === activeStep)?.done)
 
   if (loading) {
     return (
@@ -380,32 +398,32 @@ export default function RequestFollow({ requestId, userId }: { requestId: string
                   </>
                 )}
                 {activeStep === 2 && (
-                  <div className="text-sm text-gray-700">
-                    بانتظار موافقة الإدارة. سيتم إشعارك عند القبول.
-                  </div>
+                  !Boolean(request.status === 'approved' || request.status === 'completed') ? (
+                    <div className="text-sm text-gray-700">
+                      بانتظار موافقة الإدارة على الطلب. سيتم إشعارك عند القبول.
+                    </div>
+                  ) : (
+                    <div className="flex flex-col sm:flex-row gap-2">
+                      <Link
+                        href={postApprovalHref}
+                        className="px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm font-semibold text-center"
+                      >
+                        استكمال الإجراءات
+                      </Link>
+                      <div className="px-4 py-2.5 bg-white border border-gray-200 rounded-lg text-sm text-gray-700">
+                        المتبقي: <span className="font-bold text-blue-700">{remaining} دينار</span>
+                      </div>
+                    </div>
+                  )
                 )}
 
                 {activeStep === 3 && (
-                  <div className="flex flex-col sm:flex-row gap-2">
-                    <Link
-                      href={postApprovalHref}
-                      className="px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm font-semibold text-center"
-                    >
-                      استكمال الإجراءات
-                    </Link>
-                    <div className="px-4 py-2.5 bg-white border border-gray-200 rounded-lg text-sm text-gray-700">
-                      المتبقي: <span className="font-bold text-blue-700">{remaining} دينار</span>
-                    </div>
-                  </div>
-                )}
-
-                {activeStep === 4 && (
                   <div className="text-sm text-gray-700">
                     تم إرسال الاستكمال. بانتظار تأكيد الدفع من الإدارة لفتح الحجز.
                   </div>
                 )}
 
-                {activeStep === 5 && (
+                {activeStep === 4 && (
                   <div className="space-y-3">
                     {/* عرض الرحلة المحجوزة */}
                     {request.trip_id && bookedTrip ? (
@@ -582,6 +600,37 @@ export default function RequestFollow({ requestId, userId }: { requestId: string
                               <div className="flex items-center gap-2">
                                 <Navigation className="w-4 h-4 text-blue-600" />
                                 <span>وقت الانطلاق: {trip.departure_time}</span>
+                              </div>
+                            )}
+                          </div>
+
+                          <div className="mt-3">
+                            <button
+                              type="button"
+                              onClick={() => toggleTripStops(trip.id)}
+                              className="text-xs sm:text-sm font-semibold text-blue-700 hover:text-blue-800 underline"
+                            >
+                              {expandedTripId === trip.id ? 'إخفاء محطات التوقف' : 'عرض محطات التوقف'}
+                            </button>
+
+                            {expandedTripId === trip.id && (
+                              <div className="mt-2 bg-gray-50 border border-gray-200 rounded-lg p-3">
+                                {loadingStopsId === trip.id ? (
+                                  <p className="text-xs text-gray-600">جاري تحميل محطات التوقف...</p>
+                                ) : (tripStopsById[trip.id] || []).length === 0 ? (
+                                  <p className="text-xs text-gray-600">لا توجد محطات توقف لهذه الرحلة.</p>
+                                ) : (
+                                  <div className="space-y-2">
+                                    {(tripStopsById[trip.id] || []).map((s: any, idx: number) => (
+                                      <div key={s.id} className="flex items-center gap-2 text-xs sm:text-sm text-gray-700">
+                                        <span className="w-5 h-5 bg-blue-600 text-white rounded-full flex items-center justify-center text-[11px] font-bold">
+                                          {idx + 1}
+                                        </span>
+                                        <span className="font-semibold">{s.name}</span>
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
                               </div>
                             )}
                           </div>

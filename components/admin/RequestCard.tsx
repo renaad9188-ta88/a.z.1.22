@@ -2,14 +2,14 @@
 
 import { formatDate } from '@/lib/date-utils'
 import { VisitRequest } from './types'
-import { Clock, CheckCircle, XCircle, Eye, Calendar, MapPin, Users, DollarSign, Plane, Copy, ExternalLink } from 'lucide-react'
+import { Clock, CheckCircle, XCircle, Eye, Calendar, MapPin, Users, DollarSign, Plane, Copy, ExternalLink, MessageCircle, Phone } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { parseAdminNotes } from '../request-details/utils'
 import Link from 'next/link'
 
 interface RequestCardProps {
   request: VisitRequest
-  userProfile?: { full_name: string | null; phone: string | null }
+  userProfile?: { full_name: string | null; phone: string | null; whatsapp_phone?: string | null; jordan_phone?: string | null }
   onClick: () => void
   onScheduleTrip?: () => void
   index?: number
@@ -121,6 +121,12 @@ export default function RequestCard({ request, userProfile, onClick, onScheduleT
   const isJordanVisit = Boolean(request.admin_notes?.includes('خدمة: زيارة الأردن لمدة شهر'))
   const adminInfo = parseAdminNotes((request.admin_notes || '') as string) || {}
   // سيتم حساب isCompleted لاحقاً ثم نستخدمه هنا (بعد تعريفه)
+  const isDraft = ((request.admin_notes || '') as string).startsWith('[DRAFT]')
+
+  const waDigits = String(userProfile?.whatsapp_phone || adminInfo.syrianPhone || userProfile?.phone || adminInfo.jordanPhone || '')
+    .replace(/[^\d]/g, '')
+  const callDigits = String(userProfile?.phone || adminInfo.syrianPhone || adminInfo.jordanPhone || '').replace(/[^\d+]/g, '')
+  const waHref = waDigits ? `https://wa.me/${waDigits}` : ''
 
   // ملاحظة أداء: لا نعتمد على companions_data في بطاقة القائمة (قد تكون كبيرة وتبطّئ تحميل لوحة الأدمن).
   // العدد هنا تقديري ودقيق في أغلب الحالات: الزائر + عدد المرافقين.
@@ -188,6 +194,11 @@ export default function RequestCard({ request, userProfile, onClick, onScheduleT
                     جديد
                   </span>
                 )}
+                {isDraft && (
+                  <span className="px-2 py-0.5 bg-red-600 text-white text-xs font-bold rounded-full animate-pulse">
+                    غير مكتمل
+                  </span>
+                )}
               </div>
               {userProfile?.full_name && (
                 <p className="text-xs sm:text-sm text-gray-600 mb-2 flex items-center gap-1">
@@ -197,6 +208,37 @@ export default function RequestCard({ request, userProfile, onClick, onScheduleT
                     <span className="text-gray-400">• {userProfile.phone}</span>
                   )}
                 </p>
+              )}
+              {isDraft && (
+                <div className="flex flex-wrap gap-2 mb-2">
+                  {waHref && (
+                    <a
+                      href={waHref}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={(e) => e.stopPropagation()}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-green-600 text-white hover:bg-green-700 transition text-xs font-bold"
+                      title="فتح واتساب للتواصل"
+                    >
+                      <MessageCircle className="w-3.5 h-3.5" />
+                      واتساب
+                    </a>
+                  )}
+                  {callDigits && (
+                    <a
+                      href={`tel:${callDigits}`}
+                      onClick={(e) => e.stopPropagation()}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gray-800 text-white hover:bg-black transition text-xs font-bold"
+                      title="اتصال"
+                    >
+                      <Phone className="w-3.5 h-3.5" />
+                      اتصال
+                    </a>
+                  )}
+                  {!waHref && !callDigits && (
+                    <span className="text-xs text-gray-500">لا يوجد رقم تواصل محفوظ</span>
+                  )}
+                </div>
               )}
               {getStatusBadge(request.status)}
             </div>

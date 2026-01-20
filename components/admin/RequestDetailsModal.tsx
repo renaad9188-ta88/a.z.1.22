@@ -472,6 +472,13 @@ export default function RequestDetailsModal({
               <ImageIcon className="w-5 h-5 text-gray-600" />
               صور الجوازات ({passportImages.length})
             </h3>
+            {/* Hint for common storage/RLS misconfig */}
+            {!imagesLoading && passportImages.length > 0 && (
+              <div className="mb-3 text-xs sm:text-sm bg-amber-50 border border-amber-200 text-amber-900 rounded-lg p-3">
+                إذا لم تظهر صور الجوازات هنا بينما تظهر صور الدفعات، فهذا غالباً بسبب صلاحيات Storage (RLS).
+                شغّل سكربت <span className="font-mono bg-white px-1 rounded">supabase/ADD_ADMIN_STORAGE_POLICY.sql</span> في Supabase SQL Editor (مع التأكد أن حسابك دوره admin).
+              </div>
+            )}
             {imagesLoading ? (
               <div className="flex items-center justify-center py-8">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>

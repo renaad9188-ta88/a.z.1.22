@@ -682,7 +682,13 @@ export default function RequestDetails({ requestId, userId }: { requestId: strin
                         return handleSavePostApproval()
                       }}
                       disabled={savingPostApproval || alreadySubmittedPostApproval || postApprovalSubmitted}
-                      className="w-full sm:w-auto px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm font-semibold disabled:opacity-50"
+                      className={`w-full sm:w-auto px-4 py-2.5 rounded-lg transition text-sm font-semibold disabled:opacity-50 ${
+                        alreadySubmittedPostApproval || postApprovalSubmitted
+                          ? 'bg-gray-400 text-white'
+                          : postApprovalSaved
+                          ? 'bg-green-600 text-white hover:bg-green-700 animate-pulse ring-2 ring-green-200'
+                          : 'bg-blue-600 text-white hover:bg-blue-700'
+                      }`}
                     >
                       {savingPostApproval
                         ? postApprovalSaved

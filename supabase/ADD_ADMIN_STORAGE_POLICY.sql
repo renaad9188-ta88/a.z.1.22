@@ -19,7 +19,7 @@ USING (
       SELECT 1 
       FROM profiles 
       WHERE user_id = auth.uid() 
-      AND role = 'admin'
+      AND lower(role) IN ('admin', 'supervisor')
     )
   )
 );

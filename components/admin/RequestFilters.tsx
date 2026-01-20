@@ -46,6 +46,7 @@ export default function RequestFilters({
           className="px-3 sm:px-4 py-2 sm:py-2.5 md:py-3 text-xs sm:text-sm md:text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white min-w-0"
         >
           <option value="all">جميع الحالات</option>
+          <option value="drafts">غير مكتملة (مسودات)</option>
           <option value="new">طلبات جديدة (آخر 24 ساعة)</option>
           <option value="received">مستلمة (بانتظار البدء)</option>
           <option value="under_review">قيد المراجعة</option>
