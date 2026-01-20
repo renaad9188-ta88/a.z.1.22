@@ -497,44 +497,48 @@ export default function HomeTransportMap() {
 
             {/* Overlay: Trip meta */}
             {shouldLoad && (
-              <div className="pointer-events-none absolute top-3 left-3 right-3 flex flex-col lg:flex-row items-stretch lg:items-start justify-between gap-2 sm:gap-3">
-                <div className="pointer-events-auto bg-white/90 backdrop-blur-md rounded-xl shadow-lg border border-gray-200 p-2.5 sm:p-3 min-w-0 w-full lg:w-auto">
+              <div className="pointer-events-none absolute inset-0">
+                {/* Trip meta (top-right) */}
+                <div className="pointer-events-none absolute top-3 right-3 left-3 sm:left-auto">
+                  <div className="pointer-events-auto bg-white/85 backdrop-blur-md rounded-lg shadow-md border border-gray-200 px-2.5 py-2 sm:px-3 sm:py-2.5 min-w-0 w-full sm:w-[min(22rem,calc(100vw-1.5rem))]">
                   <div className="flex items-center gap-2 min-w-0">
-                    <div className="w-9 h-9 rounded-xl bg-amber-50 flex items-center justify-center flex-shrink-0">
-                      <Bus className="w-5 h-5 text-amber-700" />
+                    <div className="w-8 h-8 rounded-lg bg-amber-50 flex items-center justify-center flex-shrink-0">
+                      <Bus className="w-4.5 h-4.5 text-amber-700" />
                     </div>
                     <div className="min-w-0">
-                      <div className="text-xs sm:text-sm font-extrabold text-gray-900 truncate">
+                      <div className="text-[11px] sm:text-xs font-extrabold text-gray-900 truncate">
                         {tripLabel.badge} — {loadingTrip ? 'جاري التحميل...' : tripLabel.demo}
                       </div>
-                      <div className="text-[11px] text-gray-600 truncate">
+                      <div className="text-[10px] text-gray-600 truncate">
                         {tripLabel.route || 'مسار افتراضي'}
                       </div>
                     </div>
                   </div>
-                  <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px] text-gray-700">
-                    <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-gray-50 border border-gray-200 whitespace-nowrap">
+                  <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-[10px] text-gray-700">
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-gray-50 border border-gray-200 whitespace-nowrap">
                       <Calendar className="w-3.5 h-3.5 text-gray-600" />
                       {dateText || '—'}
                     </span>
-                    <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-gray-50 border border-gray-200 whitespace-nowrap">
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-gray-50 border border-gray-200 whitespace-nowrap">
                       <Clock className="w-3.5 h-3.5 text-gray-600" />
                       {timeText || '—'}
                     </span>
-                    <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-blue-50 border border-blue-100 text-blue-700 font-bold whitespace-nowrap">
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-blue-50 border border-blue-100 text-blue-700 font-bold whitespace-nowrap">
                       <Route className="w-3.5 h-3.5" />
                       نقاط توقف: {normalizeStops(tripRow?.stops).length}
                     </span>
+                  </div>
                   </div>
                 </div>
 
                 {/* Overlay: user hint */}
                 {userHint && (
-                  <div className="pointer-events-auto bg-white/90 backdrop-blur-md rounded-xl shadow-lg border border-gray-200 p-2.5 sm:p-3 w-full lg:w-[min(20rem,100%)]">
-                    <div className="text-xs sm:text-sm font-extrabold text-gray-900 break-words leading-tight">
+                  <div className="pointer-events-none absolute bottom-3 left-3 right-3 sm:right-auto">
+                    <div className="pointer-events-auto bg-white/85 backdrop-blur-md rounded-lg shadow-md border border-gray-200 px-2.5 py-2 sm:px-3 sm:py-2.5 w-full sm:w-[min(18rem,calc(100vw-1.5rem))]">
+                    <div className="text-[11px] sm:text-xs font-extrabold text-gray-900 break-words leading-tight">
                       {userHint.visitor_name}
                     </div>
-                    <div className="text-[11px] text-gray-700 mt-1 leading-relaxed">
+                    <div className="text-[10px] text-gray-700 mt-1 leading-relaxed line-clamp-2">
                       {userHint.trip_id
                         ? 'تتبّع الرحلة متاح الآن.'
                         : 'سيتوفر لك تتبّع الرحلة عند بداية رحلة الراكب.'}
@@ -543,19 +547,20 @@ export default function HomeTransportMap() {
                       {userHint.trip_id ? (
                         <Link
                           href={`/dashboard/request/${userHint.request_id}/track`}
-                          className="inline-flex items-center justify-center w-full px-3 py-2 rounded-lg bg-green-600 text-white text-xs font-extrabold hover:bg-green-700 transition"
+                          className="inline-flex items-center justify-center w-full px-3 py-2 rounded-lg bg-green-600 text-white text-[11px] font-extrabold hover:bg-green-700 transition"
                         >
                           فتح تتبّع الرحلة
                         </Link>
                       ) : (
                         <Link
                           href={`/dashboard/request/${userHint.request_id}/follow`}
-                          className="inline-flex items-center justify-center w-full px-3 py-2 rounded-lg bg-blue-600 text-white text-xs font-extrabold hover:bg-blue-700 transition"
+                          className="inline-flex items-center justify-center w-full px-3 py-2 rounded-lg bg-blue-600 text-white text-[11px] font-extrabold hover:bg-blue-700 transition"
                         >
                           متابعة الطلب
                         </Link>
                       )}
                     </div>
+                  </div>
                   </div>
                 )}
               </div>
