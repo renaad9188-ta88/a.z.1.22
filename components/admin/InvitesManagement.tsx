@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import toast from 'react-hot-toast'
 import { createSupabaseBrowserClient } from '@/lib/supabase'
-import { Phone, MessageCircle, Upload, Search, CheckCircle2, UserPlus, RefreshCw } from 'lucide-react'
+import { Phone, MessageCircle, Upload, Search, CheckCircle2, UserPlus, RefreshCw, Plus, Pencil } from 'lucide-react'
 
 type InviteRow = {
   id: string
@@ -54,6 +54,12 @@ export default function InvitesManagement() {
   const [importText, setImportText] = useState('')
   const [importing, setImporting] = useState(false)
   const [sending, setSending] = useState(false)
+  const [addForm, setAddForm] = useState<{ full_name: string; phone: string; country: string }>({
+    full_name: '',
+    phone: '',
+    country: '',
+  })
+  const [savingOne, setSavingOne] = useState(false)
   const fileRef = useRef<HTMLInputElement | null>(null)
 
   const baseUrl = useMemo(() => {
@@ -61,10 +67,14 @@ export default function InvitesManagement() {
     return window.location.origin
   }, [])
 
+  const [messageTpl, setMessageTpl] = useState<string>(
+    '{name}\nندعوك للتسجيل في منصة خدمات السوريين.\nرابط التسجيل: {link}\n\nإذا لا ترغب باستقبال الرسائل اكتب STOP.'
+  )
+
   const inviteMessage = (r: InviteRow) => {
-    const name = (r.full_name || '').trim() || 'أهلاً بك'
     const link = `${baseUrl}/auth/register?invite=${encodeURIComponent(r.invite_token)}`
-    return `${name}\nندعوك للتسجيل في منصة خدمات السوريين.\nرابط التسجيل: ${link}\n\nإذا لا ترغب باستقبال الرسائل اكتب STOP.`
+    const name = (r.full_name || '').trim() || 'أهلاً بك'
+    return (messageTpl || '').replaceAll('{name}', name).replaceAll('{link}', link)
   }
 
   const load = async () => {
@@ -126,7 +136,8 @@ export default function InvitesManagement() {
       const parts = line.includes(',') ? line.split(',') : line.includes('|') ? line.split('|') : line.split('\t')
       const name = (parts[0] || '').trim() || null
       const phone = normalizeDigits(parts[1] || parts[0] || '')
-      const wa = normalizeDigits(parts[2] || parts[1] || '')
+      // حسب طلب الإدارة: إذا لم يُدخل واتساب نستخدم رقم الهاتف
+      const wa = normalizeDigits(parts[2] || '') || phone
       const country = (parts[3] || '').trim() || null
       if (!phone || phone.length < 9) continue
       out.push({
@@ -137,6 +148,35 @@ export default function InvitesManagement() {
       })
     }
     return out
+  }
+
+  const addOne = async () => {
+    const phone = normalizeDigits(addForm.phone)
+    if (!phone || phone.length < 9) {
+      toast.error('أدخل رقم هاتف صحيح')
+      return
+    }
+    try {
+      setSavingOne(true)
+      const payload = {
+        full_name: addForm.full_name.trim() || null,
+        phone,
+        whatsapp_phone: phone, // واتساب = الهاتف
+        country: addForm.country.trim() || null,
+        status: 'new',
+        updated_at: new Date().toISOString(),
+      }
+      const { error } = await supabase.from('invites').upsert(payload as any, { onConflict: 'phone' })
+      if (error) throw error
+      toast.success('تمت الإضافة')
+      setAddForm({ full_name: '', phone: '', country: '' })
+      await load()
+    } catch (e: any) {
+      console.error('addOne error:', e)
+      toast.error(e?.message || 'تعذر إضافة الرقم')
+    } finally {
+      setSavingOne(false)
+    }
   }
 
   const doImport = async () => {
@@ -158,7 +198,7 @@ export default function InvitesManagement() {
           b.map((x: ImportItem) => ({
             full_name: x.full_name,
             phone: x.phone,
-            whatsapp_phone: x.whatsapp_phone,
+            whatsapp_phone: x.whatsapp_phone || x.phone, // واتساب = الهاتف إذا لم يُدخل
             country: x.country,
             status: 'new',
             updated_at: new Date().toISOString(),
@@ -306,10 +346,10 @@ export default function InvitesManagement() {
           <div className="min-w-0">
             <h4 className="text-sm sm:text-base font-extrabold text-gray-900 flex items-center gap-2">
               <Upload className="w-4 h-4 text-blue-600" />
-              استيراد أرقام (CSV أو سطر لكل رقم)
+              إدخال/استيراد أرقام
             </h4>
             <p className="text-xs text-gray-600 mt-1">
-              الصيغة: <span className="font-bold">الاسم,الهاتف,واتساب,الدولة</span> (الواتساب/الدولة اختياري)
+              يمكنك إضافة رقم واحد بسرعة أو لصق/رفع CSV. افتراضياً: <span className="font-bold">واتساب = الهاتف</span>
             </p>
           </div>
           <div className="flex gap-2 w-full sm:w-auto">
@@ -342,6 +382,61 @@ export default function InvitesManagement() {
             </button>
           </div>
         </div>
+
+        {/* Add single */}
+        <div className="mt-4 border border-gray-200 rounded-xl p-3 sm:p-4">
+          <div className="text-xs sm:text-sm font-extrabold text-gray-900 flex items-center gap-2">
+            <Plus className="w-4 h-4 text-blue-600" />
+            إضافة رقم واحد
+            <span className="text-[11px] font-bold text-gray-500">(واتساب = الهاتف)</span>
+          </div>
+          <div className="mt-3 grid grid-cols-1 sm:grid-cols-3 gap-2">
+            <input
+              value={addForm.full_name}
+              onChange={(e) => setAddForm((p) => ({ ...p, full_name: e.target.value }))}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+              placeholder="الاسم (اختياري)"
+            />
+            <input
+              value={addForm.phone}
+              onChange={(e) => setAddForm((p) => ({ ...p, phone: e.target.value }))}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+              placeholder="رقم الهاتف *"
+            />
+            <div className="flex gap-2">
+              <input
+                value={addForm.country}
+                onChange={(e) => setAddForm((p) => ({ ...p, country: e.target.value }))}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                placeholder="الدولة (اختياري) SY/JO"
+              />
+              <button
+                type="button"
+                onClick={addOne}
+                disabled={savingOne}
+                className="px-4 py-2 rounded-lg bg-blue-600 text-white font-extrabold text-sm hover:bg-blue-700 transition disabled:opacity-50 whitespace-nowrap"
+              >
+                {savingOne ? '...' : 'إضافة'}
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Message template */}
+        <div className="mt-4 border border-gray-200 rounded-xl p-3 sm:p-4">
+          <div className="text-xs sm:text-sm font-extrabold text-gray-900 flex items-center gap-2">
+            <Pencil className="w-4 h-4 text-blue-600" />
+            نص الرسالة (قابل للتعديل)
+            <span className="text-[11px] font-bold text-gray-500">{'{name}'} + {'{link}'}</span>
+          </div>
+          <textarea
+            value={messageTpl}
+            onChange={(e) => setMessageTpl(e.target.value)}
+            rows={4}
+            className="mt-2 w-full border border-gray-200 rounded-lg p-3 text-sm"
+          />
+        </div>
+
         <textarea
           value={importText}
           onChange={(e) => setImportText(e.target.value)}

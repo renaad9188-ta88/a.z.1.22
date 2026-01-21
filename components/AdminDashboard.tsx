@@ -14,6 +14,7 @@ import TripSchedulingModal from './admin/TripSchedulingModal'
 import RouteManagement from './admin/RouteManagement'
 import SupervisorsManagement from './admin/SupervisorsManagement'
 import InvitesManagement from './admin/InvitesManagement'
+import CustomersManagement from './admin/CustomersManagement'
 import { VisitRequest, UserProfile, AdminStats as StatsType } from './admin/types'
 import { ChevronDown, Layers } from 'lucide-react'
 
@@ -35,6 +36,7 @@ export default function AdminDashboard() {
   const [showRouteManagement, setShowRouteManagement] = useState(false)
   const [showSupervisorsManagement, setShowSupervisorsManagement] = useState(false)
   const [showInvitesManagement, setShowInvitesManagement] = useState(false)
+  const [showCustomersManagement, setShowCustomersManagement] = useState(false)
   const [collapsedTypes, setCollapsedTypes] = useState<Record<string, boolean>>({})
 
   useEffect(() => {
@@ -335,6 +337,14 @@ export default function AdminDashboard() {
               )}
               {currentRole === 'admin' && (
                 <button
+                  onClick={() => setShowCustomersManagement(!showCustomersManagement)}
+                  className="px-2 sm:px-3 md:px-4 py-1 sm:py-1.5 md:py-2 text-xs sm:text-sm md:text-base text-gray-700 hover:text-blue-600 transition"
+                >
+                  المنتسبين
+                </button>
+              )}
+              {currentRole === 'admin' && (
+                <button
                   onClick={() => setShowSupervisorsManagement(!showSupervisorsManagement)}
                   className="px-2 sm:px-3 md:px-4 py-1 sm:py-1.5 md:py-2 text-xs sm:text-sm md:text-base text-gray-700 hover:text-blue-600 transition"
                 >
@@ -379,6 +389,19 @@ export default function AdminDashboard() {
               </button>
             </div>
             <InvitesManagement />
+          </div>
+        ) : showCustomersManagement ? (
+          <div className="mb-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
+              <h2 className="text-base sm:text-xl font-extrabold text-gray-900">العملاء / المنتسبين</h2>
+              <button
+                onClick={() => setShowCustomersManagement(false)}
+                className="w-full sm:w-auto px-4 py-2 bg-gray-200 rounded-lg hover:bg-gray-300 font-bold"
+              >
+                العودة للطلبات
+              </button>
+            </div>
+            <CustomersManagement />
           </div>
         ) : showSupervisorsManagement ? (
           <div className="mb-6">
