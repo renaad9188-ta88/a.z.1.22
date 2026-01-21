@@ -559,8 +559,8 @@ export default function HomeTransportMap() {
             {shouldLoad && (
               <div className="pointer-events-none absolute inset-0">
                 {/* Trip meta (top-right) */}
-                <div className="pointer-events-none absolute top-3 right-3 left-3 sm:left-auto">
-                  <div className="pointer-events-auto bg-white/85 backdrop-blur-md rounded-lg shadow-md border border-gray-200 px-2.5 py-2 sm:px-3 sm:py-2.5 min-w-0 w-full sm:w-[min(22rem,calc(100vw-1.5rem))]">
+                <div className="pointer-events-none absolute top-3 right-3">
+                  <div className="pointer-events-auto bg-white/85 backdrop-blur-md rounded-lg shadow-md border border-gray-200 px-2.5 py-2 sm:px-3 sm:py-2.5 min-w-0 w-[min(18rem,calc(100vw-1.5rem))] sm:w-[min(22rem,calc(100vw-1.5rem))]">
                   <div className="flex items-center gap-2 min-w-0">
                     <div className="w-8 h-8 rounded-lg bg-amber-50 flex items-center justify-center flex-shrink-0">
                       <Bus className="w-4.5 h-4.5 text-amber-700" />
@@ -593,8 +593,8 @@ export default function HomeTransportMap() {
 
                 {/* Overlay: user hint */}
                 {userHint && (
-                  <div className="pointer-events-none absolute bottom-3 left-3 right-3 sm:right-auto">
-                    <div className="pointer-events-auto bg-white/85 backdrop-blur-md rounded-lg shadow-md border border-gray-200 px-2.5 py-2 sm:px-3 sm:py-2.5 w-full sm:w-[min(18rem,calc(100vw-1.5rem))]">
+                  <div className="pointer-events-none absolute bottom-3 left-3">
+                    <div className="pointer-events-auto bg-white/85 backdrop-blur-md rounded-lg shadow-md border border-gray-200 px-2.5 py-2 sm:px-3 sm:py-2.5 w-[min(16rem,calc(100vw-1.5rem))]">
                     <div className="text-[11px] sm:text-xs font-extrabold text-gray-900 break-words leading-tight">
                       {userHint.visitor_name}
                     </div>
@@ -603,18 +603,18 @@ export default function HomeTransportMap() {
                         ? 'تتبّع الرحلة متاح الآن.'
                         : 'سيتوفر لك تتبّع الرحلة عند بداية رحلة الراكب.'}
                     </div>
-                    <div className="mt-2">
+                    <div className="mt-2 flex items-center gap-2">
                       {userHint.trip_id ? (
                         <Link
                           href={`/dashboard/request/${userHint.request_id}/track`}
-                          className="inline-flex items-center justify-center w-full px-3 py-2 rounded-lg bg-green-600 text-white text-[11px] font-extrabold hover:bg-green-700 transition"
+                          className="inline-flex items-center justify-center px-3 py-1.5 rounded-lg bg-green-600 text-white text-[11px] font-extrabold hover:bg-green-700 transition"
                         >
                           فتح تتبّع الرحلة
                         </Link>
                       ) : (
                         <Link
                           href={`/dashboard/request/${userHint.request_id}/follow`}
-                          className="inline-flex items-center justify-center w-full px-3 py-2 rounded-lg bg-blue-600 text-white text-[11px] font-extrabold hover:bg-blue-700 transition"
+                          className="inline-flex items-center justify-center px-3 py-1.5 rounded-lg bg-blue-600 text-white text-[11px] font-extrabold hover:bg-blue-700 transition"
                         >
                           متابعة الطلب
                         </Link>

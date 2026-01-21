@@ -1,8 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
-import Link from 'next/link'
-import { Plane, Calendar, ArrowLeftRight, ChevronDown, CalendarDays, Bus } from 'lucide-react'
+import { Plane, Calendar, ArrowLeftRight, ChevronDown, CalendarDays } from 'lucide-react'
 import { createSupabaseBrowserClient } from '@/lib/supabase'
 import { formatDate } from '@/lib/date-utils'
 
@@ -112,6 +111,7 @@ export default function HomeTripStatusRow() {
   const supabase = createSupabaseBrowserClient()
   const [loading, setLoading] = useState(true)
   const [row, setRow] = useState<TripOverviewRow | null>(null)
+  const [rpcNeedsSetup, setRpcNeedsSetup] = useState(false)
   const [openArrivals, setOpenArrivals] = useState(false)
   const [openDepartures, setOpenDepartures] = useState(false)
   const [arrivalsList, setArrivalsList] = useState<Array<{ trip_id: string; trip_date: string; trip_time: string | null; people_count: number }>>([])
@@ -129,9 +129,11 @@ export default function HomeTripStatusRow() {
         const r = (Array.isArray(data) ? data[0] : data) as TripOverviewRow | null
         if (!mounted) return
         setRow(r || null)
+        setRpcNeedsSetup(false)
       } catch {
         if (!mounted) return
         setRow(null)
+        setRpcNeedsSetup(true)
       } finally {
         if (!mounted) return
         setLoading(false)
@@ -241,32 +243,22 @@ export default function HomeTripStatusRow() {
               time={row?.next_arrival_time ?? null}
               routeLabel={routeLabel}
               footer={
-                <div className="space-y-2">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setOpenArrivals((v) => !v)
-                      setOpenDepartures(false)
-                    }}
-                    className="w-full inline-flex items-center justify-between gap-2 px-3 py-2 rounded-xl border border-gray-200 bg-gradient-to-r from-blue-50 to-white hover:from-blue-100 hover:to-white transition text-xs sm:text-sm font-bold text-gray-800"
-                    aria-expanded={openArrivals}
-                    aria-label="إظهار الرحلات القادمة (القادمون)"
-                  >
-                    <span className="inline-flex items-center gap-2 min-w-0">
-                      <CalendarDays className="w-4 h-4 text-blue-700 flex-shrink-0" />
-                      <span className="truncate">الرحلات القادمة</span>
-                    </span>
-                    <ChevronDown className={`w-4 h-4 text-gray-600 transition-transform ${openArrivals ? 'rotate-180' : ''}`} />
-                  </button>
-                  <Link
-                    href="/trips"
-                    className="w-full inline-flex items-center justify-center gap-2 px-3 py-2 rounded-xl border border-blue-200 bg-blue-600 text-white hover:bg-blue-700 transition text-xs sm:text-sm font-extrabold"
-                    aria-label="حجز رحلة (القادمون)"
-                  >
-                    <Bus className="w-4 h-4" />
-                    حجز رحلة
-                  </Link>
-                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setOpenArrivals((v) => !v)
+                    setOpenDepartures(false)
+                  }}
+                  className="w-full inline-flex items-center justify-between gap-2 px-3 py-2 rounded-xl border border-gray-200 bg-gradient-to-r from-blue-50 to-white hover:from-blue-100 hover:to-white transition text-xs sm:text-sm font-bold text-gray-800"
+                  aria-expanded={openArrivals}
+                  aria-label="إظهار الرحلات القادمة (القادمون)"
+                >
+                  <span className="inline-flex items-center gap-2 min-w-0">
+                    <CalendarDays className="w-4 h-4 text-blue-700 flex-shrink-0" />
+                    <span className="truncate">الرحلات القادمة</span>
+                  </span>
+                  <ChevronDown className={`w-4 h-4 text-gray-600 transition-transform ${openArrivals ? 'rotate-180' : ''}`} />
+                </button>
               }
             />
 
@@ -280,7 +272,9 @@ export default function HomeTripStatusRow() {
               "
             >
               {arrivalsList.length === 0 ? (
-                <div className="text-gray-500">لا توجد رحلات قادمة</div>
+                <div className="text-gray-500">
+                  {rpcNeedsSetup ? 'يلزم تفعيل عرض الرحلات من Supabase (تشغيل ملف RPC الخاص بالرحلات).' : 'لا توجد رحلات قادمة'}
+                </div>
               ) : (
                 <div className="space-y-2">
                   <div className="flex items-center justify-between gap-3 text-[10px] sm:text-[11px] text-gray-500 pb-1 border-b border-gray-100">
@@ -317,32 +311,22 @@ export default function HomeTripStatusRow() {
               time={row?.next_departure_time ?? null}
               routeLabel={routeLabel}
               footer={
-                <div className="space-y-2">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setOpenDepartures((v) => !v)
-                      setOpenArrivals(false)
-                    }}
-                    className="w-full inline-flex items-center justify-between gap-2 px-3 py-2 rounded-xl border border-gray-200 bg-gradient-to-r from-green-50 to-white hover:from-green-100 hover:to-white transition text-xs sm:text-sm font-bold text-gray-800"
-                    aria-expanded={openDepartures}
-                    aria-label="إظهار الرحلات القادمة (المغادرون)"
-                  >
-                    <span className="inline-flex items-center gap-2 min-w-0">
-                      <CalendarDays className="w-4 h-4 text-green-700 flex-shrink-0" />
-                      <span className="truncate">الرحلات القادمة</span>
-                    </span>
-                    <ChevronDown className={`w-4 h-4 text-gray-600 transition-transform ${openDepartures ? 'rotate-180' : ''}`} />
-                  </button>
-                  <Link
-                    href="/trips"
-                    className="w-full inline-flex items-center justify-center gap-2 px-3 py-2 rounded-xl border border-green-200 bg-green-600 text-white hover:bg-green-700 transition text-xs sm:text-sm font-extrabold"
-                    aria-label="حجز رحلة (المغادرون)"
-                  >
-                    <Bus className="w-4 h-4" />
-                    حجز رحلة
-                  </Link>
-                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setOpenDepartures((v) => !v)
+                    setOpenArrivals(false)
+                  }}
+                  className="w-full inline-flex items-center justify-between gap-2 px-3 py-2 rounded-xl border border-gray-200 bg-gradient-to-r from-green-50 to-white hover:from-green-100 hover:to-white transition text-xs sm:text-sm font-bold text-gray-800"
+                  aria-expanded={openDepartures}
+                  aria-label="إظهار الرحلات القادمة (المغادرون)"
+                >
+                  <span className="inline-flex items-center gap-2 min-w-0">
+                    <CalendarDays className="w-4 h-4 text-green-700 flex-shrink-0" />
+                    <span className="truncate">الرحلات القادمة</span>
+                  </span>
+                  <ChevronDown className={`w-4 h-4 text-gray-600 transition-transform ${openDepartures ? 'rotate-180' : ''}`} />
+                </button>
               }
             />
 
@@ -356,7 +340,9 @@ export default function HomeTripStatusRow() {
               "
             >
               {departuresList.length === 0 ? (
-                <div className="text-gray-500">لا توجد رحلات قادمة</div>
+                <div className="text-gray-500">
+                  {rpcNeedsSetup ? 'يلزم تفعيل عرض الرحلات من Supabase (تشغيل ملف RPC الخاص بالرحلات).' : 'لا توجد رحلات قادمة'}
+                </div>
               ) : (
                 <div className="space-y-2">
                   <div className="flex items-center justify-between gap-3 text-[10px] sm:text-[11px] text-gray-500 pb-1 border-b border-gray-100">
