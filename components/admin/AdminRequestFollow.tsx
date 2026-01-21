@@ -321,15 +321,15 @@ export default function AdminRequestFollow({
               <span className="font-mono font-bold">{request.id.slice(0, 8).toUpperCase()}</span>
             </p>
 
-            {/* Stepper */}
+            {/* Stepper (scrollable on mobile to avoid broken text) */}
             <div className="mt-4">
-              <div className="flex items-center justify-between gap-2">
+              <div className="flex items-start gap-3 overflow-x-auto pb-2 -mx-1 px-1 sm:overflow-visible sm:pb-0 sm:mx-0 sm:px-0">
                 {steps.map((s, idx) => {
                   const isActive = s.id === activeStep
                   const isDone = s.done
                   const isClickable = s.id <= activeStep
                   return (
-                    <div key={s.id} className="flex-1 min-w-0">
+                    <div key={s.id} className="flex-1 min-w-[92px] sm:min-w-0 flex-shrink-0 sm:flex-shrink">
                       <button
                         type="button"
                         onClick={() => isClickable && setActiveStep(s.id)}
@@ -349,11 +349,17 @@ export default function AdminRequestFollow({
                         >
                           {isDone ? <CheckCircle className="w-5 h-5" /> : <span className="font-bold">{s.id}</span>}
                         </div>
-                        <div className={`text-[11px] sm:text-xs font-bold text-center truncate ${isActive ? 'text-blue-700' : 'text-gray-700'}`}>
+                        <div
+                          className={`text-[11px] sm:text-xs font-bold text-center leading-snug ${
+                            isActive ? 'text-blue-700' : 'text-gray-700'
+                          }`}
+                        >
                           {s.title}
                         </div>
                       </button>
-                      {idx < steps.length - 1 && <div className="hidden sm:block h-0.5 bg-gray-200 -mt-5 mx-6"></div>}
+                      {idx < steps.length - 1 && (
+                        <div className="hidden sm:block h-0.5 bg-gray-200 -mt-5 mx-6"></div>
+                      )}
                     </div>
                   )
                 })}
@@ -522,6 +528,15 @@ export default function AdminRequestFollow({
                       className="px-4 py-2.5 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition text-sm font-semibold disabled:opacity-50"
                     >
                       {request.arrival_date ? 'تعديل موعد القدوم' : 'تحديد موعد القدوم'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => appendAdminResponseAndNotify('تم تأكيد الحجز ✅', false)}
+                      disabled={saving}
+                      className="px-4 py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition text-sm font-semibold disabled:opacity-50"
+                      title="يرسل للمستخدم رسالة تأكيد الحجز"
+                    >
+                      تأكيد الحجز
                     </button>
                     {request.arrival_date && (
                       <div className="px-4 py-2.5 bg-white border border-gray-200 rounded-lg text-sm text-gray-700">
