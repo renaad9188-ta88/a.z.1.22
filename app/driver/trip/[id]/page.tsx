@@ -10,6 +10,7 @@ import { formatDate } from '@/lib/date-utils'
 
 type TripRow = {
   id: string
+  route_id: string
   trip_date: string
   meeting_time: string | null
   departure_time: string | null
@@ -130,7 +131,7 @@ export default function DriverTripDetailsPage() {
       // Load trip (RLS should restrict to assigned trips)
       const { data: tripData, error: tripErr } = await supabase
         .from('route_trips')
-        .select('id,trip_date,meeting_time,departure_time,start_location_name,start_lat,start_lng,end_location_name,end_lat,end_lng,notes')
+        .select('id,route_id,trip_date,meeting_time,departure_time,start_location_name,start_lat,start_lng,end_location_name,end_lat,end_lng,notes')
         .eq('id', tripId)
         .maybeSingle()
       if (tripErr) throw tripErr
@@ -141,14 +142,31 @@ export default function DriverTripDetailsPage() {
       }
       setTrip(tripData as any)
 
-      // Load stop points
+      // Load stop points (trip-specific). If empty, fallback to route fixed stop points.
       const { data: stopsData, error: stopsErr } = await supabase
         .from('route_trip_stop_points')
         .select('id,name,lat,lng,order_index')
         .eq('trip_id', tripId)
         .order('order_index', { ascending: true })
       if (stopsErr) throw stopsErr
-      setStopPoints((stopsData || []) as any)
+      const tripStops = (stopsData || []) as any as StopPointRow[]
+      if (tripStops.length > 0) {
+        setStopPoints(tripStops)
+      } else {
+        const routeId = (tripData as any)?.route_id as string | undefined
+        if (routeId) {
+          const { data: routeStops, error: rsErr } = await supabase
+            .from('route_stop_points')
+            .select('id,name,lat,lng,order_index')
+            .eq('route_id', routeId)
+            .eq('is_active', true)
+            .order('order_index', { ascending: true })
+          if (rsErr) throw rsErr
+          setStopPoints(((routeStops || []) as any) as StopPointRow[])
+        } else {
+          setStopPoints([])
+        }
+      }
 
       // Load passengers linked by trip_id
       const { data: paxData, error: paxErr } = await supabase

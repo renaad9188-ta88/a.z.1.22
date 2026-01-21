@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { createSupabaseBrowserClient } from '@/lib/supabase'
 import toast from 'react-hot-toast'
-import { Calendar, Clock, MapPin, Navigation } from 'lucide-react'
+import { Calendar, Clock, MapPin, Navigation, History } from 'lucide-react'
 import Link from 'next/link'
 
 type Trip = {
@@ -21,6 +21,30 @@ export default function DriverTripsList({ driverRowId }: { driverRowId: string }
   const [trips, setTrips] = useState<Trip[]>([])
   const [loading, setLoading] = useState(true)
   const [hint, setHint] = useState<string>('')
+  const [showPast, setShowPast] = useState(false)
+
+  const todayISO = () => new Date().toISOString().slice(0, 10)
+
+  const isPastTrip = (t: Trip) => {
+    const d = String(t.trip_date || '')
+    const today = todayISO()
+    if (!d) return false
+    if (d < today) return true
+    // if today, optionally hide trips that ended long ago (e.g. > 6 hours after departure)
+    if (d === today && t.departure_time) {
+      try {
+        const now = new Date()
+        const [hh, mm] = String(t.departure_time).slice(0, 5).split(':').map(Number)
+        const dep = new Date()
+        dep.setHours(hh || 0, mm || 0, 0, 0)
+        // consider ended after 6 hours
+        return now.getTime() - dep.getTime() > 6 * 60 * 60 * 1000
+      } catch {
+        return false
+      }
+    }
+    return false
+  }
 
   useEffect(() => {
     loadTrips()
@@ -53,19 +77,27 @@ export default function DriverTripsList({ driverRowId }: { driverRowId: string }
       }
       
       // 2) Load trips
-      const { data: tripsData, error: tripsErr } = await supabase
+      let query = supabase
         .from('route_trips')
         .select('id,trip_date,meeting_time,departure_time,start_location_name,end_location_name,route_id')
         .in('id', tripIds)
         .eq('is_active', true)
         .order('trip_date', { ascending: true })
         .order('departure_time', { ascending: true })
+
+      if (!showPast) {
+        query = query.gte('trip_date', todayISO())
+      }
+
+      const { data: tripsData, error: tripsErr } = await query
       
       if (tripsErr) {
         console.error('route_trips select error:', tripsErr)
         throw tripsErr
       }
-      setTrips((tripsData || []) as Trip[])
+      const list = (tripsData || []) as Trip[]
+      const filtered = showPast ? list : list.filter((t) => !isPastTrip(t))
+      setTrips(filtered)
     } catch (e: any) {
       console.error('Load driver trips error:', e)
       toast.error(e?.message || 'تعذر تحميل الرحلات')
@@ -107,10 +139,22 @@ export default function DriverTripsList({ driverRowId }: { driverRowId: string }
 
   return (
     <div className="bg-white rounded-lg sm:rounded-xl shadow-md p-4 sm:p-6">
-      <h3 className="text-base sm:text-lg font-extrabold text-gray-900 mb-4 flex items-center gap-2">
-        <Navigation className="w-5 h-5 text-blue-600" />
-        رحلاتي المعيّنة ({trips.length})
-      </h3>
+      <div className="flex items-center justify-between gap-3 mb-4">
+        <h3 className="text-base sm:text-lg font-extrabold text-gray-900 flex items-center gap-2 min-w-0">
+          <Navigation className="w-5 h-5 text-blue-600 flex-shrink-0" />
+          <span className="truncate">رحلاتي المعيّنة ({trips.length})</span>
+        </h3>
+        <button
+          type="button"
+          onClick={() => setShowPast((v) => !v)}
+          className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-gray-200 bg-gray-50 hover:bg-gray-100 transition text-xs sm:text-sm font-bold text-gray-800 whitespace-nowrap"
+          aria-label="إظهار/إخفاء الرحلات المنتهية"
+          title="إظهار/إخفاء الرحلات المنتهية"
+        >
+          <History className="w-4 h-4" />
+          {showPast ? 'إخفاء المنتهية' : 'إظهار المنتهية'}
+        </button>
+      </div>
       
       <div className="space-y-3">
         {trips.map((trip) => (
