@@ -154,8 +154,7 @@ export default function TripDetailsModal({
         .filter(Boolean) as Driver[]
       setDrivers(driversList)
       
-      // Load passengers (visit_requests linked to this trip via route_id)
-      // Note: We'll link by route_id for now since trip_id column may not exist yet
+      // Load passengers booked on this trip (visit_requests.trip_id)
       const { data: passengersData, error: passengersErr } = await supabase
         .from('visit_requests')
         .select(`
@@ -166,9 +165,8 @@ export default function TripDetailsModal({
           user_id,
           profiles!inner(phone, full_name)
         `)
-        .eq('route_id', tripData.route_id)
-        .eq('status', 'approved')
-        .in('trip_status', ['scheduled_pending_approval', 'pending_arrival', 'arrived'])
+        .eq('trip_id', tripId)
+        .neq('status', 'rejected')
       
       if (passengersErr) {
         console.error('Error loading passengers:', passengersErr)

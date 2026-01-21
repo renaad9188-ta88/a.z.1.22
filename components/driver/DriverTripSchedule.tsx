@@ -52,6 +52,14 @@ export default function DriverTripSchedule() {
         return
       }
 
+      // Prefer assigned trips (route_trip_drivers) so schedule matches "الرحلة المعيّنة"
+      const { data: tripAssignments } = await supabase
+        .from('route_trip_drivers')
+        .select('trip_id')
+        .eq('driver_id', driverRow.id)
+        .eq('is_active', true)
+      const assignedTripIds = (tripAssignments || []).map((x: any) => x.trip_id).filter(Boolean)
+
       const { data: rdRows, error: rdErr } = await supabase
         .from('route_drivers')
         .select('route_id')
@@ -59,7 +67,7 @@ export default function DriverTripSchedule() {
         .eq('is_active', true)
       if (rdErr) throw rdErr
       const routeIds = (rdRows || []).map((r: any) => r.route_id).filter(Boolean)
-      if (routeIds.length === 0) {
+      if (routeIds.length === 0 && assignedTripIds.length === 0) {
         setTrips([])
         return
       }
@@ -68,22 +76,31 @@ export default function DriverTripSchedule() {
       const { data: routesData } = await supabase
         .from('routes')
         .select('id,name,start_location_name,end_location_name')
-        .in('id', routeIds)
+        .in('id', routeIds.length > 0 ? routeIds : ['00000000-0000-0000-0000-000000000000'])
       const map: Record<string, RouteRow> = {}
       ;(routesData || []).forEach((r: any) => (map[r.id] = r))
       setRoutesMap(map)
 
       const { data: tripsData, error: tripsErr } = await supabase
         .from('visit_requests')
-        .select('id,visitor_name,companions_count,city,arrival_date,trip_status,route_id,assigned_driver_id,user_id')
-        .eq('status', 'approved')
-        .in('route_id', routeIds)
-        .in('trip_status', ['scheduled_pending_approval', 'pending_arrival', 'arrived'])
-        .or(`assigned_driver_id.is.null,assigned_driver_id.eq.${driverRow.id}`)
+        .select('id,visitor_name,companions_count,city,arrival_date,trip_status,route_id,assigned_driver_id,user_id,trip_id')
+        .neq('status', 'rejected')
         .order('arrival_date', { ascending: true })
       if (tripsErr) throw tripsErr
 
-      const userIds = Array.from(new Set((tripsData || []).map((t: any) => t.user_id).filter(Boolean)))
+      let scoped = tripsData || []
+      if (assignedTripIds.length > 0) {
+        scoped = scoped.filter((t: any) => assignedTripIds.includes(t.trip_id))
+      } else if (routeIds.length > 0) {
+        scoped = scoped
+          .filter((t: any) => routeIds.includes(t.route_id))
+          .filter((t: any) => !t.assigned_driver_id || t.assigned_driver_id === driverRow.id)
+          .filter((t: any) => ['scheduled_pending_approval', 'pending_arrival', 'arrived'].includes(String(t.trip_status || '')))
+      } else {
+        scoped = []
+      }
+
+      const userIds = Array.from(new Set((scoped || []).map((t: any) => t.user_id).filter(Boolean)))
       let profilesMap: Record<string, { full_name: string | null; phone: string | null }> = {}
       if (userIds.length > 0) {
         const { data: profs, error: profErr } = await supabase
@@ -96,7 +113,7 @@ export default function DriverTripSchedule() {
         })
       }
 
-      const formatted = (tripsData || []).map((t: any) => ({
+      const formatted = (scoped || []).map((t: any) => ({
         id: t.id,
         visitor_name: t.visitor_name,
         companions_count: t.companions_count,

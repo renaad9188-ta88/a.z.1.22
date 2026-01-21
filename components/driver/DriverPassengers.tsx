@@ -114,8 +114,7 @@ export default function DriverPassengers() {
           assigned_driver_id,
           request_dropoff_points(name, address, lat, lng)
         `)
-        .eq('status', 'approved') // فقط الطلبات المقبولة
-        .in('trip_status', ['pending_arrival', 'arrived']) // الرحلات النشطة
+        .neq('status', 'rejected') // استثناء المرفوض فقط
 
       // إذا كان هناك رحلات مخصصة للسائق، فلتر حسب trip_id
       if (assignedTripIds.length > 0) {
@@ -125,6 +124,8 @@ export default function DriverPassengers() {
         query = query.in('route_id', routeIds)
         // إذا تم تعيين سائق للطلب: لا يظهر إلا لهذا السائق (أو إذا لم يتم تعيين سائق)
         query = query.or(`assigned_driver_id.is.null,assigned_driver_id.eq.${driverRow.id}`)
+        // في هذا المسار (بدون trip_id)، اعرض فقط الرحلات النشطة
+        query = query.in('trip_status', ['pending_arrival', 'arrived'])
       } else {
         setPassengers([])
         return

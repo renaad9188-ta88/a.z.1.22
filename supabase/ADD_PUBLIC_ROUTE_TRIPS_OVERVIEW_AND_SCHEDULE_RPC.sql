@@ -47,7 +47,7 @@ AS $$
       COALESCE(SUM(1 + COALESCE(vr.companions_count, 0)), 0)::int AS people_count
     FROM public.visit_requests vr
     WHERE vr.trip_id = (SELECT trip_id FROM next_arrival)
-      AND vr.status IN ('approved', 'completed')
+      AND vr.status <> 'rejected'
   ),
   next_departure AS (
     SELECT
@@ -66,7 +66,7 @@ AS $$
       COALESCE(SUM(1 + COALESCE(vr.companions_count, 0)), 0)::int AS people_count
     FROM public.visit_requests vr
     WHERE vr.trip_id = (SELECT trip_id FROM next_departure)
-      AND vr.status IN ('approved', 'completed')
+      AND vr.status <> 'rejected'
   )
   SELECT
     (SELECT route_name FROM default_route),
@@ -122,7 +122,7 @@ AS $$
       SELECT SUM(1 + COALESCE(vr.companions_count, 0))::int
       FROM public.visit_requests vr
       WHERE vr.trip_id = b.trip_id
-        AND vr.status IN ('approved', 'completed')
+        AND vr.status <> 'rejected'
     ), 0)::int AS people_count
   FROM base b;
 $$;
