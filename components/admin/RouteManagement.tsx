@@ -56,6 +56,8 @@ type DriverLocationLite = {
   is_available?: boolean // للتمييز بين driver_live_status و trip_driver_locations
 }
 
+type DriverLiveLite = { driver_id: string; is_available: boolean; updated_at: string }
+
 type RouteTripLite = {
   id: string
   visitor_name: string
@@ -93,6 +95,7 @@ export default function RouteManagement() {
   const [driverLocLoading, setDriverLocLoading] = useState<Record<string, boolean>>({})
   const [driverLastLoc, setDriverLastLoc] = useState<Record<string, DriverLocationLite | null>>({})
   const [driverLocHistory, setDriverLocHistory] = useState<Record<string, DriverLocationLite[]>>({})
+  const [driverLiveMap, setDriverLiveMap] = useState<Record<string, DriverLiveLite | null>>({})
   const [openHistoryFor, setOpenHistoryFor] = useState<Driver | null>(null)
   const [expandedRouteTrips, setExpandedRouteTrips] = useState<Record<string, boolean>>({})
   const [routeTrips, setRouteTrips] = useState<Record<string, RouteTripLite[]>>({})
@@ -146,6 +149,26 @@ export default function RouteManagement() {
       setDrivers(driversRes.data || [])
       setRouteDrivers(routeDriversRes.data || [])
       setDriverAccounts((driverAccountsRes.data || []) as any)
+
+      // Load availability status for all drivers (so admin sees "متاح" مباشرة)
+      const ids = (driversRes.data || []).map((d: any) => d.id).filter(Boolean)
+      if (ids.length > 0) {
+        const { data: liveRows } = await supabase
+          .from('driver_live_status')
+          .select('driver_id,is_available,updated_at')
+          .in('driver_id', ids)
+        const map: Record<string, DriverLiveLite | null> = {}
+        ;(liveRows || []).forEach((r: any) => {
+          map[r.driver_id] = {
+            driver_id: r.driver_id,
+            is_available: Boolean(r.is_available),
+            updated_at: r.updated_at,
+          }
+        })
+        setDriverLiveMap(map)
+      } else {
+        setDriverLiveMap({})
+      }
     } catch (error: any) {
       console.error('Error loading data:', error)
       toast.error('حدث خطأ أثناء تحميل البيانات')
@@ -159,6 +182,8 @@ export default function RouteManagement() {
     // إذا الرقم قصير، نستخدم wa.me/?text كـ fallback
     return digits.length >= 10 ? digits : ''
   }
+
+  const normalizePhoneForTel = (raw: string) => (raw || '').replace(/[^\d+]/g, '')
 
   const getAccountForDriver = (d: Driver) => {
     if (!d.user_id) return null
@@ -626,6 +651,16 @@ export default function RouteManagement() {
                         <Bus className="w-3 h-3 sm:w-4 sm:h-4 flex-shrink-0" />
                         <span className="truncate">{driver.name}</span>
                         <span className="hidden sm:inline">({driver.vehicle_type})</span>
+                        {driverLiveMap[driver.id]?.is_available ? (
+                          <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-green-600 text-white">
+                            <span className="w-1.5 h-1.5 bg-white rounded-full" />
+                            متاح
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-gray-200 text-gray-800">
+                            غير متاح
+                          </span>
+                        )}
                       </span>
                     ))}
                   </div>
@@ -842,8 +877,11 @@ export default function RouteManagement() {
               const acc = getAccountForDriver(d)
               const routesCount = getAssignedRoutesCount(d.id)
               const lastLoc = driverLastLoc[d.id] || null
+              const live = driverLiveMap[d.id] || null
               const waDigits = normalizePhoneForWhatsApp(d.phone || '')
               const waHref = waDigits ? `https://wa.me/${waDigits}` : `https://wa.me/?text=${encodeURIComponent(`تواصل مع السائق: ${d.name} — ${d.phone}`)}`
+              const telDigits = normalizePhoneForTel(d.phone || '')
+              const telHref = telDigits ? `tel:${telDigits}` : ''
               const mapHref =
                 lastLoc ? `https://www.google.com/maps?q=${lastLoc.lat},${lastLoc.lng}` : ''
 
@@ -856,6 +894,15 @@ export default function RouteManagement() {
                         <span className={`text-[11px] px-2 py-0.5 rounded-full border ${d.is_active ? 'bg-green-50 text-green-700 border-green-200' : 'bg-gray-50 text-gray-700 border-gray-200'}`}>
                           {d.is_active ? 'نشط' : 'غير نشط'}
                         </span>
+                        {live?.is_available ? (
+                          <span className="text-[11px] px-2 py-0.5 rounded-full border bg-green-600 text-white border-green-700">
+                            متاح
+                          </span>
+                        ) : (
+                          <span className="text-[11px] px-2 py-0.5 rounded-full border bg-gray-200 text-gray-800 border-gray-300">
+                            غير متاح
+                          </span>
+                        )}
                         {d.user_id ? (
                           <span className="text-[11px] px-2 py-0.5 rounded-full border bg-blue-50 text-blue-700 border-blue-200">
                             مربوط بحساب
@@ -893,6 +940,11 @@ export default function RouteManagement() {
                           </a>
                         </div>
                       )}
+                      {live?.updated_at && (
+                        <div className="mt-1 text-[11px] sm:text-xs text-gray-500">
+                          حالة متاح: آخر تحديث {new Date(live.updated_at).toLocaleString('ar-JO')}
+                        </div>
+                      )}
                     </div>
 
                     <div className="flex flex-wrap gap-2 w-full sm:w-auto">
@@ -906,6 +958,16 @@ export default function RouteManagement() {
                         <Phone className="w-4 h-4" />
                         واتساب
                       </a>
+                      {telHref && (
+                        <a
+                          href={telHref}
+                          className="px-3 py-2 rounded-lg bg-amber-50 text-amber-900 text-xs sm:text-sm font-bold hover:bg-amber-100 transition inline-flex items-center gap-2 border border-amber-200"
+                          title="اتصال مباشر"
+                        >
+                          <Phone className="w-4 h-4" />
+                          اتصال
+                        </a>
+                      )}
                       <button
                         type="button"
                         onClick={() => loadDriverLastLocation(d)}

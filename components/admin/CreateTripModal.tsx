@@ -122,12 +122,15 @@ export default function CreateTripModal({
     try {
       setSaving(true)
 
+      // Normalize trip type to DB canonical values used by homepage/public RPCs
+      const tripTypeDb = tripType === 'departure' ? 'departures' : 'arrivals'
+
       // 1) Create trip
       const { data: trip, error: tripErr } = await supabase
         .from('route_trips')
         .insert({
           route_id: routeId,
-          trip_type: tripType,
+          trip_type: tripTypeDb,
           trip_date: tripDate,
           meeting_time: meetingTime || null,
           departure_time: departureTime,
@@ -151,7 +154,8 @@ export default function CreateTripModal({
           name: stop.name,
           lat: stop.lat,
           lng: stop.lng,
-          order_index: idx + 1,
+          // Keep it 0-based (some existing data uses 0-based); map UIs handle both.
+          order_index: idx,
         }))
 
         const { error: stopsErr } = await supabase

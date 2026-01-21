@@ -10,6 +10,7 @@ type LatLng = { lat: number; lng: number }
 type TripRow = {
   id: string
   route_id: string
+  trip_type?: string | null
   trip_date: string
   meeting_time: string | null
   departure_time: string | null
@@ -45,7 +46,7 @@ function loadGoogleMaps(apiKey: string): Promise<void> {
   })
 }
 
-export default function DriverAvailabilityMap() {
+export default function DriverAvailabilityMap({ selectedTripId }: { selectedTripId?: string | null }) {
   const supabase = createSupabaseBrowserClient()
   const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || ''
 
@@ -127,6 +128,24 @@ export default function DriverAvailabilityMap() {
       bounds.extend(start)
       bounds.extend(end)
 
+      // رمز الباص للرحلة: نضعه على بداية الخط فقط لرحلات "القادمون"
+      // (حتى لا يظهر رمز باص إضافي عند رحلات المغادرون التي غالباً تبدأ من عمان)
+      const isDepartures = ['departures', 'departure'].includes(String((trip as any)?.trip_type || '').toLowerCase())
+      if (!isDepartures) {
+        markersRef.current.push(
+          new googleMaps.Marker({
+            position: start,
+            map,
+            title: 'باص الرحلة (بداية الخط)',
+            icon: {
+              url: 'http://maps.google.com/mapfiles/ms/icons/bus.png',
+              scaledSize: new googleMaps.Size(40, 40),
+            },
+            animation: googleMaps.Animation.DROP,
+          })
+        )
+      }
+
       markersRef.current.push(
         new googleMaps.Marker({
           position: start,
@@ -137,6 +156,10 @@ export default function DriverAvailabilityMap() {
       )
 
       const sortedStops = [...tripStops].sort((a, b) => a.order_index - b.order_index)
+      const minOrderIndex = (() => {
+        const nums = sortedStops.map((s: any) => Number(s?.order_index)).filter((n: any) => Number.isFinite(n))
+        return nums.length ? Math.min(...nums) : 0
+      })()
       for (const s of sortedStops) {
         const pos = { lat: s.lat, lng: s.lng }
         bounds.extend(pos)
@@ -153,7 +176,11 @@ export default function DriverAvailabilityMap() {
               strokeColor: '#ffffff',
               strokeWeight: 2,
             },
-            label: { text: String(s.order_index + 1), color: '#fff', fontWeight: '900' },
+            label: {
+              text: String(minOrderIndex === 0 ? Number(s.order_index) + 1 : Number(s.order_index)),
+              color: '#fff',
+              fontWeight: '900',
+            },
           })
         )
       }
@@ -211,7 +238,8 @@ export default function DriverAvailabilityMap() {
       })()
     }
 
-    // موقع السائق الحالي (يظهر دائماً إذا كان متاح)
+    // موقع السائق الحالي (نُظهره دائماً إذا كان متاح)
+    // ملاحظة: لتجنب ظهور "باصين" على الخريطة، لا نستخدم أيقونة باص لموقع السائق أثناء وجود رحلة.
     if (myLoc) {
       console.log('Adding driver location marker at:', myLoc)
       bounds.extend(myLoc)
@@ -220,10 +248,24 @@ export default function DriverAvailabilityMap() {
           position: myLoc,
           map,
           title: 'موقعي الحالي (السائق)',
-          icon: {
-            url: 'http://maps.google.com/mapfiles/ms/icons/bus.png', // أيقونة باص/سيارة واضحة
-            scaledSize: new googleMaps.Size(48, 48),
-          },
+          ...(trip
+            ? {
+                icon: {
+                  path: googleMaps.SymbolPath.CIRCLE,
+                  scale: 9,
+                  fillColor: '#111827',
+                  fillOpacity: 1,
+                  strokeColor: '#ffffff',
+                  strokeWeight: 3,
+                },
+                label: { text: 'س', color: '#fff', fontWeight: '900' },
+              }
+            : {
+                icon: {
+                  url: 'http://maps.google.com/mapfiles/ms/icons/bus.png', // بدون رحلة: أيقونة واضحة
+                  scaledSize: new googleMaps.Size(48, 48),
+                },
+              }),
           animation: googleMaps.Animation.DROP, // تأثير سقوط عند الظهور
         })
       )
@@ -260,7 +302,7 @@ export default function DriverAvailabilityMap() {
     }
   }
 
-  const loadAssignedTripForToday = async (driverId: string) => {
+  const loadAssignedCurrentTrip = async (driverId: string) => {
     // 1) trip ids assigned to driver
     const { data: rows, error } = await supabase
       .from('route_trip_drivers')
@@ -271,19 +313,54 @@ export default function DriverAvailabilityMap() {
     const tripIds = (rows || []).map((r: any) => r.trip_id).filter(Boolean)
     if (tripIds.length === 0) return null
 
-    // 2) load today trip (first)
+    // 2) load "current" trip: prefer today, else the next upcoming trip
     const { data: trips, error: tErr } = await supabase
       .from('route_trips')
       .select(
-        'id,route_id,trip_date,meeting_time,departure_time,start_location_name,start_lat,start_lng,end_location_name,end_lat,end_lng'
+        'id,route_id,trip_type,trip_date,meeting_time,departure_time,start_location_name,start_lat,start_lng,end_location_name,end_lat,end_lng'
       )
       .in('id', tripIds)
-      .eq('trip_date', todayISO)
+      .gte('trip_date', todayISO)
       .eq('is_active', true)
+      .order('trip_date', { ascending: true })
       .order('departure_time', { ascending: true })
       .limit(1)
     if (tErr) throw tErr
     return (trips || [])[0] || null
+  }
+
+  const loadTripById = async (tripId: string) => {
+    const { data, error } = await supabase
+      .from('route_trips')
+      .select(
+        'id,route_id,trip_type,trip_date,meeting_time,departure_time,start_location_name,start_lat,start_lng,end_location_name,end_lat,end_lng'
+      )
+      .eq('id', tripId)
+      .eq('is_active', true)
+      .maybeSingle()
+    if (error) throw error
+    return (data as any) || null
+  }
+
+  const loadStopsForTrip = async (t: TripRow | null) => {
+    if (!t?.id) return []
+    const { data: stops, error: sErr } = await supabase
+      .from('route_trip_stop_points')
+      .select('id,trip_id,name,lat,lng,order_index')
+      .eq('trip_id', t.id)
+      .order('order_index', { ascending: true })
+    if (sErr) throw sErr
+    if ((stops || []).length > 0) return (stops || []) as any
+
+    // fallback to route fixed points
+    const { data: routeStops, error: rsErr } = await supabase
+      .from('route_stop_points')
+      .select('id,name,lat,lng,order_index')
+      .eq('route_id', t.route_id)
+      .eq('is_active', true)
+      .order('order_index', { ascending: true })
+    if (rsErr) throw rsErr
+    return ((routeStops || []) as any[]).map((x) => ({ ...x, trip_id: t.id }))
   }
 
   const load = async () => {
@@ -326,20 +403,10 @@ export default function DriverAvailabilityMap() {
         }, 500)
       }
 
-      const t = await loadAssignedTripForToday(driverRow.id)
+      const t = selectedTripId ? await loadTripById(selectedTripId) : await loadAssignedCurrentTrip(driverRow.id)
       setTrip((t as any) || null)
-
-      if (t?.id) {
-        const { data: stops, error: sErr } = await supabase
-          .from('route_trip_stop_points')
-          .select('id,trip_id,name,lat,lng,order_index')
-          .eq('trip_id', t.id)
-          .order('order_index', { ascending: true })
-        if (sErr) throw sErr
-        setTripStops((stops || []) as any)
-      } else {
-        setTripStops([])
-      }
+      const stops = await loadStopsForTrip(t as any)
+      setTripStops((stops || []) as any)
     } catch (e: any) {
       console.error('DriverAvailabilityMap load error:', e)
       toast.error(e?.message || 'تعذر تحميل بيانات الرحلة')
@@ -347,6 +414,12 @@ export default function DriverAvailabilityMap() {
       setLoading(false)
     }
   }
+
+  useEffect(() => {
+    // Reload trip/map when selection changes
+    load()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedTripId])
 
   const upsertLive = async (driverId: string, patch: Partial<{ is_available: boolean; lat: number; lng: number }>) => {
     const payload: any = { driver_id: driverId, ...patch }
@@ -413,16 +486,18 @@ export default function DriverAvailabilityMap() {
         setMyLoc({ lat, lng })
 
         const now = Date.now()
-        const THROTTLE_MS = 60000 // تحديث كل دقيقة (60 ثانية) بدل كل 10 ثوانٍ لتقليل الاستهلاك
+        const THROTTLE_MS = 120000 // تحديث كل دقيقتين لتقليل الاستهلاك
         if (now - lastSentAtRef.current < THROTTLE_MS) {
           const secondsAgo = Math.round((now - lastSentAtRef.current) / 1000)
-          console.log(`⏭️ Skipping save (throttled, last sent: ${secondsAgo}s ago, next update in ${60 - secondsAgo}s)`)
+          console.log(
+            `⏭️ Skipping save (throttled, last sent: ${secondsAgo}s ago, next update in ${Math.max(0, 120 - secondsAgo)}s)`
+          )
           return
         }
         lastSentAtRef.current = now
         try {
           await upsertLive(driverId, { is_available: true, lat, lng })
-          console.log('✅ Location saved to database (every 60s / 1 minute)')
+          console.log('✅ Location saved to database (every ~2 minutes)')
         } catch (e) {
           console.error('❌ Failed to save location:', e)
         }
@@ -442,7 +517,7 @@ export default function DriverAvailabilityMap() {
       },
       { 
         enableHighAccuracy: true, // استخدم GPS للموقع الدقيق
-        maximumAge: 60000, // اقبل موقع cached إذا عمره أقل من 60 ثانية (كل دقيقة)
+        maximumAge: 120000, // اقبل موقع cached إذا عمره أقل من دقيقتين
         timeout: 15000 
       }
     )
@@ -548,8 +623,8 @@ export default function DriverAvailabilityMap() {
           </h3>
           <p className="text-xs sm:text-sm text-gray-600 mt-1">
             {trip
-              ? `رحلة اليوم: ${trip.start_location_name} → ${trip.end_location_name} (تجمع: ${trip.meeting_time || '—'} | انطلاق: ${trip.departure_time || '—'})`
-              : 'لا توجد رحلة معيّنة لك اليوم. اطلب من الإدارة تعيين رحلة لك.'}
+              ? `الرحلة الحالية: ${trip.start_location_name} → ${trip.end_location_name} (تجمع: ${trip.meeting_time || '—'} | انطلاق: ${trip.departure_time || '—'})`
+              : 'لا توجد رحلة معيّنة لك حالياً. اطلب من الإدارة تعيين رحلة لك.'}
           </p>
         </div>
 

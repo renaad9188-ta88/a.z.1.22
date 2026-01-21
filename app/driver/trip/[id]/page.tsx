@@ -224,6 +224,16 @@ export default function DriverTripDetailsPage() {
       })
     }
     const map = mapObjRef.current
+    // Sometimes Google Maps renders blank if the container size changes after mount (common on mobile).
+    // Trigger resize after a short delay and re-center.
+    setTimeout(() => {
+      try {
+        googleMaps.event.trigger(map, 'resize')
+        map.setCenter({ lat: trip.start_lat, lng: trip.start_lng })
+      } catch {
+        // ignore
+      }
+    }, 200)
 
     // clear markers
     markersRef.current.forEach((m) => m.setMap(null))

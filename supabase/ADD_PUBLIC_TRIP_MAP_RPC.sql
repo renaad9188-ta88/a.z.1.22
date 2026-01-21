@@ -35,7 +35,11 @@ AS $$
     FROM public.route_trips rt
     JOIN kind ON true
     WHERE rt.is_active = true
-      AND coalesce(lower(rt.trip_type), 'arrivals') = kind.k
+      AND (
+        -- Support both old singular values (arrival/departure) and new plural values (arrivals/departures)
+        (kind.k = 'arrivals' AND coalesce(lower(rt.trip_type), 'arrivals') IN ('arrivals', 'arrival'))
+        OR (kind.k = 'departures' AND coalesce(lower(rt.trip_type), 'departures') IN ('departures', 'departure'))
+      )
   ),
   today_pick AS (
     SELECT
@@ -130,7 +134,15 @@ AS $$
   )
   SELECT
     (SELECT id FROM chosen) AS trip_id,
-    (SELECT coalesce(lower(trip_type), 'arrivals') FROM chosen) AS trip_type,
+    -- normalize trip_type to homepage expected values
+    (
+      SELECT
+        CASE
+          WHEN lower(coalesce(trip_type, 'arrivals')) IN ('departure', 'departures') THEN 'departures'
+          ELSE 'arrivals'
+        END
+      FROM chosen
+    ) AS trip_type,
     (SELECT trip_date FROM chosen) AS trip_date,
     (SELECT meeting_time FROM chosen) AS meeting_time,
     (SELECT departure_time FROM chosen) AS departure_time,

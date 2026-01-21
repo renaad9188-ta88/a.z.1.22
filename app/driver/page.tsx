@@ -7,7 +7,7 @@ import Link from 'next/link'
 import { LogOut, Bus, Settings } from 'lucide-react'
 import toast from 'react-hot-toast'
 import DriverAvailabilityMap from '@/components/driver/DriverAvailabilityMap'
-import DriverTripsList from '@/components/driver/DriverTripsList'
+import DriverAssignedTripsPanel from '@/components/driver/DriverAssignedTripsPanel'
 import NotificationsDropdown from '@/components/NotificationsDropdown'
 
 type DriverProfile = {
@@ -23,6 +23,7 @@ export default function DriverDashboard() {
   const [loading, setLoading] = useState(true)
   const [driverProfile, setDriverProfile] = useState<DriverProfile | null>(null)
   const [driverRowId, setDriverRowId] = useState<string | null>(null)
+  const [selectedTripId, setSelectedTripId] = useState<string | null>(null)
   // تم تبسيط لوحة السائق: خريطة + زر (متاح) فقط حسب طلب الإدارة
 
   useEffect(() => {
@@ -169,9 +170,15 @@ export default function DriverDashboard() {
           </p>
         </div>
 
-        {driverRowId && <DriverTripsList driverRowId={driverRowId} />}
+        {driverRowId && (
+          <DriverAssignedTripsPanel
+            driverRowId={driverRowId}
+            selectedTripId={selectedTripId}
+            onSelectTrip={setSelectedTripId}
+          />
+        )}
         <div className="mt-4 sm:mt-6">
-          <DriverAvailabilityMap />
+          <DriverAvailabilityMap selectedTripId={selectedTripId} />
         </div>
       </div>
     </div>

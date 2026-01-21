@@ -112,16 +112,6 @@ export default function HomeTransportMap() {
       strokeWeight: 2,
     }) as any
 
-  const iconBus = (googleMaps: typeof google.maps) =>
-    ({
-      path: googleMaps.SymbolPath.CIRCLE,
-      scale: 10,
-      fillColor: '#f59e0b',
-      fillOpacity: 1,
-      strokeColor: '#ffffff',
-      strokeWeight: 2,
-    }) as any
-
   const initMap = () => {
     if (!mapElRef.current || !(window as any).google?.maps) return
     const googleMaps = (window as any).google.maps as typeof google.maps
@@ -256,35 +246,38 @@ export default function HomeTransportMap() {
       })
     )
 
-    // Bus marker (amber) near start (slight offset so it doesn't overlap)
+    // Bus marker (same style as driver page) at start
     markersRef.current.push(
       new googleMaps.Marker({
-        position: { lat: start.lat + 0.002, lng: start.lng + 0.002 },
+        position: start,
         map,
         title: 'الباص',
-        icon: iconBus(googleMaps),
-        label: {
-          text: '🚌',
-          color: '#111827',
-          fontWeight: '900',
-          fontSize: '14px',
+        icon: {
+          url: 'http://maps.google.com/mapfiles/ms/icons/bus.png',
+          scaledSize: new googleMaps.Size(40, 40),
         },
         zIndex: 50,
       })
     )
 
-    // Stop markers (blue numbered circles)
+    // Stop markers (blue numbered circles) — handle both 0-based and 1-based order_index
+    const minOrderIndex = (() => {
+      const nums = stops.map((s: any) => Number(s?.order_index)).filter((n: any) => Number.isFinite(n))
+      return nums.length ? Math.min(...nums) : 0
+    })()
     stops.forEach((s: { name: string; lat: number; lng: number; order_index: number }, idx: number) => {
       const pos = { lat: Number(s.lat), lng: Number(s.lng) }
       if (!Number.isFinite(pos.lat) || !Number.isFinite(pos.lng)) return
       bounds.extend(pos)
+      const oi = Number(s.order_index)
+      const n = Number.isFinite(oi) ? (minOrderIndex === 0 ? oi + 1 : oi) : idx + 1
       markersRef.current.push(
         new googleMaps.Marker({
           position: pos,
           map,
           title: s.name || `نقطة توقف ${idx + 1}`,
           icon: iconStop(googleMaps),
-          label: { text: String(idx + 1), color: '#ffffff', fontWeight: '900', fontSize: '12px' },
+          label: { text: String(n), color: '#ffffff', fontWeight: '900' },
         })
       )
     })
