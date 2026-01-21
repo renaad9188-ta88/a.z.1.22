@@ -37,7 +37,7 @@ AS $$
       COALESCE(rt.departure_time, rt.meeting_time) AS t
     FROM public.route_trips rt
     WHERE rt.is_active = true
-      AND COALESCE(lower(rt.trip_type), 'arrivals') = 'arrivals'
+      AND COALESCE(lower(rt.trip_type), 'arrivals') IN ('arrivals','arrival')
       AND rt.trip_date::date >= CURRENT_DATE
     ORDER BY rt.trip_date::date ASC, COALESCE(rt.departure_time, rt.meeting_time) ASC NULLS LAST, rt.created_at ASC
     LIMIT 1
@@ -56,7 +56,7 @@ AS $$
       COALESCE(rt.departure_time, rt.meeting_time) AS t
     FROM public.route_trips rt
     WHERE rt.is_active = true
-      AND COALESCE(lower(rt.trip_type), 'arrivals') = 'departures'
+      AND COALESCE(lower(rt.trip_type), 'arrivals') IN ('departures','departure')
       AND rt.trip_date::date >= CURRENT_DATE
     ORDER BY rt.trip_date::date ASC, COALESCE(rt.departure_time, rt.meeting_time) ASC NULLS LAST, rt.created_at ASC
     LIMIT 1
@@ -106,7 +106,10 @@ AS $$
     FROM public.route_trips rt
     JOIN kind ON true
     WHERE rt.is_active = true
-      AND COALESCE(lower(rt.trip_type), 'arrivals') = kind.k
+      AND (
+        (kind.k = 'arrivals' AND COALESCE(lower(rt.trip_type), 'arrivals') IN ('arrivals','arrival'))
+        OR (kind.k = 'departures' AND COALESCE(lower(rt.trip_type), 'departures') IN ('departures','departure'))
+      )
       AND rt.trip_date::date >= CURRENT_DATE
     ORDER BY rt.trip_date::date ASC, COALESCE(rt.departure_time, rt.meeting_time) ASC NULLS LAST, rt.created_at ASC
     LIMIT GREATEST(1, LEAST(p_limit, 20))

@@ -150,9 +150,10 @@ export default function AdminRequestFollow({
     const paymentVerified = Boolean(request?.payment_verified)
     const hasArrival = Boolean(request?.arrival_date)
     const isApproved = request?.status === 'approved' || request?.status === 'completed'
+    const isReceived = Boolean(request) && request?.status !== 'pending'
 
     return [
-      { id: 1, title: 'استلام الطلب', done: Boolean(request), help: 'الطلب وصل للإدارة.' },
+      { id: 1, title: 'استلام الطلب', done: isReceived, help: 'اضغط "تم استلام الطلب" لإرسال رد تلقائي للمستخدم وتسجيل الاستلام.' },
       { id: 2, title: 'مراجعة + قبول/رفض', done: Boolean(isApproved) || request?.status === 'rejected', help: 'قم بقبول الطلب أو رفضه.' },
       { id: 3, title: 'استلام استكمال المستخدم', done: postApprovalSubmitted, help: 'بانتظار إرسال المستخدم لاستكمال ما بعد الموافقة.' },
       { id: 4, title: 'تأكيد الدفع (فتح الحجز)', done: paymentVerified, help: 'بعد التأكيد يظهر للمستخدم الحجز.' },
