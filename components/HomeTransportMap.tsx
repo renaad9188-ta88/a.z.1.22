@@ -54,6 +54,8 @@ type UserHint = {
   request_id: string
   visitor_name: string
   trip_id: string | null
+  trip_date: string | null
+  arrival_date: string | null
 }
 
 export default function HomeTransportMap() {
@@ -247,18 +249,49 @@ export default function HomeTransportMap() {
     )
 
     // Bus marker (same style as driver page) at start
-    markersRef.current.push(
-      new googleMaps.Marker({
-        position: start,
-        map,
-        title: 'الباص',
-        icon: {
-          url: 'http://maps.google.com/mapfiles/ms/icons/bus.png',
-          scaledSize: new googleMaps.Size(40, 40),
-        },
-        zIndex: 50,
-      })
-    )
+    const busMarker = new googleMaps.Marker({
+      position: start,
+      map,
+      title: 'الباص',
+      icon: {
+        url: 'http://maps.google.com/mapfiles/ms/icons/bus.png',
+        scaledSize: new googleMaps.Size(40, 40),
+      },
+      zIndex: 50,
+    })
+    markersRef.current.push(busMarker)
+
+    // Show user card above bus marker if trip is today
+    if (userHint?.trip_id && userHint?.trip_date) {
+      const today = new Date().toISOString().split('T')[0]
+      const tripDateStr = new Date(userHint.trip_date + 'T00:00:00').toISOString().split('T')[0]
+      const isTripToday = tripDateStr === today
+
+      if (isTripToday) {
+        const infoWindow = new googleMaps.InfoWindow({
+          content: `
+            <div style="
+              padding: 10px 12px;
+              font-family: Arial, sans-serif;
+              max-width: 200px;
+              line-height: 1.4;
+            ">
+              <div style="font-weight: 700; color: #111827; font-size: 13px; margin-bottom: 4px;">
+                ${userHint.visitor_name || 'الراكب'}
+              </div>
+              <div style="color: #4b5563; font-size: 11px;">
+                يتم تتبع رحلتك الآن
+              </div>
+            </div>
+          `,
+          disableAutoPan: true,
+          pixelOffset: new googleMaps.Size(0, -50),
+        })
+        infoWindow.open({ map, anchor: busMarker, shouldFocus: false })
+        // Store reference to prevent garbage collection
+        ;(busMarker as any).infoWindow = infoWindow
+      }
+    }
 
     // Stop markers (blue numbered circles) — handle both 0-based and 1-based order_index
     const minOrderIndex = (() => {
@@ -357,7 +390,7 @@ export default function HomeTransportMap() {
 
       const { data, error } = await supabase
         .from('visit_requests')
-        .select('id, visitor_name, trip_id, created_at, admin_notes')
+        .select('id, visitor_name, trip_id, arrival_date, created_at, admin_notes')
         .eq('user_id', user.id)
         .order('created_at', { ascending: false })
         .limit(1)
@@ -369,11 +402,28 @@ export default function HomeTransportMap() {
         return
       }
 
+      const tripId = (data as any).trip_id || null
+      let tripDate: string | null = null
+
+      // Load trip_date if trip_id exists
+      if (tripId) {
+        const { data: tripData } = await supabase
+          .from('route_trips')
+          .select('trip_date')
+          .eq('id', tripId)
+          .maybeSingle()
+        if (tripData) {
+          tripDate = (tripData as any).trip_date || null
+        }
+      }
+
       // show even if draft; but keep it safe/minimal
       setUserHint({
         request_id: data.id,
         visitor_name: (data as any).visitor_name || 'الراكب',
-        trip_id: (data as any).trip_id || null,
+        trip_id: tripId,
+        trip_date: tripDate,
+        arrival_date: (data as any).arrival_date || null,
       })
     } catch (e) {
       console.error('HomeTransportMap load user hint error:', e)
@@ -441,7 +491,7 @@ export default function HomeTransportMap() {
     if (!ready) return
     renderTrip()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ready, JSON.stringify(tripRow)])
+  }, [ready, JSON.stringify(tripRow), userHint])
 
   const tripLabel = useMemo(() => {
     const isArr = mode === 'arrivals'
@@ -585,37 +635,30 @@ export default function HomeTransportMap() {
                 </div>
 
                 {/* Overlay: user hint */}
-                {userHint && (
-                  <div className="pointer-events-none absolute bottom-3 left-3">
-                    <div className="pointer-events-auto bg-white/85 backdrop-blur-md rounded-lg shadow-md border border-gray-200 px-2.5 py-2 sm:px-3 sm:py-2.5 w-[min(16rem,calc(100vw-1.5rem))]">
-                    <div className="text-[11px] sm:text-xs font-extrabold text-gray-900 break-words leading-tight">
-                      {userHint.visitor_name}
+                {userHint && (() => {
+                  const today = new Date().toISOString().split('T')[0]
+                  const tripDateStr = userHint.trip_date 
+                    ? new Date(userHint.trip_date + 'T00:00:00').toISOString().split('T')[0]
+                    : null
+                  const isTripToday = tripDateStr === today
+
+                  return (
+                    <div className="pointer-events-none absolute bottom-3 left-3">
+                      <div className="pointer-events-auto bg-white/85 backdrop-blur-md rounded-lg shadow-md border border-gray-200 px-2.5 py-2 sm:px-3 sm:py-2.5 w-[min(16rem,calc(100vw-1.5rem))]">
+                        <div className="text-[11px] sm:text-xs font-extrabold text-gray-900 break-words leading-tight">
+                          {userHint.visitor_name}
+                        </div>
+                        <div className="text-[10px] text-gray-700 mt-1 leading-relaxed line-clamp-2">
+                          {userHint.trip_id && isTripToday
+                            ? 'يتم تتبع رحلتك الآن'
+                            : userHint.trip_id
+                            ? 'سيتم تتبع رحلتك عند انطلاق حجزك بالرحلة المحددة من قبلك'
+                            : 'سيتوفر لك تتبّع الرحلة عند بداية رحلة الراكب.'}
+                        </div>
+                      </div>
                     </div>
-                    <div className="text-[10px] text-gray-700 mt-1 leading-relaxed line-clamp-2">
-                      {userHint.trip_id
-                        ? 'تتبّع الرحلة متاح الآن.'
-                        : 'سيتوفر لك تتبّع الرحلة عند بداية رحلة الراكب.'}
-                    </div>
-                    <div className="mt-2 flex items-center gap-2">
-                      {userHint.trip_id ? (
-                        <Link
-                          href={`/dashboard/request/${userHint.request_id}/track`}
-                          className="inline-flex items-center justify-center px-3 py-1.5 rounded-lg bg-green-600 text-white text-[11px] font-extrabold hover:bg-green-700 transition"
-                        >
-                          فتح تتبّع الرحلة
-                        </Link>
-                      ) : (
-                        <Link
-                          href={`/dashboard/request/${userHint.request_id}/follow`}
-                          className="inline-flex items-center justify-center px-3 py-1.5 rounded-lg bg-blue-600 text-white text-[11px] font-extrabold hover:bg-blue-700 transition"
-                        >
-                          متابعة الطلب
-                        </Link>
-                      )}
-                    </div>
-                  </div>
-                  </div>
-                )}
+                  )
+                })()}
               </div>
             )}
           </div>

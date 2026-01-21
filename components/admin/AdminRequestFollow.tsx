@@ -656,7 +656,7 @@ export default function AdminRequestFollow({
                       </button>
                       <button
                         type="button"
-                        onClick={() => appendAdminResponseAndNotify('تم تأكيد الحجز ✅', false)}
+                        onClick={() => appendAdminResponseAndNotify('تم تأكيد الحجز', false)}
                         disabled={saving}
                         className="px-4 py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition text-sm font-semibold disabled:opacity-50"
                         title="يرسل للمستخدم رسالة تأكيد الحجز"

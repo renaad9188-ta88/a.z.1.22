@@ -274,7 +274,7 @@ export default function RequestFollow({ requestId, userId }: { requestId: string
   const isDraft = ((request.admin_notes || '') as string).startsWith('[DRAFT]')
   const feesPaymentHref =
     (request.visit_type || '') === 'visit' ? `/services/jordan-visit/payment/${request.id}` : `/dashboard/request/${request.id}`
-  const trackingHref = `/dashboard/request/${request.id}/track`
+  const trackingHref = `/`
 
   return (
     <div className="page">
