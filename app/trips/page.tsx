@@ -16,6 +16,7 @@ type Trip = {
   start_location_name: string
   end_location_name: string
   route_id: string
+  trip_type?: string | null
 }
 
 export default function TripsPage() {
@@ -24,10 +25,11 @@ export default function TripsPage() {
   const [trips, setTrips] = useState<Trip[]>([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState<'all' | 'today' | 'upcoming'>('upcoming')
+  const [tripType, setTripType] = useState<'arrivals' | 'departures' | 'all'>('all')
 
   useEffect(() => {
     loadTrips()
-  }, [filter])
+  }, [filter, tripType])
 
   const loadTrips = async () => {
     try {
@@ -36,7 +38,7 @@ export default function TripsPage() {
       
       let query = supabase
         .from('route_trips')
-        .select('id,trip_date,meeting_time,departure_time,start_location_name,end_location_name,route_id')
+        .select('id,trip_date,meeting_time,departure_time,start_location_name,end_location_name,route_id,trip_type')
         .eq('is_active', true)
         .order('trip_date', { ascending: true })
         .order('departure_time', { ascending: true })
@@ -45,6 +47,10 @@ export default function TripsPage() {
         query = query.eq('trip_date', today)
       } else if (filter === 'upcoming') {
         query = query.gte('trip_date', today)
+      }
+
+      if (tripType !== 'all') {
+        query = query.eq('trip_type', tripType)
       }
 
       const { data, error } = await query.limit(100)
@@ -155,8 +161,41 @@ export default function TripsPage() {
                 <p className="text-xs sm:text-sm text-gray-600 mt-1">اختر رحلة من القائمة المتاحة</p>
               </div>
               
-              {/* Filter Tabs */}
-              <div className="flex flex-wrap gap-2">
+              {/* Type + Date Filter Tabs */}
+              <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    onClick={() => setTripType('arrivals')}
+                    className={`px-3 py-2 rounded-lg text-sm font-extrabold transition ${
+                      tripType === 'arrivals'
+                        ? 'bg-blue-600 text-white'
+                        : 'bg-blue-50 text-blue-800 hover:bg-blue-100 border border-blue-100'
+                    }`}
+                  >
+                    القادمون
+                  </button>
+                  <button
+                    onClick={() => setTripType('departures')}
+                    className={`px-3 py-2 rounded-lg text-sm font-extrabold transition ${
+                      tripType === 'departures'
+                        ? 'bg-green-600 text-white'
+                        : 'bg-green-50 text-green-800 hover:bg-green-100 border border-green-100'
+                    }`}
+                  >
+                    المغادرون
+                  </button>
+                  <button
+                    onClick={() => setTripType('all')}
+                    className={`px-3 py-2 rounded-lg text-sm font-extrabold transition ${
+                      tripType === 'all'
+                        ? 'bg-gray-800 text-white'
+                        : 'bg-gray-200 text-gray-800 hover:bg-gray-300'
+                    }`}
+                  >
+                    الكل
+                  </button>
+                </div>
+                <div className="flex flex-wrap gap-2">
                 <button
                   onClick={() => setFilter('upcoming')}
                   className={`px-3 py-2 rounded-lg text-sm font-medium transition ${
@@ -187,6 +226,7 @@ export default function TripsPage() {
                 >
                   الكل
                 </button>
+                </div>
               </div>
             </div>
           </div>
@@ -225,6 +265,19 @@ export default function TripsPage() {
                             <h3 className="text-base sm:text-lg font-bold text-gray-900">
                               {trip.start_location_name} → {trip.end_location_name}
                             </h3>
+                            {trip.trip_type && (
+                              <div className="mt-1">
+                                <span
+                                  className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-extrabold border ${
+                                    String(trip.trip_type).toLowerCase() === 'departures'
+                                      ? 'bg-green-50 text-green-700 border-green-100'
+                                      : 'bg-blue-50 text-blue-700 border-blue-100'
+                                  }`}
+                                >
+                                  {String(trip.trip_type).toLowerCase() === 'departures' ? 'المغادرون' : 'القادمون'}
+                                </span>
+                              </div>
+                            )}
                           </div>
                         </div>
                         
