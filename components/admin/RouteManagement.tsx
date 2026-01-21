@@ -572,8 +572,8 @@ export default function RouteManagement() {
     <div className="space-y-4 sm:space-y-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 sm:gap-4">
-        <h2 className="text-lg sm:text-xl md:text-2xl font-bold text-gray-800">إدارة الخطوط والسائقين</h2>
-        <div className="flex gap-2 w-full sm:w-auto">
+        <h2 className="text-base sm:text-xl md:text-2xl font-extrabold text-gray-900">إدارة الخطوط والسائقين</h2>
+        <div className="flex flex-col sm:flex-row flex-wrap gap-2 w-full sm:w-auto">
           {routes.length > 0 && (
             <>
               <button
@@ -582,10 +582,11 @@ export default function RouteManagement() {
                   setCreateTripType('arrival')
                   setShowCreateTrip(true)
                 }}
-                className="flex-1 sm:flex-none px-3 sm:px-4 py-2 sm:py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition text-sm sm:text-base font-medium"
+                className="w-full sm:w-auto px-3 sm:px-4 py-2 sm:py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition text-sm sm:text-base font-bold"
               >
                 <Plus className="w-4 h-4 inline mr-2" />
-                إنشاء رحلات القادمين
+                <span className="hidden sm:inline">إنشاء رحلات القادمين</span>
+                <span className="sm:hidden">إنشاء القادمين</span>
               </button>
               <button
                 onClick={() => {
@@ -593,16 +594,17 @@ export default function RouteManagement() {
                   setCreateTripType('departure')
                   setShowCreateTrip(true)
                 }}
-                className="flex-1 sm:flex-none px-3 sm:px-4 py-2 sm:py-2.5 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition text-sm sm:text-base font-medium"
+                className="w-full sm:w-auto px-3 sm:px-4 py-2 sm:py-2.5 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition text-sm sm:text-base font-bold"
               >
                 <Plus className="w-4 h-4 inline mr-2" />
-                إنشاء رحلات المغادرين
+                <span className="hidden sm:inline">إنشاء رحلات المغادرين</span>
+                <span className="sm:hidden">إنشاء المغادرين</span>
               </button>
             </>
           )}
           <button
             onClick={() => setShowAddDriver(true)}
-            className="flex-1 sm:flex-none px-3 sm:px-4 py-2 sm:py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm sm:text-base font-medium"
+            className="w-full sm:w-auto px-3 sm:px-4 py-2 sm:py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm sm:text-base font-bold"
           >
             <Plus className="w-4 h-4 inline mr-2" />
             إضافة سائق
@@ -619,11 +621,11 @@ export default function RouteManagement() {
             .filter(Boolean) as Driver[]
 
           return (
-            <div key={route.id} className="bg-white rounded-lg shadow-md p-3 sm:p-4 lg:p-6">
+            <div key={route.id} className="bg-white rounded-lg shadow-md p-3 sm:p-4 lg:p-6 overflow-hidden">
               <div className="flex flex-col sm:flex-row justify-between items-start gap-3 sm:gap-4 mb-4">
                 <div className="flex-1 min-w-0">
                   <h3 className="text-base sm:text-lg md:text-xl font-bold text-gray-800 mb-1">{route.name}</h3>
-                  <p className="text-xs sm:text-sm text-gray-600 mb-2">{route.description}</p>
+                  <p className="text-xs sm:text-sm text-gray-600 mb-2 break-words">{route.description}</p>
                   <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 text-xs sm:text-sm">
                     <span className="flex items-center gap-1 text-gray-700">
                       <MapPin className="w-4 h-4 text-green-600 flex-shrink-0" />
@@ -947,12 +949,13 @@ export default function RouteManagement() {
                       )}
                     </div>
 
-                    <div className="flex flex-wrap gap-2 w-full sm:w-auto">
+                    {/* Action buttons: grid on mobile to avoid overflow, wrap on larger screens */}
+                    <div className="grid grid-cols-2 gap-2 w-full sm:w-auto sm:flex sm:flex-wrap sm:gap-2">
                       <a
                         href={waHref}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="px-3 py-2 rounded-lg bg-green-600 text-white text-xs sm:text-sm font-bold hover:bg-green-700 transition inline-flex items-center gap-2"
+                        className="w-full px-2.5 py-2 rounded-lg bg-green-600 text-white text-xs sm:text-sm font-bold hover:bg-green-700 transition inline-flex items-center justify-center gap-2"
                         title="تواصل واتساب"
                       >
                         <Phone className="w-4 h-4" />
@@ -961,7 +964,7 @@ export default function RouteManagement() {
                       {telHref && (
                         <a
                           href={telHref}
-                          className="px-3 py-2 rounded-lg bg-amber-50 text-amber-900 text-xs sm:text-sm font-bold hover:bg-amber-100 transition inline-flex items-center gap-2 border border-amber-200"
+                          className="w-full px-2.5 py-2 rounded-lg bg-amber-50 text-amber-900 text-xs sm:text-sm font-bold hover:bg-amber-100 transition inline-flex items-center justify-center gap-2 border border-amber-200"
                           title="اتصال مباشر"
                         >
                           <Phone className="w-4 h-4" />
@@ -972,17 +975,17 @@ export default function RouteManagement() {
                         type="button"
                         onClick={() => loadDriverLastLocation(d)}
                         disabled={Boolean(driverLocLoading[d.id])}
-                        className="px-3 py-2 rounded-lg bg-blue-600 text-white text-xs sm:text-sm font-bold hover:bg-blue-700 transition disabled:opacity-50 inline-flex items-center gap-2"
+                        className="w-full px-2.5 py-2 rounded-lg bg-blue-600 text-white text-xs sm:text-sm font-bold hover:bg-blue-700 transition disabled:opacity-50 inline-flex items-center justify-center gap-2"
                         title="آخر موقع مسجل"
                       >
                         <Navigation className="w-4 h-4" />
-                        {driverLocLoading[d.id] ? 'جارٍ التحميل...' : 'آخر موقع'}
+                        {driverLocLoading[d.id] ? 'تحميل...' : 'آخر موقع'}
                       </button>
                       <button
                         type="button"
                         onClick={() => loadDriverLocationHistory(d)}
                         disabled={Boolean(driverLocLoading[d.id])}
-                        className="px-3 py-2 rounded-lg bg-gray-100 text-gray-800 text-xs sm:text-sm font-bold hover:bg-gray-200 transition disabled:opacity-50 inline-flex items-center gap-2"
+                        className="w-full px-2.5 py-2 rounded-lg bg-gray-100 text-gray-800 text-xs sm:text-sm font-bold hover:bg-gray-200 transition disabled:opacity-50 inline-flex items-center justify-center gap-2"
                         title="سجل حركة (آخر 20 نقطة)"
                       >
                         <MapPin className="w-4 h-4" />
@@ -999,18 +1002,19 @@ export default function RouteManagement() {
                               toast.error('تعذر النسخ')
                             }
                           }}
-                          className="px-3 py-2 rounded-lg bg-gray-100 text-gray-800 text-xs sm:text-sm font-bold hover:bg-gray-200 transition inline-flex items-center gap-2"
+                          className="w-full px-2.5 py-2 rounded-lg bg-gray-100 text-gray-800 text-xs sm:text-sm font-bold hover:bg-gray-200 transition inline-flex items-center justify-center gap-2"
                           title="نسخ معرف الحساب (يُستخدم للربط والصلاحيات)"
                         >
                           <Copy className="w-4 h-4" />
-                          معرف الحساب
+                          <span className="hidden sm:inline">معرف الحساب</span>
+                          <span className="sm:hidden">المعرّف</span>
                         </button>
                       )}
 
                       <button
                         type="button"
                         onClick={() => toggleDriverActive(d.id, !d.is_active)}
-                        className={`px-3 py-2 rounded-lg text-xs sm:text-sm font-bold transition ${
+                        className={`w-full px-2.5 py-2 rounded-lg text-xs sm:text-sm font-bold transition ${
                           d.is_active
                             ? 'bg-yellow-50 text-yellow-800 hover:bg-yellow-100 border border-yellow-200'
                             : 'bg-green-50 text-green-800 hover:bg-green-100 border border-green-200'
@@ -1023,7 +1027,7 @@ export default function RouteManagement() {
                       <button
                         type="button"
                         onClick={() => deleteDriver(d.id)}
-                        className="px-3 py-2 rounded-lg bg-red-50 text-red-700 hover:bg-red-100 border border-red-200 text-xs sm:text-sm font-bold transition inline-flex items-center gap-2"
+                        className="w-full px-2.5 py-2 rounded-lg bg-red-50 text-red-700 hover:bg-red-100 border border-red-200 text-xs sm:text-sm font-bold transition inline-flex items-center justify-center gap-2"
                         title="حذف السائق"
                       >
                         <Trash2 className="w-4 h-4" />

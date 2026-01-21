@@ -58,6 +58,7 @@ export default function DriverAvailabilityMap({ selectedTripId }: { selectedTrip
 
   const watchIdRef = useRef<number | null>(null)
   const lastSentAtRef = useRef<number>(0)
+  const lastUiAtRef = useRef<number>(0)
 
   const [loading, setLoading] = useState(true)
   const [mapsReady, setMapsReady] = useState(false)
@@ -437,29 +438,28 @@ export default function DriverAvailabilityMap({ selectedTripId }: { selectedTrip
       watchIdRef.current = null
     }
     lastSentAtRef.current = 0
-    console.log('Starting geolocation watchPosition...')
+    lastUiAtRef.current = 0
     
     // طلب الموقع الحقيقي مباشرة (maximumAge: 0 يعني لا تستخدم cached location)
-    console.log('Requesting REAL current location from browser (not cached)...')
     navigator.geolocation.getCurrentPosition(
       async (pos) => {
         const lat = pos.coords.latitude
         const lng = pos.coords.longitude
         const accuracy = pos.coords.accuracy // دقة الموقع بالمتر
-        console.log('✅ Got REAL current location:', lat, lng, `(accuracy: ${accuracy}m)`)
-        console.log('📍 Location timestamp:', new Date(pos.timestamp).toLocaleString('ar-JO'))
         setMyLoc({ lat, lng })
+        lastUiAtRef.current = Date.now()
+        // إعادة رسم الخريطة مرة واحدة بعد الحصول على الموقع الأول
+        if (mapsReady) {
+          setTimeout(() => render(), 0)
+        }
         try {
           await upsertLive(driverId, { is_available: true, lat, lng })
-          console.log('✅ Real location saved to database')
           toast.success(`تم تحديد موقعك الحالي بدقة ${Math.round(accuracy)} متر`)
         } catch (e) {
-          console.error('❌ Failed to save initial location:', e)
           toast.error('تعذر حفظ الموقع في قاعدة البيانات')
         }
       },
       (err) => {
-        console.error('❌ getCurrentPosition error:', err)
         if (err.code === 1) {
           toast.error('تم رفض صلاحية الموقع. يرجى تفعيل صلاحيات الموقع في إعدادات المتصفح.')
         } else if (err.code === 3) {
@@ -481,29 +481,29 @@ export default function DriverAvailabilityMap({ selectedTripId }: { selectedTrip
       async (pos) => {
         const lat = pos.coords.latitude
         const lng = pos.coords.longitude
-        const accuracy = pos.coords.accuracy
-        console.log('📍 Location update:', lat, lng, `(accuracy: ${accuracy}m)`)
-        setMyLoc({ lat, lng })
-
         const now = Date.now()
         const THROTTLE_MS = 120000 // تحديث كل دقيقتين لتقليل الاستهلاك
+
+        // 1) UI throttle: لا نحدث الواجهة/الخريطة إلا كل دقيقتين (لتجنب كثرة التحديث)
+        if (now - lastUiAtRef.current >= THROTTLE_MS) {
+          lastUiAtRef.current = now
+          setMyLoc({ lat, lng })
+          if (mapsReady) {
+            setTimeout(() => render(), 0)
+          }
+        }
+
+        // 2) DB throttle: حفظ في قاعدة البيانات كل دقيقتين
         if (now - lastSentAtRef.current < THROTTLE_MS) {
-          const secondsAgo = Math.round((now - lastSentAtRef.current) / 1000)
-          console.log(
-            `⏭️ Skipping save (throttled, last sent: ${secondsAgo}s ago, next update in ${Math.max(0, 120 - secondsAgo)}s)`
-          )
           return
         }
         lastSentAtRef.current = now
         try {
           await upsertLive(driverId, { is_available: true, lat, lng })
-          console.log('✅ Location saved to database (every ~2 minutes)')
         } catch (e) {
-          console.error('❌ Failed to save location:', e)
         }
       },
       (err) => {
-        console.error('❌ watchPosition error:', err)
         if (err.code === 1) {
           toast.error('تم رفض صلاحية الموقع. يرجى تفعيل صلاحيات الموقع في إعدادات المتصفح.')
         } else {
@@ -521,7 +521,6 @@ export default function DriverAvailabilityMap({ selectedTripId }: { selectedTrip
         timeout: 15000 
       }
     )
-    console.log('watchPosition started, watchId:', watchIdRef.current)
   }
 
   const stopWatch = async (driverId: string) => {
@@ -603,7 +602,7 @@ export default function DriverAvailabilityMap({ selectedTripId }: { selectedTrip
     }, 150)
     return () => clearTimeout(timer)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mapsReady, trip?.id, tripStops.length, myLoc?.lat, myLoc?.lng])
+  }, [mapsReady, trip?.id, tripStops.length])
 
   useEffect(() => {
     return () => {

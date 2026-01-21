@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { createSupabaseBrowserClient } from '@/lib/supabase'
 import toast from 'react-hot-toast'
 
@@ -14,6 +14,7 @@ export default function RegisterForm() {
   })
   const [loading, setLoading] = useState(false)
   const router = useRouter()
+  const searchParams = useSearchParams()
   const supabase = createSupabaseBrowserClient()
 
   const handleRegister = async (e: React.FormEvent) => {
@@ -43,6 +44,8 @@ export default function RegisterForm() {
     setLoading(true)
 
     try {
+      const inviteToken = searchParams?.get('invite') || null
+
       // استخدام رقم الهاتف كـ email (Supabase يتطلب email)
       // تنسيق صحيح: phone_XXXXXXXXXX@maidaa.local
       const phoneEmail = `phone_${cleanPhone}@maidaa.local`
@@ -103,6 +106,15 @@ export default function RegisterForm() {
           console.error('Profile creation error:', profileError)
         }
 
+        // If signup came from an invite link, claim it (RPC is SECURITY DEFINER)
+        if (inviteToken) {
+          try {
+            await supabase.rpc('claim_invite', { p_invite_token: inviteToken })
+          } catch (e) {
+            console.warn('claim_invite failed (non-blocking):', e)
+          }
+        }
+
         toast.success('تم التسجيل بنجاح!')
         router.push('/dashboard')
         router.refresh()
@@ -126,6 +138,7 @@ export default function RegisterForm() {
           error.message?.includes('User already registered')) {
         toast('هذا الرقم مسجّل مسبقاً. سنحاول تسجيل الدخول...', { duration: 2500 })
         try {
+          const inviteToken = searchParams?.get('invite') || null
           let cleanPhoneForLogin = formData.phone.replace(/\s+/g, '').replace(/[^\d+]/g, '')
           cleanPhoneForLogin = cleanPhoneForLogin.replace(/^\+?0+/, '')
           if (cleanPhoneForLogin.startsWith('00')) {
@@ -139,6 +152,13 @@ export default function RegisterForm() {
           if (!loginError) {
             // بعد تسجيل الدخول: وجّه حسب الدور
             const { data: { user } } = await supabase.auth.getUser()
+            if (inviteToken) {
+              try {
+                await supabase.rpc('claim_invite', { p_invite_token: inviteToken })
+              } catch (e) {
+                console.warn('claim_invite failed after login (non-blocking):', e)
+              }
+            }
             const { data: profile } = await supabase
               .from('profiles')
               .select('role')

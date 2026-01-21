@@ -13,7 +13,7 @@ import RequestDetailsModal from './admin/RequestDetailsModal'
 import TripSchedulingModal from './admin/TripSchedulingModal'
 import RouteManagement from './admin/RouteManagement'
 import SupervisorsManagement from './admin/SupervisorsManagement'
-import NotificationsDropdown from './NotificationsDropdown'
+import InvitesManagement from './admin/InvitesManagement'
 import { VisitRequest, UserProfile, AdminStats as StatsType } from './admin/types'
 import { ChevronDown, Layers } from 'lucide-react'
 
@@ -34,6 +34,7 @@ export default function AdminDashboard() {
   const [currentRole, setCurrentRole] = useState<'admin' | 'supervisor' | 'other'>('other')
   const [showRouteManagement, setShowRouteManagement] = useState(false)
   const [showSupervisorsManagement, setShowSupervisorsManagement] = useState(false)
+  const [showInvitesManagement, setShowInvitesManagement] = useState(false)
   const [collapsedTypes, setCollapsedTypes] = useState<Record<string, boolean>>({})
 
   useEffect(() => {
@@ -306,66 +307,46 @@ export default function AdminDashboard() {
         <div className="container mx-auto px-2 sm:px-3 md:px-4 py-2 sm:py-3 max-w-full">
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 sm:gap-3">
             <div className="flex items-center gap-1.5 sm:gap-2 md:gap-4 min-w-0 flex-1">
-              <Link href="/" className="flex items-center gap-1 sm:gap-1.5 md:gap-2 group min-w-0">
-                <div className="relative w-7 h-7 sm:w-8 sm:h-8 md:w-9 md:h-9 flex items-center justify-center flex-shrink-0">
-                  <div className="absolute inset-0 bg-gradient-to-br from-red-600 via-red-500 to-red-700 rounded-xl shadow-lg group-hover:shadow-xl transition-all duration-300 group-hover:scale-105"></div>
-                  <div className="absolute inset-[2px] bg-gradient-to-br from-white to-gray-50 rounded-lg"></div>
-                  <div className="absolute bottom-0 left-0 right-0 h-[30%] bg-gradient-to-b from-green-600 to-green-700 rounded-b-xl"></div>
-                  <div className="relative z-10 flex items-center justify-center">
-                    <svg 
-                      className="w-3.5 h-3.5 sm:w-4 sm:h-4 md:w-5 md:h-5 text-red-600 drop-shadow-lg" 
-                      viewBox="0 0 24 24" 
-                      fill="currentColor"
-                    >
-                      <path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z" />
-                    </svg>
-                  </div>
-                  <div className="absolute -inset-0.5 border-2 border-yellow-400/50 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity"></div>
-                </div>
-                <div className="flex flex-col min-w-0">
-                  <h1 className="text-xs sm:text-sm md:text-base lg:text-lg xl:text-xl font-bold bg-gradient-to-r from-red-600 via-gray-800 to-green-600 bg-clip-text text-transparent leading-tight group-hover:from-red-500 group-hover:to-green-500 transition-all truncate">
-                    منصة خدمات السوريين
-                  </h1>
-                  <p className="text-[10px] sm:text-xs md:text-sm text-gray-600 truncate">
-                    {currentRole === 'supervisor' ? 'لوحة المشرف' : 'لوحة تحكم الإدارة'}
-                  </p>
-                  <div className="h-0.5 bg-gradient-to-r from-red-500 via-yellow-400 to-green-600 rounded-full mt-0.5 opacity-60 group-hover:opacity-100 transition-opacity"></div>
-                </div>
-              </Link>
+              <div className="flex flex-col min-w-0">
+                <h1 className="text-xs sm:text-sm md:text-base lg:text-lg xl:text-xl font-extrabold text-gray-900 leading-tight truncate">
+                  {currentRole === 'supervisor' ? 'لوحة المشرف' : 'لوحة تحكم الإدارة'}
+                </h1>
+                <p className="text-[10px] sm:text-xs md:text-sm text-gray-600 truncate">
+                  إدارة الطلبات والخطوط
+                </p>
+              </div>
             </div>
-            <div className="flex flex-row items-center gap-1.5 sm:gap-2 md:gap-3 w-full sm:w-auto justify-end sm:justify-start">
+            <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 md:gap-3 w-full sm:w-auto justify-end sm:justify-start">
               {currentRole === 'admin' && (
                 <button
                   onClick={() => setShowRouteManagement(!showRouteManagement)}
-                  className="px-2 sm:px-3 md:px-4 py-1 sm:py-1.5 md:py-2 text-xs sm:text-sm md:text-base text-gray-700 hover:text-blue-600 transition whitespace-nowrap"
+                  className="px-2 sm:px-3 md:px-4 py-1 sm:py-1.5 md:py-2 text-xs sm:text-sm md:text-base text-gray-700 hover:text-blue-600 transition"
                 >
                   إدارة الخطوط
                 </button>
               )}
               {currentRole === 'admin' && (
                 <button
+                  onClick={() => setShowInvitesManagement(!showInvitesManagement)}
+                  className="px-2 sm:px-3 md:px-4 py-1 sm:py-1.5 md:py-2 text-xs sm:text-sm md:text-base text-gray-700 hover:text-blue-600 transition"
+                >
+                  الدعوات
+                </button>
+              )}
+              {currentRole === 'admin' && (
+                <button
                   onClick={() => setShowSupervisorsManagement(!showSupervisorsManagement)}
-                  className="px-2 sm:px-3 md:px-4 py-1 sm:py-1.5 md:py-2 text-xs sm:text-sm md:text-base text-gray-700 hover:text-blue-600 transition whitespace-nowrap"
+                  className="px-2 sm:px-3 md:px-4 py-1 sm:py-1.5 md:py-2 text-xs sm:text-sm md:text-base text-gray-700 hover:text-blue-600 transition"
                 >
                   المشرفين
                 </button>
               )}
               <Link
                 href="/admin/profile"
-                className="px-2 sm:px-3 md:px-4 py-1 sm:py-1.5 md:py-2 text-xs sm:text-sm md:text-base text-gray-700 hover:text-blue-600 transition whitespace-nowrap"
+                className="px-2 sm:px-3 md:px-4 py-1 sm:py-1.5 md:py-2 text-xs sm:text-sm md:text-base text-gray-700 hover:text-blue-600 transition"
               >
                 {currentRole === 'supervisor' ? 'إعدادات المشرف' : 'إعدادات الإدمن'}
               </Link>
-              {currentUserId && (
-                <NotificationsDropdown userId={currentUserId} />
-              )}
-              <button
-                onClick={handleLogout}
-                className="flex items-center gap-1 sm:gap-2 px-2 sm:px-3 md:px-4 py-1 sm:py-1.5 md:py-2 text-xs sm:text-sm md:text-base text-red-600 hover:bg-red-50 rounded-lg transition whitespace-nowrap"
-              >
-                <LogOut className="w-3.5 h-3.5 sm:w-4 sm:h-4 md:w-5 md:h-5" />
-                <span className="hidden sm:inline">تسجيل الخروج</span>
-              </button>
             </div>
           </div>
         </div>
@@ -375,16 +356,29 @@ export default function AdminDashboard() {
         {/* Route Management */}
         {showRouteManagement ? (
           <div className="mb-6">
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-xl font-bold">إدارة الخطوط والسائقين</h2>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
+              <h2 className="text-base sm:text-xl font-extrabold text-gray-900">إدارة الخطوط والسائقين</h2>
               <button
                 onClick={() => setShowRouteManagement(false)}
-                className="px-4 py-2 bg-gray-200 rounded-lg hover:bg-gray-300"
+                className="w-full sm:w-auto px-4 py-2 bg-gray-200 rounded-lg hover:bg-gray-300 font-bold"
               >
                 العودة للطلبات
               </button>
             </div>
             <RouteManagement />
+          </div>
+        ) : showInvitesManagement ? (
+          <div className="mb-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
+              <h2 className="text-base sm:text-xl font-extrabold text-gray-900">الدعوات</h2>
+              <button
+                onClick={() => setShowInvitesManagement(false)}
+                className="w-full sm:w-auto px-4 py-2 bg-gray-200 rounded-lg hover:bg-gray-300 font-bold"
+              >
+                العودة للطلبات
+              </button>
+            </div>
+            <InvitesManagement />
           </div>
         ) : showSupervisorsManagement ? (
           <div className="mb-6">
