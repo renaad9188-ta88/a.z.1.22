@@ -48,45 +48,9 @@ export default function ContactPage() {
               <h2 className="text-xl sm:text-2xl font-bold mb-4 sm:mb-6">معلومات التواصل</h2>
               
               <div className="space-y-3 sm:space-y-4">
-                <a href="tel:+966541700017" className="flex items-center gap-3 sm:gap-4 p-3 sm:p-4 bg-blue-50 rounded-lg hover:bg-blue-100 transition">
-                  <div className="w-10 h-10 sm:w-12 sm:h-12 bg-blue-600 rounded-full flex items-center justify-center flex-shrink-0">
-                    <Phone className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
-                  </div>
-                  <div className="min-w-0">
-                    <p className="font-semibold text-sm sm:text-base text-gray-800">الهاتف</p>
-                    <p className="text-xs sm:text-sm text-gray-600 truncate">+966541700017</p>
-                  </div>
-                </a>
-
-                <a href="https://wa.me/966541700017" target="_blank" className="flex items-center gap-3 sm:gap-4 p-3 sm:p-4 bg-green-50 rounded-lg hover:bg-green-100 transition">
-                  <div className="w-10 h-10 sm:w-12 sm:h-12 bg-green-600 rounded-full flex items-center justify-center flex-shrink-0">
-                    <MessageCircle className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
-                  </div>
-                  <div className="min-w-0">
-                    <p className="font-semibold text-sm sm:text-base text-gray-800">واتساب</p>
-                    <p className="text-xs sm:text-sm text-gray-600 truncate">+966541700017</p>
-                  </div>
-                </a>
-
-                <a href="mailto:info@maidaa-sa.com" className="flex items-center gap-3 sm:gap-4 p-3 sm:p-4 bg-purple-50 rounded-lg hover:bg-purple-100 transition">
-                  <div className="w-10 h-10 sm:w-12 sm:h-12 bg-purple-600 rounded-full flex items-center justify-center flex-shrink-0">
-                    <Mail className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
-                  </div>
-                  <div className="min-w-0">
-                    <p className="font-semibold text-sm sm:text-base text-gray-800">البريد الإلكتروني</p>
-                    <p className="text-xs sm:text-sm text-gray-600 truncate">info@maidaa-sa.com</p>
-                  </div>
-                </a>
-
-                <a href="https://www.maidaa-sa.com" target="_blank" className="flex items-center gap-3 sm:gap-4 p-3 sm:p-4 bg-yellow-50 rounded-lg hover:bg-yellow-100 transition">
-                  <div className="w-10 h-10 sm:w-12 sm:h-12 bg-yellow-600 rounded-full flex items-center justify-center flex-shrink-0">
-                    <Globe className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
-                  </div>
-                  <div className="min-w-0">
-                    <p className="font-semibold text-sm sm:text-base text-gray-800">الموقع الإلكتروني</p>
-                    <p className="text-xs sm:text-sm text-gray-600 truncate">www.maidaa-sa.com</p>
-                  </div>
-                </a>
+                <p className="text-sm sm:text-base text-gray-600">
+                  للتواصل معنا، يرجى استخدام نموذج التواصل على اليمين
+                </p>
               </div>
             </div>
 

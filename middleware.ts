@@ -54,6 +54,24 @@ export async function middleware(req: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser()
 
+  // Protect admin login route - redirect if already logged in as admin
+  if (req.nextUrl.pathname === '/auth/admin-login') {
+    if (user) {
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('user_id', user.id)
+        .order('updated_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+      
+      const role = (profile?.role || '').toLowerCase()
+      if (role === 'admin' || role === 'supervisor') {
+        return NextResponse.redirect(new URL('/admin', req.url))
+      }
+    }
+  }
+
   // Protect dashboard routes
   if (req.nextUrl.pathname.startsWith('/dashboard')) {
     if (!user) {
@@ -84,7 +102,7 @@ export async function middleware(req: NextRequest) {
   // Protect admin routes
   if (req.nextUrl.pathname.startsWith('/admin')) {
     if (!user) {
-      return NextResponse.redirect(new URL('/auth/login', req.url))
+      return NextResponse.redirect(new URL('/auth/admin-login', req.url))
     }
 
     // Enforce role separation: only admins/supervisors can access /admin

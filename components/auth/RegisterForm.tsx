@@ -205,7 +205,7 @@ export default function RegisterForm() {
       <div className="max-w-md w-full bg-white rounded-lg shadow-xl p-5 sm:p-6 md:p-8">
         <div className="text-center mb-6 sm:mb-8">
           <h1 className="text-2xl sm:text-3xl font-bold text-gray-800 mb-2">إنشاء حساب جديد</h1>
-          <p className="text-sm sm:text-base text-gray-600">انضم إلى منصة ميداء</p>
+          <p className="text-sm sm:text-base text-gray-600">انضم إلى منصة خدمات السوريين</p>
         </div>
 
         <form onSubmit={handleRegister} className="space-y-4 sm:space-y-6">
