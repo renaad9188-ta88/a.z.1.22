@@ -47,14 +47,7 @@
    SELECT id, 'tamer88', 'tamer88', 'admin'
    FROM auth.users
    WHERE email = 'phone_tamer88@maidaa.local'
-   ON CONFLICT DO NOTHING;
-   
-   -- أو تحديث إذا كان موجود
-   UPDATE profiles 
-   SET role = 'admin'
-   WHERE user_id IN (
-     SELECT id FROM auth.users WHERE email = 'phone_tamer88@maidaa.local'
-   );
+   ON CONFLICT (user_id) DO UPDATE SET role = 'admin';
    ```
 
 ### الحل 4: استخدام رقم الهاتف بدلاً من الإيميل
@@ -67,12 +60,30 @@
 ## معلومات تسجيل الدخول
 
 ### للإداريين (تسجيل دخول بالإيميل):
-- **الإيميل**: `phone_tamer88@maidaa.local`
-- **كلمة المرور**: (الكلمة التي اخترتها في Supabase Dashboard)
+- **الإيميل**: `phone_tamer88@maidaa.local` أو `tamer88@gmail.com`
+- **كلمة المرور**: (الكلمة التي اخترتها في Supabase Dashboard أو `123456123`)
 
 ### للمستخدمين العاديين (تسجيل دخول برقم الهاتف):
 - **رقم الهاتف**: (رقم الهاتف المسجل)
 - **كلمة المرور**: `123456` (افتراضية)
+
+## خطوات تسجيل الدخول بالتفصيل:
+
+### الخطوة 1: تأكد من كلمة المرور
+- اذهب إلى Supabase Dashboard
+- Authentication > Users
+- انقر على المستخدم
+- إذا لم تعرف كلمة المرور، غيّرها (Update > Password)
+
+### الخطوة 2: في صفحة تسجيل الدخول
+1. ✅ تأكد أن "إيميل (إداري)" محدد (أزرق)
+2. ✅ في خانة الإيميل، أدخل: `phone_tamer88@maidaa.local` أو `tamer88@gmail.com`
+3. ✅ في خانة كلمة المرور، أدخل: (كلمة المرور من Supabase)
+4. ✅ اضغط "تسجيل الدخول"
+
+### الخطوة 3: بعد تسجيل الدخول
+- إذا نجح تسجيل الدخول، سيتم توجيهك تلقائياً إلى `/admin`
+- إذا فشل، تحقق من كلمة المرور
 
 ## بعد تسجيل الدخول
 
@@ -85,7 +96,7 @@
 2. **استخدم كلمة مرور قوية**: في الإنتاج، استخدم كلمة مرور قوية
 3. **إعادة تعيين كلمة المرور**: يمكنك دائماً إعادة تعيين كلمة المرور من Supabase Dashboard
 
+## ملخص سريع:
 
-
-
-
+**الإيميل**: `phone_tamer88@maidaa.local` أو `tamer88@gmail.com`  
+**كلمة المرور**: (الكلمة التي في Supabase Dashboard أو `123456123`)

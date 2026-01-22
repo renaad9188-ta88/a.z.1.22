@@ -2,7 +2,7 @@
 
 import { formatDate } from '@/lib/date-utils'
 import { VisitRequest } from './types'
-import { Clock, CheckCircle, XCircle, Eye, Calendar, MapPin, Users, DollarSign, Plane, Copy, ExternalLink, MessageCircle, Phone } from 'lucide-react'
+import { Clock, CheckCircle, XCircle, Eye, Calendar, MapPin, Users, DollarSign, Plane, Copy, ExternalLink, MessageCircle, Phone, UserCheck } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { parseAdminNotes } from '../request-details/utils'
 import Link from 'next/link'
@@ -162,9 +162,9 @@ export default function RequestCard({ request, userProfile, onClick, onScheduleT
   }
 
   return (
-    <div className={`${getBackgroundGradient()} rounded-xl shadow-lg hover:shadow-2xl transition-all duration-300 p-4 sm:p-6 border-2 border-r-0 ${getBorderColor()} ${
+    <div className={`${getBackgroundGradient()} rounded-xl shadow-md hover:shadow-xl transition-all duration-300 p-4 sm:p-5 md:p-6 border-2 border-r-0 ${getBorderColor()} ${
       isNewRequest ? 'ring-2 ring-blue-300 ring-opacity-50' : ''
-    } transform hover:scale-[1.01]`}>
+    } transform hover:scale-[1.005] sm:hover:scale-[1.01]`}>
       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
         {/* المعلومات الأساسية */}
         <div className="flex-1 space-y-3">
@@ -240,7 +240,15 @@ export default function RequestCard({ request, userProfile, onClick, onScheduleT
                   )}
                 </div>
               )}
-              {getStatusBadge(request.status)}
+              <div className="flex items-center gap-2 flex-wrap">
+                {getStatusBadge(request.status)}
+                {(request as any)?.assigned_to && (
+                  <div className="inline-flex items-center gap-1.5 px-2 py-1 rounded-lg bg-purple-50 text-purple-800 border border-purple-200 text-xs font-bold">
+                    <UserCheck className="w-3.5 h-3.5" />
+                    معيّن لمشرف
+                  </div>
+                )}
+              </div>
             </div>
             <div
               className="text-left bg-gray-50 rounded-lg p-2 border border-gray-200 cursor-pointer hover:bg-gray-100 transition w-full sm:w-auto"
@@ -309,7 +317,7 @@ export default function RequestCard({ request, userProfile, onClick, onScheduleT
             </div>
           </div>
 
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-sm bg-white/50 rounded-lg p-3 border border-gray-100">
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-3 text-sm bg-white/50 rounded-lg p-3 sm:p-4 border border-gray-100">
             <div className="flex items-center gap-2 text-gray-700 bg-blue-50 rounded-lg p-2">
               <Calendar className="w-4 h-4 text-blue-600 flex-shrink-0" />
               <div>

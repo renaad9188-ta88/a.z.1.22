@@ -600,23 +600,46 @@ export default function RequestDetailsModal({
             <h3 className="text-base sm:text-lg font-bold text-gray-800 mb-4">تحديث حالة الطلب</h3>
             <div className="space-y-4">
               {/* تعيين المشرف */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">تعيين مشرف للطلب</label>
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <label className="block text-sm font-bold text-gray-900 mb-3 flex items-center gap-2">
+                  <User className="w-4 h-4 text-blue-600" />
+                  تعيين مشرف للطلب
+                </label>
                 <select
                   value={assignedTo}
                   onChange={(e) => setAssignedTo(e.target.value)}
-                  className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm sm:text-base"
+                  className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm sm:text-base bg-white"
                 >
-                  <option value="">بدون تعيين</option>
-                  {supervisors.map((s) => (
-                    <option key={s.user_id} value={s.user_id}>
-                      {s.full_name || s.phone || s.user_id.slice(0, 8)}
-                    </option>
-                  ))}
+                  <option value="">-- بدون تعيين (الإدارة فقط) --</option>
+                  {supervisors.length === 0 ? (
+                    <option disabled>لا يوجد مشرفين متاحين</option>
+                  ) : (
+                    supervisors.map((s) => (
+                      <option key={s.user_id} value={s.user_id}>
+                        {s.full_name || 'مشرف'} — {s.phone || 'لا يوجد رقم'}
+                      </option>
+                    ))
+                  )}
                 </select>
-                <p className="text-[11px] text-gray-600 mt-1">
-                  المشرف سيشاهد هذا الطلب فقط داخل لوحة المشرف.
-                </p>
+                {assignedTo && (
+                  <div className="mt-2 p-2 bg-white border border-green-200 rounded-lg">
+                    <p className="text-xs text-gray-700">
+                      <span className="font-bold text-green-700">✓ تم التعيين:</span>{' '}
+                      {supervisors.find((s) => s.user_id === assignedTo)?.full_name || 'مشرف'}
+                    </p>
+                  </div>
+                )}
+                <div className="mt-3 space-y-1 text-[11px] text-gray-700">
+                  <p className="font-bold">الصلاحيات التي سيحصل عليها المشرف:</p>
+                  <ul className="list-disc list-inside space-y-0.5 mr-2">
+                    <li>رؤية وتعديل هذا الطلب فقط</li>
+                    <li>تأكيد استلام الدفعة (payment_verified)</li>
+                    <li>إدارة ملفات المنتسبين</li>
+                  </ul>
+                  <p className="mt-2 text-amber-700 font-bold">
+                    ⚠️ ملاحظة: المشرف لن يرى الطلبات الأخرى، فقط الطلبات المعيّنة له
+                  </p>
+                </div>
               </div>
 
               {/* بوابة الدفع -> فتح الحجز */}

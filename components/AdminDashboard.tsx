@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { createSupabaseBrowserClient } from '@/lib/supabase'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
-import { LogOut, FileText } from 'lucide-react'
+import { LogOut, FileText, Users, X, Calendar } from 'lucide-react'
 import toast from 'react-hot-toast'
 import AdminStats from './admin/AdminStats'
 import RequestFilters from './admin/RequestFilters'
@@ -15,6 +15,7 @@ import RouteManagement from './admin/RouteManagement'
 import SupervisorsManagement from './admin/SupervisorsManagement'
 import InvitesManagement from './admin/InvitesManagement'
 import CustomersManagement from './admin/CustomersManagement'
+import BookingsManagement from './admin/BookingsManagement'
 import { VisitRequest, UserProfile, AdminStats as StatsType } from './admin/types'
 import { ChevronDown, Layers } from 'lucide-react'
 
@@ -37,11 +38,94 @@ export default function AdminDashboard() {
   const [showSupervisorsManagement, setShowSupervisorsManagement] = useState(false)
   const [showInvitesManagement, setShowInvitesManagement] = useState(false)
   const [showCustomersManagement, setShowCustomersManagement] = useState(false)
+  const [showBookingsManagement, setShowBookingsManagement] = useState(false)
   const [collapsedTypes, setCollapsedTypes] = useState<Record<string, boolean>>({})
+  const [showBulkAssign, setShowBulkAssign] = useState(false)
+  const [bulkAssignSupervisor, setBulkAssignSupervisor] = useState('')
+  const [bulkAssignType, setBulkAssignType] = useState<'all' | 'visit' | 'goethe' | 'embassy' | 'umrah' | 'tourism'>('all')
+  const [bulkAssignStatus, setBulkAssignStatus] = useState<'all' | 'pending' | 'under_review' | 'approved'>('all')
+  const [supervisors, setSupervisors] = useState<Array<{ user_id: string; full_name: string | null; phone: string | null }>>([])
+  const [bulkAssigning, setBulkAssigning] = useState(false)
+
+  // تحميل قائمة المشرفين
+  const loadSupervisors = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('user_id, full_name, phone')
+        .eq('role', 'supervisor')
+        .order('full_name', { ascending: true })
+
+      if (error) {
+        console.error('Error loading supervisors:', error)
+        return
+      }
+
+      setSupervisors((data || []).map(p => ({
+        user_id: p.user_id,
+        full_name: p.full_name,
+        phone: p.phone,
+      })))
+    } catch (e: any) {
+      console.error('Error in loadSupervisors:', e)
+    }
+  }
 
   useEffect(() => {
     loadRequests()
   }, [])
+
+  useEffect(() => {
+    if (currentRole === 'admin') {
+      loadSupervisors()
+    }
+  }, [currentRole])
+
+  // دالة للتنقل بين الأقسام مع إغلاق الأقسام الأخرى والتمرير إلى الأعلى
+  const navigateToSection = (section: 'routes' | 'invites' | 'customers' | 'supervisors' | 'requests' | 'bookings') => {
+    // إغلاق جميع الأقسام أولاً
+    setShowRouteManagement(false)
+    setShowSupervisorsManagement(false)
+    setShowInvitesManagement(false)
+    setShowCustomersManagement(false)
+    setShowBookingsManagement(false)
+
+        // فتح القسم المطلوب
+        if (section === 'routes') {
+          setShowRouteManagement(true)
+        } else if (section === 'invites') {
+          setShowInvitesManagement(true)
+        } else if (section === 'customers') {
+          setShowCustomersManagement(true)
+        } else if (section === 'supervisors') {
+          setShowSupervisorsManagement(true)
+        } else if (section === 'bookings') {
+          setShowBookingsManagement(true)
+        }
+
+    // التمرير إلى أعلى الصفحة بعد تحديث الـ DOM
+    setTimeout(() => {
+      window.scrollTo({ top: 0, behavior: 'smooth' })
+      // على الموبايل، قد نحتاج إلى تمرير إضافي
+      const header = document.querySelector('header')
+      if (header) {
+        header.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      }
+    }, 100)
+  }
+
+  // التمرير إلى الأعلى عند تغيير أي قسم
+  useEffect(() => {
+    if (showRouteManagement || showInvitesManagement || showCustomersManagement || showSupervisorsManagement || showBookingsManagement) {
+      setTimeout(() => {
+        window.scrollTo({ top: 0, behavior: 'smooth' })
+        const header = document.querySelector('header')
+        if (header) {
+          header.scrollIntoView({ behavior: 'smooth', block: 'start' })
+        }
+      }, 100)
+    }
+  }, [showRouteManagement, showInvitesManagement, showCustomersManagement, showSupervisorsManagement, showBookingsManagement])
 
   // فتح الطلب تلقائياً إذا جاء من إشعار داخل لوحة الإدارة
   useEffect(() => {
@@ -172,6 +256,78 @@ export default function AdminDashboard() {
     await supabase.auth.signOut()
     router.push('/')
     toast.success('تم تسجيل الخروج بنجاح')
+  }
+
+  // التعيين الجماعي للطلبات
+  const handleBulkAssign = async () => {
+    if (!bulkAssignSupervisor) {
+      toast.error('اختر مشرفاً')
+      return
+    }
+
+    try {
+      setBulkAssigning(true)
+
+      const { data: { user: adminUser } } = await supabase.auth.getUser()
+      if (!adminUser) {
+        toast.error('يجب تسجيل الدخول')
+        return
+      }
+
+      // بناء query للطلبات المطلوبة
+      let query = supabase
+        .from('visit_requests')
+        .select('id, visitor_name')
+        .is('assigned_to', null) // فقط الطلبات غير المعيّنة
+
+      if (bulkAssignType !== 'all') {
+        query = query.eq('visit_type', bulkAssignType)
+      }
+
+      if (bulkAssignStatus !== 'all') {
+        query = query.eq('status', bulkAssignStatus)
+      }
+
+      const { data: requests, error } = await query
+
+      if (error) throw error
+
+      if (!requests || requests.length === 0) {
+        toast('لا توجد طلبات تطابق المعايير المحددة')
+        return
+      }
+
+      // تعيين جميع الطلبات
+      const { error: updateError } = await supabase
+        .from('visit_requests')
+        .update({
+          assigned_to: bulkAssignSupervisor,
+          assigned_by: adminUser.id,
+          assigned_at: new Date().toISOString(),
+        })
+        .in('id', requests.map((r) => r.id))
+
+      if (updateError) throw updateError
+
+      toast.success(`تم تعيين ${requests.length} طلب للمشرف بنجاح`)
+
+      // إرسال إشعارات للمشرف
+      const { notifySupervisorAssigned } = await import('@/lib/notifications')
+      for (const req of requests) {
+        await notifySupervisorAssigned(bulkAssignSupervisor, req.id, req.visitor_name || 'زائر')
+      }
+
+      setShowBulkAssign(false)
+      setBulkAssignSupervisor('')
+      setBulkAssignType('all')
+      setBulkAssignStatus('all')
+      await loadRequests()
+    } catch (e: any) {
+      console.error('Bulk assign error:', e)
+      toast.error(e?.message || 'تعذر التعيين الجماعي')
+    } finally {
+      setBulkAssigning(false)
+    }
   }
 
   const handleRequestClick = async (request: VisitRequest) => {
@@ -321,34 +477,98 @@ export default function AdminDashboard() {
             <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 md:gap-3 w-full sm:w-auto justify-end sm:justify-start">
               {currentRole === 'admin' && (
                 <button
-                  onClick={() => setShowRouteManagement(!showRouteManagement)}
-                  className="px-2 sm:px-3 md:px-4 py-1 sm:py-1.5 md:py-2 text-xs sm:text-sm md:text-base text-gray-700 hover:text-blue-600 transition"
+                  onClick={() => {
+                    if (showRouteManagement) {
+                      navigateToSection('requests')
+                    } else {
+                      navigateToSection('routes')
+                    }
+                  }}
+                  className={`px-2 sm:px-3 md:px-4 py-1 sm:py-1.5 md:py-2 text-xs sm:text-sm md:text-base transition ${
+                    showRouteManagement ? 'text-blue-600 font-bold' : 'text-gray-700 hover:text-blue-600'
+                  }`}
                 >
                   إدارة الخطوط
                 </button>
               )}
               {currentRole === 'admin' && (
                 <button
-                  onClick={() => setShowInvitesManagement(!showInvitesManagement)}
-                  className="px-2 sm:px-3 md:px-4 py-1 sm:py-1.5 md:py-2 text-xs sm:text-sm md:text-base text-gray-700 hover:text-blue-600 transition"
+                  onClick={() => {
+                    if (showInvitesManagement) {
+                      navigateToSection('requests')
+                    } else {
+                      navigateToSection('invites')
+                    }
+                  }}
+                  className={`px-2 sm:px-3 md:px-4 py-1 sm:py-1.5 md:py-2 text-xs sm:text-sm md:text-base transition ${
+                    showInvitesManagement ? 'text-blue-600 font-bold' : 'text-gray-700 hover:text-blue-600'
+                  }`}
                 >
                   الدعوات
                 </button>
               )}
               {currentRole === 'admin' && (
                 <button
-                  onClick={() => setShowCustomersManagement(!showCustomersManagement)}
-                  className="px-2 sm:px-3 md:px-4 py-1 sm:py-1.5 md:py-2 text-xs sm:text-sm md:text-base text-gray-700 hover:text-blue-600 transition"
+                  onClick={() => {
+                    if (showCustomersManagement) {
+                      navigateToSection('requests')
+                    } else {
+                      navigateToSection('customers')
+                    }
+                  }}
+                  className={`px-2 sm:px-3 md:px-4 py-1 sm:py-1.5 md:py-2 text-xs sm:text-sm md:text-base transition ${
+                    showCustomersManagement ? 'text-blue-600 font-bold' : 'text-gray-700 hover:text-blue-600'
+                  }`}
                 >
                   المنتسبين
                 </button>
               )}
               {currentRole === 'admin' && (
                 <button
-                  onClick={() => setShowSupervisorsManagement(!showSupervisorsManagement)}
-                  className="px-2 sm:px-3 md:px-4 py-1 sm:py-1.5 md:py-2 text-xs sm:text-sm md:text-base text-gray-700 hover:text-blue-600 transition"
+                  onClick={() => {
+                    if (showSupervisorsManagement) {
+                      navigateToSection('requests')
+                    } else {
+                      navigateToSection('supervisors')
+                    }
+                  }}
+                  className={`px-2 sm:px-3 md:px-4 py-1 sm:py-1.5 md:py-2 text-xs sm:text-sm md:text-base transition ${
+                    showSupervisorsManagement ? 'text-blue-600 font-bold' : 'text-gray-700 hover:text-blue-600'
+                  }`}
                 >
                   المشرفين
+                </button>
+              )}
+              {currentRole === 'admin' && (
+                <button
+                  onClick={() => setShowBulkAssign(true)}
+                  className="px-2 sm:px-3 md:px-4 py-1 sm:py-1.5 md:py-2 text-xs sm:text-sm md:text-base bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition font-bold flex items-center gap-1.5 sm:gap-2"
+                  title="تعيين طلبات متعددة لمشرف"
+                >
+                  <Users className="w-3.5 h-3.5 sm:w-4 sm:h-4 flex-shrink-0" />
+                  <span className="hidden sm:inline">تعيين جماعي</span>
+                  <span className="sm:hidden">جماعي</span>
+                </button>
+              )}
+              {currentRole === 'admin' && (
+                <button
+                  onClick={() => {
+                    if (showBookingsManagement) {
+                      navigateToSection('requests')
+                    } else {
+                      navigateToSection('bookings')
+                    }
+                  }}
+                  className={`px-2 sm:px-3 md:px-4 py-1 sm:py-1.5 md:py-2 text-xs sm:text-sm md:text-base transition font-bold flex items-center gap-1.5 sm:gap-2 ${
+                    showBookingsManagement
+                      ? 'bg-amber-600 text-white rounded-lg'
+                      : 'bg-amber-50 text-amber-800 rounded-lg hover:bg-amber-100 border border-amber-200'
+                  }`}
+                  title="إدارة الحجوزات والرحلات"
+                >
+                  <Calendar className="w-3.5 h-3.5 sm:w-4 sm:h-4 flex-shrink-0" />
+                  <span className="hidden sm:inline">الحجوزات</span>
+                  <span className="sm:hidden">حجوزات</span>
                 </button>
               )}
               <Link
@@ -365,59 +585,82 @@ export default function AdminDashboard() {
       <div className="container mx-auto px-2 sm:px-3 md:px-4 py-3 sm:py-4 md:py-6 max-w-full">
         {/* Route Management */}
         {showRouteManagement ? (
-          <div className="mb-6">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
-              <h2 className="text-base sm:text-xl font-extrabold text-gray-900">إدارة الخطوط والسائقين</h2>
+          <div className="mb-6" key="route-management">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+              <h2 className="text-base sm:text-lg md:text-xl font-extrabold text-gray-900">إدارة الخطوط والسائقين</h2>
               <button
-                onClick={() => setShowRouteManagement(false)}
-                className="w-full sm:w-auto px-4 py-2 bg-gray-200 rounded-lg hover:bg-gray-300 font-bold"
+                onClick={() => navigateToSection('requests')}
+                className="w-full sm:w-auto px-3 sm:px-4 py-2 sm:py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition font-bold text-xs sm:text-sm md:text-base inline-flex items-center justify-center gap-2 shadow-md hover:shadow-lg"
               >
-                العودة للطلبات
+                <FileText className="w-3.5 h-3.5 sm:w-4 sm:h-4 flex-shrink-0" />
+                <span className="hidden sm:inline">العودة للطلبات</span>
+                <span className="sm:hidden">الطلبات</span>
               </button>
             </div>
             <RouteManagement />
           </div>
         ) : showInvitesManagement ? (
-          <div className="mb-6">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
-              <h2 className="text-base sm:text-xl font-extrabold text-gray-900">الدعوات</h2>
+          <div className="mb-6" key="invites-management">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+              <h2 className="text-base sm:text-lg md:text-xl font-extrabold text-gray-900">الدعوات</h2>
               <button
-                onClick={() => setShowInvitesManagement(false)}
-                className="w-full sm:w-auto px-4 py-2 bg-gray-200 rounded-lg hover:bg-gray-300 font-bold"
+                onClick={() => navigateToSection('requests')}
+                className="w-full sm:w-auto px-3 sm:px-4 py-2 sm:py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition font-bold text-xs sm:text-sm md:text-base inline-flex items-center justify-center gap-2 shadow-md hover:shadow-lg"
               >
-                العودة للطلبات
+                <FileText className="w-3.5 h-3.5 sm:w-4 sm:h-4 flex-shrink-0" />
+                <span className="hidden sm:inline">العودة للطلبات</span>
+                <span className="sm:hidden">الطلبات</span>
               </button>
             </div>
             <InvitesManagement />
           </div>
         ) : showCustomersManagement ? (
-          <div className="mb-6">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
-              <h2 className="text-base sm:text-xl font-extrabold text-gray-900">العملاء / المنتسبين</h2>
+          <div className="mb-6" key="customers-management">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+              <h2 className="text-base sm:text-lg md:text-xl font-extrabold text-gray-900">العملاء / المنتسبين</h2>
               <button
-                onClick={() => setShowCustomersManagement(false)}
-                className="w-full sm:w-auto px-4 py-2 bg-gray-200 rounded-lg hover:bg-gray-300 font-bold"
+                onClick={() => navigateToSection('requests')}
+                className="w-full sm:w-auto px-3 sm:px-4 py-2 sm:py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition font-bold text-xs sm:text-sm md:text-base inline-flex items-center justify-center gap-2 shadow-md hover:shadow-lg"
               >
-                العودة للطلبات
+                <FileText className="w-3.5 h-3.5 sm:w-4 sm:h-4 flex-shrink-0" />
+                <span className="hidden sm:inline">العودة للطلبات</span>
+                <span className="sm:hidden">الطلبات</span>
               </button>
             </div>
             <CustomersManagement />
           </div>
         ) : showSupervisorsManagement ? (
-          <div className="mb-6">
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-xl font-bold">إدارة المشرفين</h2>
+          <div className="mb-6" key="supervisors-management">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+              <h2 className="text-base sm:text-lg md:text-xl font-extrabold text-gray-900">إدارة المشرفين</h2>
               <button
-                onClick={() => setShowSupervisorsManagement(false)}
-                className="px-4 py-2 bg-gray-200 rounded-lg hover:bg-gray-300"
+                onClick={() => navigateToSection('requests')}
+                className="w-full sm:w-auto px-3 sm:px-4 py-2 sm:py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition font-bold text-xs sm:text-sm md:text-base inline-flex items-center justify-center gap-2 shadow-md hover:shadow-lg"
               >
-                العودة للطلبات
+                <FileText className="w-3.5 h-3.5 sm:w-4 sm:h-4 flex-shrink-0" />
+                <span className="hidden sm:inline">العودة للطلبات</span>
+                <span className="sm:hidden">الطلبات</span>
               </button>
             </div>
             <SupervisorsManagement />
           </div>
+        ) : showBookingsManagement ? (
+          <div className="mb-6" key="bookings-management">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+              <h2 className="text-base sm:text-lg md:text-xl font-extrabold text-gray-900">إدارة الحجوزات والرحلات</h2>
+              <button
+                onClick={() => navigateToSection('requests')}
+                className="w-full sm:w-auto px-3 sm:px-4 py-2 sm:py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition font-bold text-xs sm:text-sm md:text-base inline-flex items-center justify-center gap-2 shadow-md hover:shadow-lg"
+              >
+                <FileText className="w-3.5 h-3.5 sm:w-4 sm:h-4 flex-shrink-0" />
+                <span className="hidden sm:inline">العودة للطلبات</span>
+                <span className="sm:hidden">الطلبات</span>
+              </button>
+            </div>
+            <BookingsManagement />
+          </div>
         ) : (
-          <>
+          <div key="requests-section">
             {/* Stats */}
             <AdminStats stats={stats} />
 
@@ -433,7 +676,7 @@ export default function AdminDashboard() {
         />
 
         {/* Requests List */}
-        <div className="space-y-3 sm:space-y-4">
+        <div className="space-y-3 sm:space-y-4 md:space-y-5">
           {filteredRequests.length === 0 ? (
             <div className="bg-white rounded-xl shadow-md p-4 sm:p-6 md:p-8 lg:p-12 text-center">
               <div className="max-w-md mx-auto">
@@ -495,7 +738,7 @@ export default function AdminDashboard() {
                           </button>
 
                           {!isCollapsed && (
-                            <div className="p-3 sm:p-4 space-y-3">
+                            <div className="p-3 sm:p-4 md:p-5 space-y-3 sm:space-y-4">
                               {list.map((request, idx) => (
                                 <RequestCard
                                   key={request.id}
@@ -528,7 +771,7 @@ export default function AdminDashboard() {
             </>
           )}
         </div>
-          </>
+          </div>
         )}
       </div>
 
@@ -550,6 +793,126 @@ export default function AdminDashboard() {
           onUpdate={loadRequests}
           isAdmin={true}
         />
+      )}
+
+      {/* Bulk Assign Modal */}
+      {showBulkAssign && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-3 sm:p-4">
+          <div className="bg-white rounded-xl max-w-md w-full p-4 sm:p-6 shadow-2xl">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-base sm:text-lg md:text-xl font-bold text-gray-900 flex items-center gap-2">
+                <Users className="w-5 h-5 text-purple-600" />
+                تعيين طلبات متعددة لمشرف
+              </h3>
+              <button
+                onClick={() => {
+                  setShowBulkAssign(false)
+                  setBulkAssignSupervisor('')
+                  setBulkAssignType('all')
+                  setBulkAssignStatus('all')
+                }}
+                className="text-gray-400 hover:text-gray-600 transition"
+                title="إغلاق"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-xs sm:text-sm font-bold text-gray-700 mb-2">
+                  المشرف
+                </label>
+                <select
+                  value={bulkAssignSupervisor}
+                  onChange={(e) => setBulkAssignSupervisor(e.target.value)}
+                  className="w-full px-3 sm:px-4 py-2 sm:py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 text-sm sm:text-base bg-white"
+                >
+                  <option value="">اختر مشرفاً</option>
+                  {supervisors.length === 0 ? (
+                    <option disabled>لا يوجد مشرفين متاحين</option>
+                  ) : (
+                    supervisors.map((s) => (
+                      <option key={s.user_id} value={s.user_id}>
+                        {s.full_name || 'مشرف'} — {s.phone || 'لا يوجد رقم'}
+                      </option>
+                    ))
+                  )}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs sm:text-sm font-bold text-gray-700 mb-2">
+                  نوع الطلب
+                </label>
+                <select
+                  value={bulkAssignType}
+                  onChange={(e) => setBulkAssignType(e.target.value as any)}
+                  className="w-full px-3 sm:px-4 py-2 sm:py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 text-sm sm:text-base bg-white"
+                >
+                  <option value="all">جميع الأنواع</option>
+                  <option value="visit">الزيارات فقط</option>
+                  <option value="goethe">جوته</option>
+                  <option value="embassy">السفارة</option>
+                  <option value="umrah">عمرة</option>
+                  <option value="tourism">سياحة</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs sm:text-sm font-bold text-gray-700 mb-2">
+                  حالة الطلب
+                </label>
+                <select
+                  value={bulkAssignStatus}
+                  onChange={(e) => setBulkAssignStatus(e.target.value as any)}
+                  className="w-full px-3 sm:px-4 py-2 sm:py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 text-sm sm:text-base bg-white"
+                >
+                  <option value="all">جميع الحالات</option>
+                  <option value="pending">مستلم</option>
+                  <option value="under_review">قيد المراجعة</option>
+                  <option value="approved">مقبول</option>
+                </select>
+              </div>
+
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-xs sm:text-sm text-gray-700">
+                <p className="font-bold mb-1">ملاحظة:</p>
+                <p>سيتم تعيين جميع الطلبات غير المعيّنة التي تطابق المعايير المحددة للمشرف المختار.</p>
+              </div>
+
+              <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 pt-2">
+                <button
+                  onClick={handleBulkAssign}
+                  disabled={!bulkAssignSupervisor || bulkAssigning}
+                  className="flex-1 px-4 py-2.5 sm:py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition font-bold text-sm sm:text-base flex items-center justify-center gap-2"
+                >
+                  {bulkAssigning ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                      <span>جاري التعيين...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Users className="w-4 h-4" />
+                      <span>تعيين</span>
+                    </>
+                  )}
+                </button>
+                <button
+                  onClick={() => {
+                    setShowBulkAssign(false)
+                    setBulkAssignSupervisor('')
+                    setBulkAssignType('all')
+                    setBulkAssignStatus('all')
+                  }}
+                  className="flex-1 px-4 py-2.5 sm:py-3 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 transition font-bold text-sm sm:text-base"
+                >
+                  إلغاء
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )

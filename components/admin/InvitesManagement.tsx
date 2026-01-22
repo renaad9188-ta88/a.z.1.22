@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import toast from 'react-hot-toast'
 import { createSupabaseBrowserClient } from '@/lib/supabase'
-import { Phone, MessageCircle, Upload, Search, CheckCircle2, UserPlus, RefreshCw, Plus, Pencil } from 'lucide-react'
+import { Phone, MessageCircle, Upload, Search, CheckCircle2, UserPlus, RefreshCw, Plus, Pencil, Trash2, Edit } from 'lucide-react'
 
 type InviteRow = {
   id: string
@@ -60,6 +60,14 @@ export default function InvitesManagement() {
     country: '',
   })
   const [savingOne, setSavingOne] = useState(false)
+  const [editingRow, setEditingRow] = useState<InviteRow | null>(null)
+  const [editForm, setEditForm] = useState<{ full_name: string; phone: string; country: string; whatsapp_phone: string }>({
+    full_name: '',
+    phone: '',
+    country: '',
+    whatsapp_phone: '',
+  })
+  const [savingEdit, setSavingEdit] = useState(false)
   const fileRef = useRef<HTMLInputElement | null>(null)
 
   const baseUrl = useMemo(() => {
@@ -261,6 +269,58 @@ export default function InvitesManagement() {
     } catch (e: any) {
       console.error('markSent error:', e)
       toast.error(e?.message || 'تعذر تحديث الحالة')
+    }
+  }
+
+  const deleteInvite = async (id: string) => {
+    if (!confirm('هل أنت متأكد من حذف هذه الدعوة؟')) return
+    try {
+      const { error } = await supabase.from('invites').delete().eq('id', id)
+      if (error) throw error
+      setRows((p) => p.filter((r) => r.id !== id))
+      toast.success('تم الحذف بنجاح')
+    } catch (e: any) {
+      console.error('deleteInvite error:', e)
+      toast.error(e?.message || 'تعذر حذف الدعوة')
+    }
+  }
+
+  const startEdit = (row: InviteRow) => {
+    setEditingRow(row)
+    setEditForm({
+      full_name: row.full_name || '',
+      phone: row.phone || '',
+      country: row.country || '',
+      whatsapp_phone: row.whatsapp_phone || row.phone || '',
+    })
+  }
+
+  const saveEdit = async () => {
+    if (!editingRow) return
+    const phone = normalizeDigits(editForm.phone)
+    if (!phone || phone.length < 9) {
+      toast.error('أدخل رقم هاتف صحيح')
+      return
+    }
+    try {
+      setSavingEdit(true)
+      const payload = {
+        full_name: editForm.full_name.trim() || null,
+        phone,
+        whatsapp_phone: normalizeDigits(editForm.whatsapp_phone) || phone,
+        country: editForm.country.trim() || null,
+        updated_at: new Date().toISOString(),
+      }
+      const { error } = await supabase.from('invites').update(payload).eq('id', editingRow.id)
+      if (error) throw error
+      toast.success('تم التعديل بنجاح')
+      setEditingRow(null)
+      await load()
+    } catch (e: any) {
+      console.error('saveEdit error:', e)
+      toast.error(e?.message || 'تعذر تعديل الدعوة')
+    } finally {
+      setSavingEdit(false)
     }
   }
 
@@ -526,24 +586,44 @@ export default function InvitesManagement() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 sm:flex sm:flex-wrap gap-2">
+                <div className="grid grid-cols-2 sm:grid-cols-4 lg:flex lg:flex-wrap gap-2 w-full sm:w-auto">
                   <button
                     type="button"
                     onClick={() => openWhatsApp(r)}
-                    className="px-3 py-2 rounded-lg bg-green-600 text-white text-xs sm:text-sm font-extrabold hover:bg-green-700 transition inline-flex items-center justify-center gap-2"
+                    className="w-full sm:w-auto px-3 py-2 rounded-lg bg-green-600 text-white text-xs sm:text-sm font-extrabold hover:bg-green-700 transition inline-flex items-center justify-center gap-2"
                     title="فتح واتساب برسالة دعوة جاهزة"
                   >
-                    <MessageCircle className="w-4 h-4" />
-                    واتساب
+                    <MessageCircle className="w-4 h-4 flex-shrink-0" />
+                    <span className="hidden sm:inline">واتساب</span>
+                    <span className="sm:hidden">واتس</span>
                   </button>
                   <button
                     type="button"
                     onClick={() => markSent(r.id)}
-                    className="px-3 py-2 rounded-lg bg-blue-600 text-white text-xs sm:text-sm font-extrabold hover:bg-blue-700 transition inline-flex items-center justify-center gap-2"
-                    title="تعليم كمرسلة (بعد الإرسال)"
+                    className="w-full sm:w-auto px-3 py-2 rounded-lg bg-blue-600 text-white text-xs sm:text-sm font-extrabold hover:bg-blue-700 transition inline-flex items-center justify-center gap-2"
+                    title="تم الحفظ في القاعدة"
                   >
-                    <CheckCircle2 className="w-4 h-4" />
-                    تم الإرسال
+                    <CheckCircle2 className="w-4 h-4 flex-shrink-0" />
+                    <span className="hidden sm:inline">تم الحفظ</span>
+                    <span className="sm:hidden">حفظ</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => startEdit(r)}
+                    className="w-full sm:w-auto px-3 py-2 rounded-lg bg-amber-600 text-white text-xs sm:text-sm font-extrabold hover:bg-amber-700 transition inline-flex items-center justify-center gap-2"
+                    title="تعديل الدعوة"
+                  >
+                    <Edit className="w-4 h-4 flex-shrink-0" />
+                    تعديل
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => deleteInvite(r.id)}
+                    className="w-full sm:w-auto px-3 py-2 rounded-lg bg-red-600 text-white text-xs sm:text-sm font-extrabold hover:bg-red-700 transition inline-flex items-center justify-center gap-2"
+                    title="حذف الدعوة"
+                  >
+                    <Trash2 className="w-4 h-4 flex-shrink-0" />
+                    حذف
                   </button>
                 </div>
               </div>
@@ -563,6 +643,84 @@ export default function InvitesManagement() {
           )}
         </div>
       </div>
+
+      {/* Edit Modal */}
+      {editingRow && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-3 sm:p-4 overflow-y-auto">
+          <div className="bg-white rounded-lg max-w-sm sm:max-w-md w-full mx-4 max-h-[90vh] overflow-y-auto">
+            <div className="p-4 sm:p-6">
+              <div className="flex items-center justify-between gap-3 mb-4">
+                <h3 className="text-lg sm:text-xl font-bold text-gray-800">تعديل الدعوة</h3>
+                <button
+                  type="button"
+                  onClick={() => setEditingRow(null)}
+                  className="px-3 py-1.5 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition text-sm font-semibold"
+                >
+                  إغلاق
+                </button>
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">الاسم</label>
+                  <input
+                    value={editForm.full_name}
+                    onChange={(e) => setEditForm((p) => ({ ...p, full_name: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                    placeholder="الاسم (اختياري)"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">رقم الهاتف *</label>
+                  <input
+                    value={editForm.phone}
+                    onChange={(e) => setEditForm((p) => ({ ...p, phone: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                    placeholder="رقم الهاتف"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">رقم واتساب</label>
+                  <input
+                    value={editForm.whatsapp_phone}
+                    onChange={(e) => setEditForm((p) => ({ ...p, whatsapp_phone: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                    placeholder="رقم واتساب (افتراضي: نفس الهاتف)"
+                  />
+                  <p className="mt-1 text-xs text-gray-500">إذا تركت فارغاً سيستخدم رقم الهاتف</p>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">الدولة</label>
+                  <input
+                    value={editForm.country}
+                    onChange={(e) => setEditForm((p) => ({ ...p, country: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                    placeholder="الدولة (اختياري) SY/JO"
+                  />
+                </div>
+                <div className="flex flex-col sm:flex-row gap-3 pt-4">
+                  <button
+                    type="button"
+                    onClick={saveEdit}
+                    disabled={savingEdit}
+                    className="flex-1 px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition font-medium text-sm sm:text-base disabled:opacity-50"
+                  >
+                    {savingEdit ? 'جاري الحفظ...' : 'حفظ التعديلات'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setEditingRow(null)}
+                    className="flex-1 px-4 py-2.5 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition font-medium text-sm sm:text-base"
+                  >
+                    إلغاء
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

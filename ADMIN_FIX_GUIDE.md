@@ -50,16 +50,42 @@
 
 ## إذا استمرت المشكلة:
 
-1. افتح **Console** في المتصفح (F12)
-2. انظر إلى رسائل الخطأ
-3. نفذ ملف `supabase/DEBUG_ADMIN_ACCESS.sql` للتحقق
-4. شارك رسالة الخطأ الدقيقة
+### الحل 1: اختبار الوصول مباشرة
+
+1. سجل الدخول كإداري (`tamer88@gmail.com`)
+2. اذهب إلى Supabase Dashboard > SQL Editor
+3. نفذ ملف `supabase/DEBUG_ADMIN_ACCESS.sql`
+4. تحقق من النتائج:
+   - إذا نجح `SELECT COUNT(*) FROM visit_requests` → السياسات تعمل
+   - إذا فشل → المشكلة في السياسات
+
+### الحل 2: إعادة تطبيق السياسات
+
+إذا فشل الاختبار، نفذ:
+1. `supabase/ENSURE_ADMIN_POLICIES.sql` - لإعادة إنشاء السياسات
+2. `supabase/FIX_ADMIN_tamer88_gmail.sql` - للتأكد من profile
+
+### الحل 3: التحقق من Console
+
+1. افتح المتصفح (F12)
+2. اذهب إلى Console
+3. انظر إلى رسائل الخطأ الدقيقة
+4. شاركها معي
+
+### الحل 4: تحديث الصفحة
+
+بعد تنفيذ الملفات:
+1. امسح Cache المتصفح (Ctrl+Shift+Delete)
+2. أو استخدم Incognito Mode
+3. سجل الدخول مرة أخرى
+4. اذهب إلى `/admin`
 
 ## الملفات المهمة:
 
 - `FIX_ALL_RLS_FINAL.sql` - **الملف الرئيسي** (نفذ هذا أولاً)
 - `DEBUG_ADMIN_ACCESS.sql` - للاختبار
 - `ENSURE_ADMIN_POLICIES.sql` - للتأكد من السياسات
+- `FIX_ADMIN_tamer88_gmail.sql` - إصلاح profile
 
 ## بعد الإصلاح:
 
@@ -70,8 +96,3 @@
 - ✅ عرض الصور (الجوازات والدفعات)
 - ✅ الرد على المستخدمين
 - ✅ تحديث حالة الطلبات
-
-
-
-
-
