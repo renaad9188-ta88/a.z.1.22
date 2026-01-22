@@ -527,12 +527,23 @@ export default function RouteManagement() {
             .filter(Boolean) as Driver[]
           const availableDrivers = drivers.filter((d) => !assignedDrivers.find((ad) => ad.id === d.id))
 
+          // Convert driverLiveMap to match RouteCard's expected type
+          const convertedDriverLiveMap: Record<string, { is_available: boolean; updated_at: string }> = {}
+          Object.entries(driverLiveMap).forEach(([driverId, live]) => {
+            if (live) {
+              convertedDriverLiveMap[driverId] = {
+                is_available: live.is_available,
+                updated_at: live.updated_at,
+              }
+            }
+          })
+
           return (
             <RouteCard
               key={route.id}
               route={route}
               assignedDrivers={assignedDrivers}
-              driverLiveMap={driverLiveMap}
+              driverLiveMap={convertedDriverLiveMap}
               routeTrips={routeTrips[route.id] || []}
               routeTripsLoading={routeTripsLoading[route.id] || false}
               tripAssignedDrivers={tripAssignedDrivers}

@@ -3,6 +3,8 @@
 import { useState } from 'react'
 import { Phone, Mail, Globe, MessageCircle, Send } from 'lucide-react'
 import toast from 'react-hot-toast'
+import { createSupabaseBrowserClient } from '@/lib/supabase'
+import { notifyAllAdmins } from '@/lib/notifications'
 
 export default function ContactPage() {
   const [formData, setFormData] = useState({
@@ -18,9 +20,49 @@ export default function ContactPage() {
     e.preventDefault()
     setLoading(true)
 
-    // In a real application, you would send this to your backend
-    // For now, we'll just show a success message
-    setTimeout(() => {
+    try {
+      const supabase = createSupabaseBrowserClient()
+
+      // حفظ الرسالة في قاعدة البيانات
+      const { data: contactMessage, error: insertError } = await supabase
+        .from('contact_messages')
+        .insert({
+          name: formData.name,
+          email: formData.email || null,
+          phone: formData.phone,
+          subject: formData.subject,
+          message: formData.message,
+          status: 'new',
+        })
+        .select()
+        .single()
+
+      if (insertError) {
+        console.error('Error saving contact message:', insertError)
+        // إذا كان الجدول غير موجود، سنحاول إنشاءه أو نعرض رسالة خطأ
+        if (insertError.code === '42P01') {
+          toast.error('خطأ في النظام. يرجى المحاولة لاحقاً')
+        } else {
+          throw insertError
+        }
+        setLoading(false)
+        return
+      }
+
+      // إرسال إشعار للإدمن
+      try {
+        await notifyAllAdmins({
+          title: 'رسالة تواصل جديدة',
+          message: `رسالة جديدة من ${formData.name} (${formData.phone}): ${formData.subject}`,
+          type: 'info',
+          relatedType: 'contact',
+          relatedId: contactMessage.id,
+        })
+      } catch (notifyError) {
+        console.error('Error notifying admins:', notifyError)
+        // لا نوقف العملية إذا فشل الإشعار
+      }
+
       toast.success('تم إرسال رسالتك بنجاح! سنتواصل معك قريباً')
       setFormData({
         name: '',
@@ -29,8 +71,12 @@ export default function ContactPage() {
         subject: '',
         message: '',
       })
+    } catch (error: any) {
+      console.error('Error submitting contact form:', error)
+      toast.error(error.message || 'حدث خطأ أثناء إرسال الرسالة. يرجى المحاولة مرة أخرى')
+    } finally {
       setLoading(false)
-    }, 1000)
+    }
   }
 
   return (
@@ -51,15 +97,6 @@ export default function ContactPage() {
                 <p className="text-sm sm:text-base text-gray-600">
                   للتواصل معنا، يرجى استخدام نموذج التواصل على اليمين
                 </p>
-              </div>
-            </div>
-
-            <div className="bg-white p-4 sm:p-6 rounded-lg shadow-md">
-              <h3 className="text-lg sm:text-xl font-bold mb-3 sm:mb-4">ساعات العمل</h3>
-              <div className="space-y-2 text-sm sm:text-base text-gray-700">
-                <p><strong>الأحد - الخميس:</strong> 9:00 ص - 6:00 م</p>
-                <p><strong>الجمعة:</strong> 2:00 م - 6:00 م</p>
-                <p><strong>السبت:</strong> مغلق</p>
               </div>
             </div>
           </div>
@@ -85,15 +122,15 @@ export default function ContactPage() {
 
               <div>
                 <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-2">
-                  البريد الإلكتروني *
+                  البريد الإلكتروني (اختياري)
                 </label>
                 <input
                   type="email"
                   id="email"
-                  required
                   value={formData.email}
                   onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                   className="w-full px-3 sm:px-4 py-2.5 sm:py-3 text-sm sm:text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  placeholder="example@email.com"
                 />
               </div>
 
