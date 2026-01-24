@@ -53,15 +53,15 @@ export default function HomeCounters() {
                 <p className="text-xs sm:text-sm text-gray-600 font-semibold">إجمالي القادمون</p>
                 <p className="text-[10px] sm:text-xs text-gray-500">عدد الأشخاص (القادمون)</p>
               </div>
-              <div className="flex items-center gap-2 flex-shrink-0">
-                <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-blue-50 flex items-center justify-center">
-                  <Plane className="w-5 h-5 sm:w-6 sm:h-6 text-blue-600" />
+              <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
+                <div className="w-9 h-9 sm:w-10 sm:h-10 md:w-12 md:h-12 rounded-xl bg-blue-50 flex items-center justify-center">
+                  <Plane className="w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6 text-blue-600" />
                 </div>
-                <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-amber-50 flex items-center justify-center">
-                  <Bus className="w-5 h-5 sm:w-6 sm:h-6 text-amber-600" />
+                <div className="w-9 h-9 sm:w-10 sm:h-10 md:w-12 md:h-12 rounded-xl bg-amber-50 flex items-center justify-center">
+                  <Bus className="w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6 text-amber-600" />
                 </div>
-                <div className="hidden sm:flex w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-slate-50 items-center justify-center">
-                  <Car className="w-5 h-5 sm:w-6 sm:h-6 text-slate-700" />
+                <div className="hidden sm:flex w-9 h-9 sm:w-10 sm:h-10 md:w-12 md:h-12 rounded-xl bg-slate-50 items-center justify-center">
+                  <Car className="w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6 text-slate-700" />
                 </div>
               </div>
             </div>
@@ -85,15 +85,15 @@ export default function HomeCounters() {
                 <p className="text-xs sm:text-sm text-gray-600 font-semibold">إجمالي المغادرون</p>
                 <p className="text-[10px] sm:text-xs text-gray-500">عدد الأشخاص (المغادرون)</p>
               </div>
-              <div className="flex items-center gap-2 flex-shrink-0">
-                <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-green-50 flex items-center justify-center">
-                  <Plane className="w-5 h-5 sm:w-6 sm:h-6 text-green-600 rotate-180" />
+              <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
+                <div className="w-9 h-9 sm:w-10 sm:h-10 md:w-12 md:h-12 rounded-xl bg-green-50 flex items-center justify-center">
+                  <Plane className="w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6 text-green-600 rotate-180" />
                 </div>
-                <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-amber-50 flex items-center justify-center">
-                  <Bus className="w-5 h-5 sm:w-6 sm:h-6 text-amber-600" />
+                <div className="w-9 h-9 sm:w-10 sm:h-10 md:w-12 md:h-12 rounded-xl bg-amber-50 flex items-center justify-center">
+                  <Bus className="w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6 text-amber-600" />
                 </div>
-                <div className="hidden sm:flex w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-slate-50 items-center justify-center">
-                  <Car className="w-5 h-5 sm:w-6 sm:h-6 text-slate-700" />
+                <div className="hidden sm:flex w-9 h-9 sm:w-10 sm:h-10 md:w-12 md:h-12 rounded-xl bg-slate-50 items-center justify-center">
+                  <Car className="w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6 text-slate-700" />
                 </div>
               </div>
             </div>

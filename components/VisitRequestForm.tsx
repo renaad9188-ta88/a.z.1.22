@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createSupabaseBrowserClient } from '@/lib/supabase'
 import toast from 'react-hot-toast'
-import { Upload, Save, Edit, Trash2, X, Check } from 'lucide-react'
+import { Upload } from 'lucide-react'
 import { notifyAdminNewRequest, createNotification } from '@/lib/notifications'
 
 const DEPARTURE_CITIES = [
@@ -28,8 +28,6 @@ export default function VisitRequestForm() {
   const router = useRouter()
   const supabase = createSupabaseBrowserClient()
   const [loading, setLoading] = useState(false)
-  const [showSummary, setShowSummary] = useState(false)
-  const [isEditing, setIsEditing] = useState(false)
   const [passportImage, setPassportImage] = useState<File | null>(null)
   const [passportImagePreview, setPassportImagePreview] = useState<string | null>(null)
 
@@ -92,12 +90,7 @@ export default function VisitRequestForm() {
       return
     }
 
-    // عرض الملخص
-    setShowSummary(true)
-    setIsEditing(false)
-  }
-
-  const handleSave = async () => {
+    // حفظ مباشر بدون ملخص
     setLoading(true)
 
     try {
@@ -200,116 +193,6 @@ export default function VisitRequestForm() {
       setLoading(false)
     }
   }
-
-  const handleEdit = () => {
-    setIsEditing(true)
-    setShowSummary(false)
-  }
-
-  const handleDelete = () => {
-    if (confirm('هل أنت متأكد من حذف الطلب؟')) {
-      setFormData({
-        fullName: '',
-        departureCity: '',
-        otherCity: '',
-      })
-      setPassportImage(null)
-      setPassportImagePreview(null)
-      setShowSummary(false)
-      setIsEditing(false)
-      toast.success('تم حذف البيانات')
-    }
-  }
-
-  const handleBackToForm = () => {
-    setShowSummary(false)
-    setIsEditing(false)
-  }
-
-  // عرض الملخص
-  if (showSummary && !isEditing) {
-    const finalDepartureCity = formData.departureCity === 'أخرى' 
-      ? formData.otherCity 
-      : formData.departureCity
-
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-white py-4 sm:py-6 md:py-8 px-3 sm:px-4">
-        <div className="max-w-2xl mx-auto">
-          <div className="bg-white rounded-lg shadow-xl p-4 sm:p-6 md:p-8">
-            <div className="flex items-center justify-between mb-4 sm:mb-6">
-              <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-gray-800">ملخص الطلب</h1>
-              <button
-                onClick={handleBackToForm}
-                className="text-gray-500 hover:text-gray-700 p-1"
-                aria-label="إغلاق"
-              >
-                <X className="w-5 h-5 sm:w-6 sm:h-6" />
-              </button>
-            </div>
-
-            <div className="space-y-4 sm:space-y-6 mb-6 sm:mb-8">
-              {/* الاسم الكامل */}
-              <div className="border-b border-gray-200 pb-3 sm:pb-4">
-                <label className="text-xs sm:text-sm font-medium text-gray-500 mb-1 sm:mb-2 block">الاسم الكامل</label>
-                <p className="text-base sm:text-lg md:text-xl font-semibold text-gray-800 break-words">{formData.fullName}</p>
-              </div>
-
-              {/* مكان الانطلاق */}
-              <div className="border-b border-gray-200 pb-3 sm:pb-4">
-                <label className="text-xs sm:text-sm font-medium text-gray-500 mb-1 sm:mb-2 block">مكان الانطلاق</label>
-                <p className="text-base sm:text-lg md:text-xl font-semibold text-gray-800 break-words">{finalDepartureCity}</p>
-              </div>
-
-              {/* صورة الجواز */}
-              <div>
-                <label className="text-xs sm:text-sm font-medium text-gray-500 mb-2 block">صورة الجواز</label>
-                {passportImagePreview && (
-                  <div className="mt-2">
-                    <img
-                      src={passportImagePreview}
-                      alt="صورة الجواز"
-                      className="w-full max-w-full h-auto rounded-lg border border-gray-300"
-                      style={{ maxHeight: '250px' }}
-                    />
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* أزرار الإجراءات */}
-            <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
-              <button
-                onClick={handleSave}
-                disabled={loading}
-                className="flex-1 flex items-center justify-center gap-2 px-4 sm:px-6 py-2.5 sm:py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition disabled:opacity-50 disabled:cursor-not-allowed text-sm sm:text-base font-semibold"
-              >
-                <Save className="w-4 h-4 sm:w-5 sm:h-5" />
-                <span>{loading ? 'جاري الحفظ...' : 'حفظ الطلب'}</span>
-              </button>
-              
-              <button
-                onClick={handleEdit}
-                className="flex-1 flex items-center justify-center gap-2 px-4 sm:px-6 py-2.5 sm:py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm sm:text-base font-semibold"
-              >
-                <Edit className="w-4 h-4 sm:w-5 sm:h-5" />
-                <span>تعديل</span>
-              </button>
-              
-              <button
-                onClick={handleDelete}
-                className="flex-1 flex items-center justify-center gap-2 px-4 sm:px-6 py-2.5 sm:py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 transition text-sm sm:text-base font-semibold"
-              >
-                <Trash2 className="w-4 h-4 sm:w-5 sm:h-5" />
-                <span>حذف</span>
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-    )
-  }
-
-  // عرض النموذج
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-white py-4 sm:py-6 md:py-8 px-3 sm:px-4">
       <div className="max-w-2xl mx-auto">
@@ -411,9 +294,10 @@ export default function VisitRequestForm() {
             {/* زر الإرسال */}
             <button
               type="submit"
-              className="w-full py-2.5 sm:py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition font-semibold text-sm sm:text-base md:text-lg"
+              disabled={loading}
+              className="w-full py-2.5 sm:py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition font-semibold text-sm sm:text-base md:text-lg disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              عرض الملخص
+              {loading ? 'جاري الحفظ...' : 'إرسال الطلب'}
             </button>
           </form>
         </div>

@@ -8,7 +8,7 @@ import { createSupabaseBrowserClient } from '@/lib/supabase'
 import TripSchedulingModal from '@/components/admin/TripSchedulingModal'
 import { formatDate } from '@/lib/date-utils'
 import { parseAdminNotes } from '@/components/request-details/utils'
-import { notifyRequestApproved, notifyRequestRejected, notifyPaymentVerified, notifyCustomMessage } from '@/lib/notifications'
+import { notifyRequestApproved, notifyPaymentVerified, notifyCustomMessage } from '@/lib/notifications'
 
 type Role = 'admin' | 'supervisor'
 type ContactProfile = { full_name: string | null; phone: string | null; jordan_phone?: string | null; whatsapp_phone?: string | null }
@@ -40,7 +40,6 @@ type TripLite = {
   trip_type?: string | null
 }
 
-const POST_APPROVAL_SUBMITTED_MARK = 'حالة الاستكمال: مرسل'
 
 function extractLatestAdminResponse(notes: string): { body: string; dateText?: string } | null {
   const marker = '=== رد الإدارة ==='
@@ -189,91 +188,62 @@ export default function AdminRequestFollow({
 
   const steps = useMemo(() => {
     const notes = (request?.admin_notes || '') as string
-    const postApprovalSubmitted = notes.includes(POST_APPROVAL_SUBMITTED_MARK) || (adminInfo?.postApprovalStatus || '') === 'مرسل'
     const paymentVerified = Boolean(request?.payment_verified)
     const hasArrival = Boolean(request?.arrival_date)
     const isApproved = request?.status === 'approved' || request?.status === 'completed'
     const isReceived = Boolean(request) && request?.status !== 'pending'
     const hasBooking = Boolean((request as any)?.trip_id)
+    const hasMessageSent = notes.includes('=== رد الإدارة ===')
 
     return [
-      { id: 1, title: 'استلام الطلب', done: isReceived, help: 'اضغط "تم استلام الطلب" لإرسال رد تلقائي للمستخدم وتسجيل الاستلام.' },
-      { id: 2, title: 'مراجعة + قبول/رفض', done: Boolean(isApproved) || request?.status === 'rejected', help: 'قم بقبول الطلب أو رفضه.' },
-      { id: 3, title: 'استلام استكمال المستخدم', done: postApprovalSubmitted, help: 'بانتظار إرسال المستخدم لاستكمال ما بعد الموافقة.' },
-      { id: 4, title: 'تأكيد الدفع (فتح الحجز)', done: paymentVerified, help: 'بعد التأكيد يظهر للمستخدم الحجز.' },
-      { id: 5, title: 'الحجز/المتابعة', done: hasBooking || hasArrival, help: 'ستظهر هنا الرحلة التي حجزها المستخدم + يمكنك متابعة الموعد.' },
+      { id: 1, title: 'استلام الطلب', done: isReceived, help: 'اضغط "تم استلام الطلب" لإرسال رد تلقائي للمستخدم عن استكمال الطلب ودفع المبلغ بعد الموافقة والتواصل لتوقيع الكفالة.' },
+      { id: 2, title: 'إرسال رسالة', done: hasMessageSent, help: 'أرسل رسالة للمستخدم عن إجراءات الطلب ومدة العمل والموافقة (من 4 أيام إلى 10 أيام).' },
+      { id: 3, title: 'الموافقة وفتح الحجز', done: isApproved && paymentVerified, help: 'بعد الموافقة من الداخلية، سيتم فتح الحجز تلقائياً للمستخدم.' },
+      { id: 4, title: 'الحجز/المتابعة', done: hasBooking || hasArrival, help: 'ستظهر هنا الرحلة التي حجزها المستخدم + يمكنك متابعة الموعد.' },
     ]
   }, [request, adminInfo])
 
   useEffect(() => {
-    const firstIncomplete = steps.find((s) => !s.done)?.id || 5
+    const firstIncomplete = steps.find((s) => !s.done)?.id || 4
     setActiveStep(firstIncomplete)
   }, [steps])
 
   const current = steps.find((s) => s.id === activeStep)
-  const canGoNext = activeStep < 5 && Boolean(current?.done)
+  const canGoNext = activeStep < 4 && Boolean(current?.done)
   const canGoPrev = activeStep > 1
 
   const approve = async () => {
     if (!request) return
     try {
       setSaving(true)
+      // الموافقة + فتح الحجز تلقائياً
       const { error } = await supabase
         .from('visit_requests')
-        .update({ status: 'approved', updated_at: new Date().toISOString() } as any)
+        .update({ 
+          status: 'approved', 
+          payment_verified: true,
+          updated_at: new Date().toISOString() 
+        } as any)
         .eq('id', request.id)
       if (error) throw error
+      
+      // إرسال رسالة للمستخدم بالموافقة وفتح الحجز
+      const approvalMessage = 'تمت الموافقة على طلبك من الداخلية. يمكنك الآن حجز موعد القدوم من صفحة متابعة الطلب.'
+      await appendAdminResponseAndNotify(approvalMessage, false)
+      
       await notifyRequestApproved(request.user_id, request.id, request.visitor_name)
-      toast.success('تم قبول الطلب')
+      await notifyPaymentVerified(request.user_id, request.id)
+      
+      toast.success('تم الموافقة على الطلب وفتح الحجز')
       await load()
     } catch (e: any) {
       console.error('approve error:', e)
-      toast.error(e?.message || 'تعذر قبول الطلب')
+      toast.error(e?.message || 'تعذر الموافقة على الطلب')
     } finally {
       setSaving(false)
     }
   }
 
-  const reject = async () => {
-    if (!request) return
-    const reason = prompt('أدخل سبب الرفض (اختياري):') || ''
-    try {
-      setSaving(true)
-      const { error } = await supabase
-        .from('visit_requests')
-        .update({ status: 'rejected', rejection_reason: reason || null, updated_at: new Date().toISOString() } as any)
-        .eq('id', request.id)
-      if (error) throw error
-      await notifyRequestRejected(request.user_id, request.id, request.visitor_name, reason || undefined)
-      toast.success('تم رفض الطلب')
-      await load()
-    } catch (e: any) {
-      console.error('reject error:', e)
-      toast.error(e?.message || 'تعذر رفض الطلب')
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  const setPaymentVerified = async (val: boolean) => {
-    if (!request) return
-    try {
-      setSaving(true)
-      const { error } = await supabase
-        .from('visit_requests')
-        .update({ payment_verified: val, updated_at: new Date().toISOString() } as any)
-        .eq('id', request.id)
-      if (error) throw error
-      if (val) await notifyPaymentVerified(request.user_id, request.id)
-      toast.success(val ? 'تم تأكيد الدفع' : 'تم إلغاء تأكيد الدفع')
-      await load()
-    } catch (e: any) {
-      console.error('payment verify error:', e)
-      toast.error(e?.message || 'تعذر تحديث حالة الدفع')
-    } finally {
-      setSaving(false)
-    }
-  }
 
   const saveResponse = async () => {
     if (!request) return
@@ -466,7 +436,7 @@ export default function AdminRequestFollow({
                     <div className="flex flex-col sm:flex-row gap-2">
                       <button
                         type="button"
-                        onClick={() => appendAdminResponseAndNotify('تم استلام طلبك وسيتم التواصل معك قريباً.', true)}
+                        onClick={() => appendAdminResponseAndNotify('تم استلام طلبك. يرجى استكمال الطلب ودفع المبلغ بعد الموافقة والتواصل لتوقيع الكفالة.', true)}
                         disabled={saving}
                         className="px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm font-semibold disabled:opacity-50"
                       >
@@ -492,78 +462,64 @@ export default function AdminRequestFollow({
                   </div>
                 )}
                 {activeStep === 2 && (
-                  <div className="flex flex-col sm:flex-row gap-2">
-                    <button
-                      type="button"
-                      onClick={approve}
-                      disabled={saving || request.status === 'approved'}
-                      className="px-4 py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition text-sm font-semibold disabled:opacity-50"
-                    >
-                      قبول الطلب
-                    </button>
-                    <button
-                      type="button"
-                      onClick={reject}
-                      disabled={saving || request.status === 'rejected'}
-                      className="px-4 py-2.5 bg-red-600 text-white rounded-lg hover:bg-red-700 transition text-sm font-semibold disabled:opacity-50"
-                    >
-                      رفض الطلب
-                    </button>
-                  </div>
-                )}
+                  <div className="bg-white border border-gray-200 rounded-lg p-3 space-y-3">
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="font-extrabold text-gray-900 text-sm">إرسال رسالة للمستخدم</p>
+                        <p className="text-xs text-gray-600">أرسل رسالة عن إجراءات الطلب ومدة العمل والموافقة.</p>
+                      </div>
+                    </div>
 
-                {activeStep === 3 && (
-                  <div className="bg-white border border-gray-200 rounded-lg p-3">
-                    <p className="font-extrabold text-gray-900 text-sm mb-2">استكمال المستخدم</p>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs sm:text-sm text-gray-700">
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="text-gray-500">الحالة</span>
-                        <span className="font-bold">
-                          {(adminInfo?.postApprovalStatus || '') === 'مرسل' || (request.admin_notes || '').includes(POST_APPROVAL_SUBMITTED_MARK)
-                            ? 'مرسل'
-                            : (adminInfo?.postApprovalStatus || '') === 'محفوظ'
-                            ? 'محفوظ'
-                            : 'غير مرسل'}
-                        </span>
-                      </div>
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="text-gray-500">الكفالة</span>
-                        <span className="font-bold truncate">{adminInfo?.guaranteeMethod || 'غير محدد'}</span>
-                      </div>
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="text-gray-500">طريقة دفع المتبقي</span>
-                        <span className="font-bold truncate">{adminInfo?.remainingPaymentMethod || 'غير محدد'}</span>
-                      </div>
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="text-gray-500">المتبقي</span>
-                        <span className="font-bold">{`${remaining} دينار`}</span>
-                      </div>
+                    <div className="flex flex-col sm:flex-row gap-2">
+                      <button
+                        type="button"
+                        onClick={() => appendAdminResponseAndNotify('إجراءات الطلب: مدة العمل والموافقة من 4 أيام إلى 10 أيام. سيتم التواصل معك قريباً.')}
+                        disabled={saving}
+                        className="px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm font-semibold disabled:opacity-50"
+                      >
+                        إرسال رسالة (مدة العمل)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={approve}
+                        disabled={saving || request.status === 'approved'}
+                        className="px-4 py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition text-sm font-semibold disabled:opacity-50"
+                      >
+                        الموافقة وفتح الحجز
+                      </button>
                     </div>
                   </div>
                 )}
 
-                {activeStep === 4 && (
-                  <div className="flex flex-col sm:flex-row gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setPaymentVerified(true)}
-                      disabled={saving || Boolean(request.payment_verified)}
-                      className="px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm font-semibold disabled:opacity-50"
-                    >
-                      تأكيد الدفع (فتح الحجز)
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setPaymentVerified(false)}
-                      disabled={saving || !Boolean(request.payment_verified)}
-                      className="px-4 py-2.5 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 transition text-sm font-semibold disabled:opacity-50"
-                    >
-                      إلغاء تأكيد الدفع
-                    </button>
+                {activeStep === 3 && (
+                  <div className="bg-white border border-gray-200 rounded-lg p-3 space-y-3">
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="font-extrabold text-gray-900 text-sm">الموافقة وفتح الحجز</p>
+                        <p className="text-xs text-gray-600">
+                          {request.status === 'approved' && Boolean(request.payment_verified)
+                            ? 'تمت الموافقة وفتح الحجز. يمكن للمستخدم الآن حجز موعد القدوم.'
+                            : 'بعد الموافقة من الداخلية، سيتم فتح الحجز تلقائياً للمستخدم.'}
+                        </p>
+                      </div>
+                    </div>
+
+                    {request.status !== 'approved' && (
+                      <div className="flex flex-col sm:flex-row gap-2">
+                        <button
+                          type="button"
+                          onClick={approve}
+                          disabled={saving}
+                          className="px-4 py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition text-sm font-semibold disabled:opacity-50"
+                        >
+                          الموافقة وفتح الحجز
+                        </button>
+                      </div>
+                    )}
                   </div>
                 )}
 
-                {activeStep === 5 && (
+                {activeStep === 4 && (
                   <div className="space-y-3">
                     {/* Booked trip details (user-selected trip) */}
                     {(request as any)?.trip_id ? (
@@ -686,7 +642,7 @@ export default function AdminRequestFollow({
               </button>
               <button
                 type="button"
-                onClick={() => canGoNext && setActiveStep((s) => Math.min(5, s + 1))}
+                onClick={() => canGoNext && setActiveStep((s) => Math.min(4, s + 1))}
                 disabled={!canGoNext}
                 className="px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm font-semibold disabled:opacity-50"
               >

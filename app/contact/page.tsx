@@ -3,8 +3,6 @@
 import { useState } from 'react'
 import { Phone, Mail, Globe, MessageCircle, Send } from 'lucide-react'
 import toast from 'react-hot-toast'
-import { createSupabaseBrowserClient } from '@/lib/supabase'
-import { notifyAllAdmins } from '@/lib/notifications'
 
 export default function ContactPage() {
   const [formData, setFormData] = useState({
@@ -20,49 +18,9 @@ export default function ContactPage() {
     e.preventDefault()
     setLoading(true)
 
-    try {
-      const supabase = createSupabaseBrowserClient()
-
-      // حفظ الرسالة في قاعدة البيانات
-      const { data: contactMessage, error: insertError } = await supabase
-        .from('contact_messages')
-        .insert({
-          name: formData.name,
-          email: formData.email || null,
-          phone: formData.phone,
-          subject: formData.subject,
-          message: formData.message,
-          status: 'new',
-        })
-        .select()
-        .single()
-
-      if (insertError) {
-        console.error('Error saving contact message:', insertError)
-        // إذا كان الجدول غير موجود، سنحاول إنشاءه أو نعرض رسالة خطأ
-        if (insertError.code === '42P01') {
-          toast.error('خطأ في النظام. يرجى المحاولة لاحقاً')
-        } else {
-          throw insertError
-        }
-        setLoading(false)
-        return
-      }
-
-      // إرسال إشعار للإدمن
-      try {
-        await notifyAllAdmins({
-          title: 'رسالة تواصل جديدة',
-          message: `رسالة جديدة من ${formData.name} (${formData.phone}): ${formData.subject}`,
-          type: 'info',
-          relatedType: 'contact',
-          relatedId: contactMessage.id,
-        })
-      } catch (notifyError) {
-        console.error('Error notifying admins:', notifyError)
-        // لا نوقف العملية إذا فشل الإشعار
-      }
-
+    // In a real application, you would send this to your backend
+    // For now, we'll just show a success message
+    setTimeout(() => {
       toast.success('تم إرسال رسالتك بنجاح! سنتواصل معك قريباً')
       setFormData({
         name: '',
@@ -71,12 +29,8 @@ export default function ContactPage() {
         subject: '',
         message: '',
       })
-    } catch (error: any) {
-      console.error('Error submitting contact form:', error)
-      toast.error(error.message || 'حدث خطأ أثناء إرسال الرسالة. يرجى المحاولة مرة أخرى')
-    } finally {
       setLoading(false)
-    }
+    }, 1000)
   }
 
   return (
@@ -94,9 +48,54 @@ export default function ContactPage() {
               <h2 className="text-xl sm:text-2xl font-bold mb-4 sm:mb-6">معلومات التواصل</h2>
               
               <div className="space-y-3 sm:space-y-4">
-                <p className="text-sm sm:text-base text-gray-600">
-                  للتواصل معنا، يرجى استخدام نموذج التواصل على اليمين
-                </p>
+                <a href="tel:+966541700017" className="flex items-center gap-3 sm:gap-4 p-3 sm:p-4 bg-blue-50 rounded-lg hover:bg-blue-100 transition">
+                  <div className="w-10 h-10 sm:w-12 sm:h-12 bg-blue-600 rounded-full flex items-center justify-center flex-shrink-0">
+                    <Phone className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="font-semibold text-sm sm:text-base text-gray-800">الهاتف</p>
+                    <p className="text-xs sm:text-sm text-gray-600 truncate">+966541700017</p>
+                  </div>
+                </a>
+
+                <a href="https://wa.me/966541700017" target="_blank" className="flex items-center gap-3 sm:gap-4 p-3 sm:p-4 bg-green-50 rounded-lg hover:bg-green-100 transition">
+                  <div className="w-10 h-10 sm:w-12 sm:h-12 bg-green-600 rounded-full flex items-center justify-center flex-shrink-0">
+                    <MessageCircle className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="font-semibold text-sm sm:text-base text-gray-800">واتساب</p>
+                    <p className="text-xs sm:text-sm text-gray-600 truncate">+966541700017</p>
+                  </div>
+                </a>
+
+                <a href="mailto:info@maidaa-sa.com" className="flex items-center gap-3 sm:gap-4 p-3 sm:p-4 bg-purple-50 rounded-lg hover:bg-purple-100 transition">
+                  <div className="w-10 h-10 sm:w-12 sm:h-12 bg-purple-600 rounded-full flex items-center justify-center flex-shrink-0">
+                    <Mail className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="font-semibold text-sm sm:text-base text-gray-800">البريد الإلكتروني</p>
+                    <p className="text-xs sm:text-sm text-gray-600 truncate">info@maidaa-sa.com</p>
+                  </div>
+                </a>
+
+                <a href="https://www.maidaa-sa.com" target="_blank" className="flex items-center gap-3 sm:gap-4 p-3 sm:p-4 bg-yellow-50 rounded-lg hover:bg-yellow-100 transition">
+                  <div className="w-10 h-10 sm:w-12 sm:h-12 bg-yellow-600 rounded-full flex items-center justify-center flex-shrink-0">
+                    <Globe className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="font-semibold text-sm sm:text-base text-gray-800">الموقع الإلكتروني</p>
+                    <p className="text-xs sm:text-sm text-gray-600 truncate">www.maidaa-sa.com</p>
+                  </div>
+                </a>
+              </div>
+            </div>
+
+            <div className="bg-white p-4 sm:p-6 rounded-lg shadow-md">
+              <h3 className="text-lg sm:text-xl font-bold mb-3 sm:mb-4">ساعات العمل</h3>
+              <div className="space-y-2 text-sm sm:text-base text-gray-700">
+                <p><strong>الأحد - الخميس:</strong> 9:00 ص - 6:00 م</p>
+                <p><strong>الجمعة:</strong> 2:00 م - 6:00 م</p>
+                <p><strong>السبت:</strong> مغلق</p>
               </div>
             </div>
           </div>
@@ -122,15 +121,15 @@ export default function ContactPage() {
 
               <div>
                 <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-2">
-                  البريد الإلكتروني (اختياري)
+                  البريد الإلكتروني *
                 </label>
                 <input
                   type="email"
                   id="email"
+                  required
                   value={formData.email}
                   onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                   className="w-full px-3 sm:px-4 py-2.5 sm:py-3 text-sm sm:text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  placeholder="example@email.com"
                 />
               </div>
 

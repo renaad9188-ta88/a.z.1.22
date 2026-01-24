@@ -71,7 +71,7 @@ function TripMiniCard({
             </p>
           </div>
           <div className={`relative w-10 h-10 sm:w-11 sm:h-11 rounded-xl ${iconWrapClass} flex items-center justify-center flex-shrink-0`}>
-            <Plane className={`w-5 h-5 ${iconClass} ${isArr ? '' : 'rotate-180'}`} />
+            <Plane className={`w-4 h-4 sm:w-5 sm:h-5 ${iconClass} ${isArr ? '' : 'rotate-180'}`} />
           </div>
         </div>
 
@@ -80,7 +80,7 @@ function TripMiniCard({
             {countText}
           </div>
           <div className={`inline-flex items-center gap-1 text-[10px] sm:text-xs border px-2 py-1 rounded-full font-bold ${badgeClass}`}>
-            <Calendar className="w-3.5 h-3.5" />
+            <Calendar className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
             {date ? (
               <span className="tabular-nums">
                 {weekday ? `${weekday} · ` : ''}
@@ -95,7 +95,7 @@ function TripMiniCard({
 
         {routeLabel && (
           <div className="mt-2 text-[10px] sm:text-xs text-gray-600 flex items-center gap-1.5 min-w-0">
-            <ArrowLeftRight className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
+            <ArrowLeftRight className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-gray-400 flex-shrink-0" />
             <span className="truncate">{routeLabel}</span>
           </div>
         )}
@@ -254,10 +254,10 @@ export default function HomeTripStatusRow() {
                   aria-label="إظهار الرحلات القادمة (القادمون)"
                 >
                   <span className="inline-flex items-center gap-2 min-w-0">
-                    <CalendarDays className="w-4 h-4 text-blue-700 flex-shrink-0" />
+                    <CalendarDays className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-blue-700 flex-shrink-0" />
                     <span className="truncate">الرحلات القادمة</span>
                   </span>
-                  <ChevronDown className={`w-4 h-4 text-gray-600 transition-transform ${openArrivals ? 'rotate-180' : ''}`} />
+                  <ChevronDown className={`w-3.5 h-3.5 sm:w-4 sm:h-4 text-gray-600 transition-transform ${openArrivals ? 'rotate-180' : ''}`} />
                 </button>
               }
             />
@@ -322,10 +322,10 @@ export default function HomeTripStatusRow() {
                   aria-label="إظهار الرحلات القادمة (المغادرون)"
                 >
                   <span className="inline-flex items-center gap-2 min-w-0">
-                    <CalendarDays className="w-4 h-4 text-green-700 flex-shrink-0" />
+                    <CalendarDays className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-green-700 flex-shrink-0" />
                     <span className="truncate">الرحلات القادمة</span>
                   </span>
-                  <ChevronDown className={`w-4 h-4 text-gray-600 transition-transform ${openDepartures ? 'rotate-180' : ''}`} />
+                  <ChevronDown className={`w-3.5 h-3.5 sm:w-4 sm:h-4 text-gray-600 transition-transform ${openDepartures ? 'rotate-180' : ''}`} />
                 </button>
               }
             />

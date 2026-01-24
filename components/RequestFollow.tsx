@@ -24,7 +24,6 @@ type ReqRow = {
   updated_at: string
 }
 
-const POST_APPROVAL_SUBMITTED_MARK = 'حالة الاستكمال: مرسل'
 
 export default function RequestFollow({ requestId, userId }: { requestId: string; userId: string }) {
   const supabase = createSupabaseBrowserClient()
@@ -209,7 +208,6 @@ export default function RequestFollow({ requestId, userId }: { requestId: string
     const isDraft = notes.startsWith('[DRAFT]')
     const isApproved = request?.status === 'approved' || request?.status === 'completed'
     const hasDecision = request?.status === 'approved' || request?.status === 'rejected' || request?.status === 'completed'
-    const postApprovalSubmitted = notes.includes(POST_APPROVAL_SUBMITTED_MARK)
     const paymentVerified = Boolean(request?.payment_verified)
     const hasArrival = Boolean(request?.arrival_date)
 
@@ -224,36 +222,34 @@ export default function RequestFollow({ requestId, userId }: { requestId: string
       },
       {
         id: 2,
-        title: 'استكمال بعد الموافقة',
-        done: (Boolean(postApprovalSubmitted) || paymentVerified) && Boolean(isApproved),
+        title: 'الموافقة على الطلب',
+        done: isApproved && paymentVerified,
         help: !hasDecision
           ? 'بانتظار موافقة الإدارة على الطلب.'
           : request?.status === 'rejected'
           ? 'تم رفض الطلب. يمكنك مراجعة سبب الرفض من التفاصيل.'
-          : 'بعد الموافقة: اختر الكفالة وطريقة الدفع ثم احفظ وأرسل الاستكمال.',
+          : !paymentVerified
+          ? 'بانتظار تأكيد الإدارة للدفع لفتح الحجز.'
+          : 'تم الموافقة على الطلب وفتح الحجز. يمكنك الآن حجز موعد القدوم.',
       },
       {
         id: 3,
-        title: 'تأكيد الدفع',
-        done: paymentVerified,
-        help: 'بانتظار تأكيد الإدارة للدفع لفتح الحجز.',
-      },
-      {
-        id: 4,
         title: 'حجز موعد القدوم',
         done: hasArrival,
-        help: 'حدد موعد القدوم بعد فتح الحجز.',
+        help: paymentVerified && isApproved
+          ? 'حدد موعد القدوم من القائمة أدناه.'
+          : 'بانتظار فتح الحجز بعد الموافقة وتأكيد الدفع.',
       },
     ]
   }, [request])
 
   useEffect(() => {
-    const firstIncomplete = steps.find((s) => !s.done)?.id || 5
+    const firstIncomplete = steps.find((s) => !s.done)?.id || 4
     setActiveStep(firstIncomplete)
   }, [steps])
 
   const current = steps.find((s) => s.id === activeStep)
-  const canGoNext = activeStep < 4 && Boolean(steps.find((s) => s.id === activeStep)?.done)
+  const canGoNext = activeStep < 3 && Boolean(steps.find((s) => s.id === activeStep)?.done)
 
   if (loading) {
     return (
@@ -269,9 +265,6 @@ export default function RequestFollow({ requestId, userId }: { requestId: string
 
   if (!request) return null
 
-  const remaining = request.remaining_amount ?? 20
-  const postApprovalHref = `/dashboard/request/${request.id}#post-approval`
-  const isDraft = ((request.admin_notes || '') as string).startsWith('[DRAFT]')
   const feesPaymentHref =
     (request.visit_type || '') === 'visit' ? `/services/jordan-visit/payment/${request.id}` : `/dashboard/request/${request.id}`
   const trackingHref = `/`
@@ -378,7 +371,7 @@ export default function RequestFollow({ requestId, userId }: { requestId: string
               <div className="mt-4 space-y-2">
                 {activeStep === 1 && (
                   <>
-                    {isDraft ? (
+                    {((request.admin_notes || '') as string).startsWith('[DRAFT]') ? (
                       <div className="flex flex-col sm:flex-row gap-2">
                         <Link
                           href={feesPaymentHref}
@@ -398,32 +391,16 @@ export default function RequestFollow({ requestId, userId }: { requestId: string
                   </>
                 )}
                 {activeStep === 2 && (
-                  !Boolean(request.status === 'approved' || request.status === 'completed') ? (
-                    <div className="text-sm text-gray-700">
-                      بانتظار موافقة الإدارة على الطلب. سيتم إشعارك عند القبول.
-                    </div>
-                  ) : (
-                    <div className="flex flex-col sm:flex-row gap-2">
-                      <Link
-                        href={postApprovalHref}
-                        className="px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm font-semibold text-center"
-                      >
-                        استكمال الإجراءات
-                      </Link>
-                      <div className="px-4 py-2.5 bg-white border border-gray-200 rounded-lg text-sm text-gray-700">
-                        المتبقي: <span className="font-bold text-blue-700">{remaining} دينار</span>
-                      </div>
-                    </div>
-                  )
-                )}
-
-                {activeStep === 3 && (
                   <div className="text-sm text-gray-700">
-                    تم إرسال الاستكمال. بانتظار تأكيد الدفع من الإدارة لفتح الحجز.
+                    {request.status === 'approved' && Boolean(request.payment_verified)
+                      ? 'تم الموافقة على الطلب وفتح الحجز. يمكنك الآن حجز موعد القدوم من المرحلة التالية.'
+                      : request.status === 'rejected'
+                      ? 'تم رفض الطلب. يمكنك مراجعة سبب الرفض من صفحة تفاصيل الطلب.'
+                      : 'بانتظار موافقة الإدارة على الطلب. سيتم إشعارك عند القبول.'}
                   </div>
                 )}
 
-                {activeStep === 4 && (
+                {activeStep === 3 && (
                   <div className="space-y-3">
                     {/* عرض الرحلة المحجوزة */}
                     {request.trip_id && bookedTrip ? (
