@@ -137,6 +137,29 @@ export default function RequestFollow({ requestId, userId }: { requestId: string
       
       if (error) throw error
       setAvailableTrips(data || [])
+      
+      // تحميل محطات التوقف لجميع الرحلات تلقائياً
+      if (data && data.length > 0) {
+        const tripIds = data.map((t: any) => t.id)
+        const { data: stopsData, error: stopsError } = await supabase
+          .from('route_trip_stop_points')
+          .select('id,trip_id,name,order_index,lat,lng')
+          .in('trip_id', tripIds)
+          .order('trip_id', { ascending: true })
+          .order('order_index', { ascending: true })
+        
+        if (!stopsError && stopsData) {
+          // تجميع محطات التوقف حسب trip_id
+          const stopsByTrip: Record<string, any[]> = {}
+          stopsData.forEach((stop: any) => {
+            if (!stopsByTrip[stop.trip_id]) {
+              stopsByTrip[stop.trip_id] = []
+            }
+            stopsByTrip[stop.trip_id].push(stop)
+          })
+          setTripStopsById(stopsByTrip)
+        }
+      }
     } catch (e: any) {
       console.error('Error loading available trips:', e)
       toast.error('تعذر تحميل الرحلات المتاحة')
@@ -331,8 +354,8 @@ export default function RequestFollow({ requestId, userId }: { requestId: string
             </div>
 
             {/* Stepper */}
-            <div className="mt-4">
-              <div className="flex items-center justify-between gap-2">
+            <div className="mt-4 sm:mt-6">
+              <div className="flex items-center justify-between gap-1 sm:gap-2">
                 {steps.map((s, idx) => {
                   const isActive = s.id === activeStep
                   const isDone = s.done
@@ -342,13 +365,13 @@ export default function RequestFollow({ requestId, userId }: { requestId: string
                       <button
                         type="button"
                         onClick={() => isClickable && setActiveStep(s.id)}
-                        className={`w-full flex flex-col items-center gap-1 ${
+                        className={`w-full flex flex-col items-center gap-1 sm:gap-2 ${
                           isClickable ? 'cursor-pointer' : 'cursor-default'
                         }`}
                         disabled={!isClickable}
                       >
                         <div
-                          className={`w-9 h-9 rounded-full flex items-center justify-center border-2 ${
+                          className={`w-8 h-8 sm:w-9 sm:h-9 rounded-full flex items-center justify-center border-2 transition ${
                             isDone
                               ? 'bg-green-600 border-green-600 text-white'
                               : isActive
@@ -356,14 +379,16 @@ export default function RequestFollow({ requestId, userId }: { requestId: string
                               : 'bg-white border-gray-300 text-gray-500'
                           }`}
                         >
-                          {isDone ? <CheckCircle className="w-5 h-5" /> : <span className="font-bold">{s.id}</span>}
+                          {isDone ? <CheckCircle className="w-4 h-4 sm:w-5 sm:h-5" /> : <span className="text-xs sm:text-sm font-bold">{s.id}</span>}
                         </div>
-                        <div className={`text-[11px] sm:text-xs font-bold text-center truncate ${isActive ? 'text-blue-700' : 'text-gray-700'}`}>
+                        <div className={`text-[10px] xs:text-[11px] sm:text-xs font-bold text-center truncate w-full px-0.5 ${
+                          isActive ? 'text-blue-700' : 'text-gray-700'
+                        }`}>
                           {s.title}
                         </div>
                       </button>
                       {idx < steps.length - 1 && (
-                        <div className="hidden sm:block h-0.5 bg-gray-200 -mt-5 mx-6"></div>
+                        <div className="hidden xs:block h-0.5 bg-gray-200 -mt-5 mx-2 sm:mx-6"></div>
                       )}
                     </div>
                   )
@@ -373,16 +398,16 @@ export default function RequestFollow({ requestId, userId }: { requestId: string
           </div>
 
           {/* Stage content */}
-          <div className="p-4 sm:p-6">
-            <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <p className="text-sm sm:text-base font-extrabold text-gray-900">
+          <div className="p-3 sm:p-4 md:p-6">
+            <div className="bg-gray-50 border border-gray-200 rounded-lg p-3 sm:p-4">
+              <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 sm:gap-3">
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm sm:text-base md:text-lg font-extrabold text-gray-900">
                     المرحلة {activeStep}: {current?.title}
                   </p>
                   <p className="mt-1 text-xs sm:text-sm text-gray-600 leading-relaxed">{current?.help}</p>
                 </div>
-                <span className={`inline-flex items-center gap-2 px-2.5 py-1 rounded-full text-xs font-bold border ${
+                <span className={`inline-flex items-center gap-2 px-2.5 py-1 rounded-full text-xs font-bold border shrink-0 ${
                   current?.done ? 'bg-green-50 text-green-700 border-green-200' : 'bg-amber-50 text-amber-800 border-amber-200'
                 }`}>
                   <Clock className="w-3.5 h-3.5" />
@@ -391,7 +416,7 @@ export default function RequestFollow({ requestId, userId }: { requestId: string
               </div>
 
               {/* Actions per step */}
-              <div className="mt-4 space-y-2">
+              <div className="mt-3 sm:mt-4 space-y-2 sm:space-y-3">
                 {activeStep === 1 && (
                   <>
                     {((request.admin_notes || '') as string).startsWith('[DRAFT]') ? (
@@ -437,53 +462,55 @@ export default function RequestFollow({ requestId, userId }: { requestId: string
                   <div className="space-y-3">
                     {/* عرض الرحلة المحجوزة */}
                     {request.trip_id && bookedTrip ? (
-                      <div className="bg-green-50 border-2 border-green-200 rounded-lg p-4">
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="flex-1">
-                            <div className="flex items-center gap-2 mb-2">
-                              <Bus className="w-5 h-5 text-green-600" />
-                              <h4 className="font-bold text-green-800">رحلة محجوزة</h4>
+                      <div className="bg-green-50 border-2 border-green-200 rounded-lg p-3 sm:p-4">
+                        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-2 sm:mb-3">
+                              <Bus className="w-4 h-4 sm:w-5 sm:h-5 text-green-600 shrink-0" />
+                              <h4 className="font-bold text-green-800 text-sm sm:text-base">رحلة محجوزة</h4>
                             </div>
-                            <div className="space-y-2 text-sm">
+                            <div className="space-y-1.5 sm:space-y-2 text-xs sm:text-sm">
                               <div className="flex items-center gap-2">
-                                <Calendar className="w-4 h-4 text-blue-600" />
+                                <Calendar className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-blue-600 shrink-0" />
                                 <span className="text-gray-700">التاريخ:</span>
                                 <span className="font-bold text-gray-900">{formatDate(bookedTrip.trip_date)}</span>
                               </div>
                               {bookedTrip.meeting_time && (
                                 <div className="flex items-center gap-2">
-                                  <Clock className="w-4 h-4 text-blue-600" />
+                                  <Clock className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-blue-600 shrink-0" />
                                   <span className="text-gray-700">وقت التجمع:</span>
                                   <span className="font-bold text-gray-900">{bookedTrip.meeting_time}</span>
                                 </div>
                               )}
                               {bookedTrip.departure_time && (
                                 <div className="flex items-center gap-2">
-                                  <Navigation className="w-4 h-4 text-blue-600" />
+                                  <Navigation className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-blue-600 shrink-0" />
                                   <span className="text-gray-700">وقت الانطلاق:</span>
                                   <span className="font-bold text-gray-900">{bookedTrip.departure_time}</span>
                                 </div>
                               )}
-                              <div className="flex items-center gap-2">
-                                <MapPin className="w-4 h-4 text-orange-600" />
-                                <span className="text-gray-700">المسار:</span>
-                                <span className="font-bold text-gray-900">
-                                  {bookedTrip.start_location_name} → {bookedTrip.end_location_name}
-                                </span>
+                              <div className="flex items-start gap-2">
+                                <MapPin className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-orange-600 shrink-0 mt-0.5" />
+                                <div className="min-w-0">
+                                  <span className="text-gray-700">المسار:</span>
+                                  <span className="font-bold text-gray-900 block sm:inline sm:mr-1">
+                                    {bookedTrip.start_location_name} → {bookedTrip.end_location_name}
+                                  </span>
+                                </div>
                               </div>
                             </div>
                             {/* محطات التوقف */}
                             {bookedStops && bookedStops.length > 0 && (
                               <div className="mt-3 pt-3 border-t border-green-300">
                                 <p className="text-xs font-semibold text-gray-800 mb-2 flex items-center gap-2">
-                                  <MapPin className="w-4 h-4 text-blue-600" />
+                                  <MapPin className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-blue-600 shrink-0" />
                                   نقاط التوقف:
                                 </p>
-                                <div className="flex flex-wrap gap-2">
+                                <div className="flex flex-wrap gap-1.5 sm:gap-2">
                                   {bookedStops.map((stop, idx) => (
                                     <span
                                       key={stop.id}
-                                      className="text-xs font-semibold px-2.5 py-1 rounded-full border border-blue-200 bg-white text-blue-900"
+                                      className="text-[10px] xs:text-xs font-semibold px-2 sm:px-2.5 py-0.5 sm:py-1 rounded-full border border-blue-200 bg-white text-blue-900"
                                       title={stop.name}
                                     >
                                       {idx + 1}. {stop.name}
@@ -495,15 +522,15 @@ export default function RequestFollow({ requestId, userId }: { requestId: string
                           </div>
                           <button
                             onClick={handleChangeBooking}
-                            className="px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm font-semibold whitespace-nowrap"
+                            className="w-full sm:w-auto px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-xs sm:text-sm font-semibold whitespace-nowrap shrink-0"
                           >
                             تغيير الحجز
                           </button>
                         </div>
                       </div>
                     ) : (
-                      <div className="bg-blue-50 border-2 border-blue-200 rounded-lg p-4">
-                        <p className="text-sm text-blue-800 mb-3">
+                      <div className="bg-blue-50 border-2 border-blue-200 rounded-lg p-3 sm:p-4">
+                        <p className="text-xs sm:text-sm text-blue-800 mb-3">
                           لم يتم حجز رحلة بعد. يمكنك حجز رحلة من الرحلات المتاحة أو تحديد موعد قدوم مخصص.
                         </p>
                         <div className="flex flex-col sm:flex-row gap-2">
@@ -513,7 +540,7 @@ export default function RequestFollow({ requestId, userId }: { requestId: string
                               setShowAvailableTrips(true)
                               loadAvailableTrips()
                             }}
-                            className="px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm font-semibold inline-flex items-center justify-center gap-2"
+                            className="w-full sm:flex-1 px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-xs sm:text-sm font-semibold inline-flex items-center justify-center gap-2"
                           >
                             <Bus className="w-4 h-4" />
                             عرض الرحلات المتاحة
@@ -522,7 +549,7 @@ export default function RequestFollow({ requestId, userId }: { requestId: string
                             type="button"
                             onClick={() => setShowSchedule(true)}
                             disabled={!Boolean(request.payment_verified)}
-                            className={`px-4 py-2.5 rounded-lg transition text-sm font-semibold inline-flex items-center justify-center gap-2 ${
+                            className={`w-full sm:flex-1 px-4 py-2.5 rounded-lg transition text-xs sm:text-sm font-semibold inline-flex items-center justify-center gap-2 ${
                               Boolean(request.payment_verified)
                                 ? 'bg-green-600 text-white hover:bg-green-700'
                                 : 'bg-gray-300 text-gray-500 cursor-not-allowed'
@@ -539,14 +566,14 @@ export default function RequestFollow({ requestId, userId }: { requestId: string
                     <div className="flex flex-col sm:flex-row gap-2">
                       <Link
                         href={trackingHref}
-                        className="px-4 py-2.5 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition text-sm font-semibold inline-flex items-center justify-center gap-2"
+                        className="w-full sm:w-auto px-4 py-2.5 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition text-xs sm:text-sm font-semibold inline-flex items-center justify-center gap-2"
                         title="تتبّع على الخريطة"
                       >
                         <MapPin className="w-4 h-4 text-blue-600" />
                         تتبّع على الخريطة
                       </Link>
                       {request.arrival_date && !request.trip_id && (
-                        <div className="px-4 py-2.5 bg-white border border-gray-200 rounded-lg text-sm text-gray-700">
+                        <div className="w-full sm:w-auto px-4 py-2.5 bg-white border border-gray-200 rounded-lg text-xs sm:text-sm text-gray-700">
                           الموعد الحالي: <span className="font-bold text-gray-900">{formatDate(request.arrival_date)}</span>
                         </div>
                       )}
@@ -635,6 +662,32 @@ export default function RequestFollow({ requestId, userId }: { requestId: string
                           </div>
 
                           <div className="mt-3">
+                            {/* عرض محطات التوقف تلقائياً إذا كانت موجودة */}
+                            {(() => {
+                              const stops = tripStopsById[trip.id] || []
+                              if (stops.length > 0) {
+                                return (
+                                  <div className="bg-gray-50 border border-gray-200 rounded-lg p-3 mb-2">
+                                    <p className="text-xs sm:text-sm font-semibold text-gray-800 mb-2 flex items-center gap-2">
+                                      <MapPin className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-blue-600 shrink-0" />
+                                      محطات التوقف ({stops.length}):
+                                    </p>
+                                    <div className="space-y-1.5">
+                                      {stops.map((s: any, idx: number) => (
+                                        <div key={s.id} className="flex items-center gap-2 text-xs sm:text-sm text-gray-700">
+                                          <span className="w-5 h-5 bg-blue-600 text-white rounded-full flex items-center justify-center text-[10px] xs:text-[11px] font-bold shrink-0">
+                                            {idx + 1}
+                                          </span>
+                                          <span className="font-semibold">{s.name}</span>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )
+                              }
+                              return null
+                            })()}
+                            
                             <button
                               type="button"
                               onClick={() => toggleTripStops(trip.id)}

@@ -309,22 +309,25 @@ export default function AdminDashboard() {
       {/* Header */}
       <header className="bg-white shadow-md rounded-xl w-full">
         <div className="container mx-auto px-2 sm:px-3 md:px-4 py-2 sm:py-3 max-w-full">
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 sm:gap-3">
-            <div className="flex items-center gap-1.5 sm:gap-2 md:gap-4 min-w-0 flex-1">
-              <div className="flex flex-col min-w-0">
-                <h1 className="text-xs sm:text-sm md:text-base lg:text-lg xl:text-xl font-extrabold text-gray-900 leading-tight truncate">
+          <div className="flex flex-col gap-2 sm:gap-3">
+            {/* العنوان الرئيسي */}
+            <div className="flex items-center gap-1.5 sm:gap-2 md:gap-4 min-w-0">
+              <div className="flex flex-col min-w-0 flex-1">
+                <h1 className="text-sm sm:text-base md:text-lg lg:text-xl font-extrabold text-gray-900 leading-tight break-words">
                   {currentRole === 'supervisor' ? 'لوحة المشرف' : 'لوحة تحكم الإدارة'}
                 </h1>
-                <p className="text-[10px] sm:text-xs md:text-sm text-gray-600 truncate">
+                <p className="text-[10px] sm:text-xs md:text-sm text-gray-600 break-words">
                   إدارة الطلبات والخطوط
                 </p>
               </div>
             </div>
-            <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 md:gap-3 w-full sm:w-auto justify-end sm:justify-start">
+            
+            {/* الأزرار */}
+            <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 md:gap-3">
               {currentRole === 'admin' && (
                 <button
                   onClick={() => setShowRouteManagement(!showRouteManagement)}
-                  className="px-2 sm:px-3 md:px-4 py-1 sm:py-1.5 md:py-2 text-xs sm:text-sm md:text-base text-gray-700 hover:text-blue-600 transition"
+                  className="px-2 sm:px-3 md:px-4 py-1.5 sm:py-2 text-xs sm:text-sm md:text-base text-gray-700 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition whitespace-nowrap"
                 >
                   إدارة الخطوط
                 </button>
@@ -332,7 +335,7 @@ export default function AdminDashboard() {
               {currentRole === 'admin' && (
                 <button
                   onClick={() => setShowInvitesManagement(!showInvitesManagement)}
-                  className="px-2 sm:px-3 md:px-4 py-1 sm:py-1.5 md:py-2 text-xs sm:text-sm md:text-base text-gray-700 hover:text-blue-600 transition"
+                  className="px-2 sm:px-3 md:px-4 py-1.5 sm:py-2 text-xs sm:text-sm md:text-base text-gray-700 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition whitespace-nowrap"
                 >
                   الدعوات
                 </button>
@@ -340,7 +343,7 @@ export default function AdminDashboard() {
               {currentRole === 'admin' && (
                 <button
                   onClick={() => setShowCustomersManagement(!showCustomersManagement)}
-                  className="px-2 sm:px-3 md:px-4 py-1 sm:py-1.5 md:py-2 text-xs sm:text-sm md:text-base text-gray-700 hover:text-blue-600 transition"
+                  className="px-2 sm:px-3 md:px-4 py-1.5 sm:py-2 text-xs sm:text-sm md:text-base text-gray-700 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition whitespace-nowrap"
                 >
                   المنتسبين
                 </button>
@@ -348,7 +351,7 @@ export default function AdminDashboard() {
               {currentRole === 'admin' && (
                 <button
                   onClick={() => setShowSupervisorsManagement(!showSupervisorsManagement)}
-                  className="px-2 sm:px-3 md:px-4 py-1 sm:py-1.5 md:py-2 text-xs sm:text-sm md:text-base text-gray-700 hover:text-blue-600 transition"
+                  className="px-2 sm:px-3 md:px-4 py-1.5 sm:py-2 text-xs sm:text-sm md:text-base text-gray-700 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition whitespace-nowrap"
                 >
                   المشرفين
                 </button>
@@ -366,10 +369,10 @@ export default function AdminDashboard() {
                       setShowBookingsManagement(true)
                     }
                   }}
-                  className={`px-2 sm:px-3 md:px-4 py-1 sm:py-1.5 md:py-2 text-xs sm:text-sm md:text-base transition inline-flex items-center gap-1.5 sm:gap-2 ${
+                  className={`px-2 sm:px-3 md:px-4 py-1.5 sm:py-2 text-xs sm:text-sm md:text-base transition inline-flex items-center gap-1.5 sm:gap-2 rounded-lg whitespace-nowrap ${
                     showBookingsManagement
-                      ? 'bg-blue-600 text-white rounded-lg'
-                      : 'text-gray-700 hover:text-blue-600'
+                      ? 'bg-blue-600 text-white'
+                      : 'text-gray-700 hover:text-blue-600 hover:bg-blue-50'
                   }`}
                   title="إدارة الحجوزات والرحلات"
                 >
@@ -380,7 +383,7 @@ export default function AdminDashboard() {
               )}
               <Link
                 href="/admin/profile"
-                className="px-2 sm:px-3 md:px-4 py-1 sm:py-1.5 md:py-2 text-xs sm:text-sm md:text-base text-gray-700 hover:text-blue-600 transition"
+                className="px-2 sm:px-3 md:px-4 py-1.5 sm:py-2 text-xs sm:text-sm md:text-base text-gray-700 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition whitespace-nowrap"
               >
                 {currentRole === 'supervisor' ? 'إعدادات المشرف' : 'إعدادات الإدمن'}
               </Link>
@@ -432,11 +435,11 @@ export default function AdminDashboard() {
           </div>
         ) : showSupervisorsManagement ? (
           <div className="mb-6">
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-xl font-bold">إدارة المشرفين</h2>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
+              <h2 className="text-base sm:text-lg md:text-xl font-extrabold text-gray-900">إدارة المشرفين</h2>
               <button
                 onClick={() => setShowSupervisorsManagement(false)}
-                className="px-4 py-2 bg-gray-200 rounded-lg hover:bg-gray-300"
+                className="w-full sm:w-auto px-4 py-2 bg-gray-200 rounded-lg hover:bg-gray-300 font-bold text-xs sm:text-sm md:text-base"
               >
                 العودة للطلبات
               </button>
@@ -522,18 +525,18 @@ export default function AdminDashboard() {
                           <button
                             type="button"
                             onClick={() => setCollapsedTypes(prev => ({ ...prev, [t]: !prev[t] }))}
-                            className="w-full flex items-center justify-between gap-3 px-4 py-3 hover:bg-gray-50 transition"
+                            className="w-full flex items-center justify-between gap-2 sm:gap-3 px-3 sm:px-4 py-2.5 sm:py-3 hover:bg-gray-50 transition"
                           >
-                            <div className="flex items-center gap-2 min-w-0">
+                            <div className="flex items-center gap-2 min-w-0 flex-1">
                               <Layers className="w-4 h-4 text-blue-600 flex-shrink-0" />
-                              <span className="font-extrabold text-gray-800 truncate">
+                              <span className="text-sm sm:text-base md:text-lg font-extrabold text-gray-800 truncate">
                                 {typeLabel(t)}
                               </span>
-                              <span className="text-xs font-bold tabular-nums px-2 py-0.5 rounded-full bg-blue-50 border border-blue-100 text-blue-700 flex-shrink-0">
+                              <span className="text-[10px] xs:text-xs font-bold tabular-nums px-2 py-0.5 rounded-full bg-blue-50 border border-blue-100 text-blue-700 flex-shrink-0">
                                 {list.length}
                               </span>
                             </div>
-                            <ChevronDown className={`w-4 h-4 text-gray-500 transition-transform ${isCollapsed ? 'rotate-180' : ''}`} />
+                            <ChevronDown className={`w-4 h-4 text-gray-500 transition-transform flex-shrink-0 ${isCollapsed ? 'rotate-180' : ''}`} />
                           </button>
 
                           {!isCollapsed && (

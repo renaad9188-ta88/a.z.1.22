@@ -122,8 +122,8 @@ export default function CreateTripModal({
     try {
       setSaving(true)
 
-      // Normalize trip type to DB canonical values used by homepage/public RPCs
-      const tripTypeDb = tripType === 'departure' ? 'departures' : 'arrivals'
+      // Use DB constraint values: 'arrival' or 'departure' (singular, not plural)
+      const tripTypeDb = tripType === 'departure' ? 'departure' : 'arrival'
 
       // 1) Create trip
       const { data: trip, error: tripErr } = await supabase

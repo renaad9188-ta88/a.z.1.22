@@ -1,9 +1,9 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import toast from 'react-hot-toast'
 import { createSupabaseBrowserClient } from '@/lib/supabase'
-import { Download, Image as ImageIcon, Trash2, Upload, ShieldAlert } from 'lucide-react'
+import { Download, Image as ImageIcon, Trash2, Upload, ShieldAlert, Loader2 } from 'lucide-react'
 
 type StorageItem = {
   name: string
@@ -35,8 +35,10 @@ async function downloadViaBlob(url: string, filename: string) {
 
 export default function UserFiles({ userId }: { userId: string }) {
   const supabase = useMemo(() => createSupabaseBrowserClient(), [])
+  const inputRef = useRef<HTMLInputElement>(null)
 
   const [loading, setLoading] = useState(true)
+  const [uploading, setUploading] = useState(false)
   const [items, setItems] = useState<StorageItem[]>([])
   const [signedUrls, setSignedUrls] = useState<Record<string, string>>({})
 
@@ -81,16 +83,36 @@ export default function UserFiles({ userId }: { userId: string }) {
         }))
         setItems(clean)
         
-        // Signed URLs
+        // محاولة إنشاء URLs للمعاينة
         const urlMap: Record<string, string> = {}
         await Promise.all(
           clean.map(async (it) => {
             const fullPath = `${userId}/${it.name}`
-            const { data: signed, error: signErr } = await supabase.storage
-              .from(BUCKET)
-              .createSignedUrl(fullPath, 60 * 60)
-            if (!signErr && signed?.signedUrl) {
-              urlMap[it.name] = signed.signedUrl
+            try {
+              // محاولة إنشاء signed URL أولاً
+              const { data: signed, error: signErr } = await supabase.storage
+                .from(BUCKET)
+                .createSignedUrl(fullPath, 60 * 60)
+              if (!signErr && signed?.signedUrl) {
+                urlMap[it.name] = signed.signedUrl
+              } else {
+                // إذا فشل، جرب getPublicUrl (لا نطبع الخطأ لأنه متوقع)
+                const { data: publicData } = supabase.storage.from(BUCKET).getPublicUrl(fullPath)
+                if (publicData?.publicUrl) {
+                  urlMap[it.name] = publicData.publicUrl
+                }
+              }
+            } catch (err) {
+              // إذا فشل كلاهما، جرب getPublicUrl (لا نطبع الخطأ لأنه متوقع)
+              try {
+                const { data: publicData } = supabase.storage.from(BUCKET).getPublicUrl(fullPath)
+                if (publicData?.publicUrl) {
+                  urlMap[it.name] = publicData.publicUrl
+                }
+              } catch (e) {
+                // فقط نطبع التحذير إذا فشل كلاهما
+                console.warn(`Failed to get URL for ${it.name}`)
+              }
             }
           })
         )
@@ -102,16 +124,36 @@ export default function UserFiles({ userId }: { userId: string }) {
       const clean = (data || []).filter((x) => x?.name && !x.name.endsWith('/') && !x.name.includes('payments/'))
       setItems(clean)
 
-      // Signed URLs للمعاينة (ساعة)
+      // محاولة إنشاء URLs للمعاينة
       const urlMap: Record<string, string> = {}
       await Promise.all(
         clean.map(async (it) => {
           const fullPath = `${userId}/${it.name}`
-          const { data: signed, error: signErr } = await supabase.storage
-            .from(BUCKET)
-            .createSignedUrl(fullPath, 60 * 60)
-          if (!signErr && signed?.signedUrl) {
-            urlMap[it.name] = signed.signedUrl
+          try {
+            // محاولة إنشاء signed URL أولاً
+            const { data: signed, error: signErr } = await supabase.storage
+              .from(BUCKET)
+              .createSignedUrl(fullPath, 60 * 60)
+            if (!signErr && signed?.signedUrl) {
+              urlMap[it.name] = signed.signedUrl
+            } else {
+              // إذا فشل، جرب getPublicUrl (لا نطبع الخطأ لأنه متوقع)
+              const { data: publicData } = supabase.storage.from(BUCKET).getPublicUrl(fullPath)
+              if (publicData?.publicUrl) {
+                urlMap[it.name] = publicData.publicUrl
+              }
+            }
+          } catch (err) {
+            // إذا فشل كلاهما، جرب getPublicUrl (لا نطبع الخطأ لأنه متوقع)
+            try {
+              const { data: publicData } = supabase.storage.from(BUCKET).getPublicUrl(fullPath)
+              if (publicData?.publicUrl) {
+                urlMap[it.name] = publicData.publicUrl
+              }
+            } catch (e) {
+              // فقط نطبع التحذير إذا فشل كلاهما
+              console.warn(`Failed to get URL for ${it.name}`)
+            }
           }
         })
       )
@@ -129,27 +171,95 @@ export default function UserFiles({ userId }: { userId: string }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId])
 
+  const onUpload = async (files: FileList | null) => {
+    if (!files || files.length === 0) return
+
+    setUploading(true)
+    try {
+      const uploadPromises = Array.from(files).map(async (file) => {
+        // التحقق من نوع الملف
+        if (!file.type.startsWith('image/')) {
+          throw new Error(`الملف ${file.name} ليس صورة`)
+        }
+
+        // التحقق من حجم الملف (5 ميجابايت)
+        if (file.size > 5 * 1024 * 1024) {
+          throw new Error(`حجم الصورة ${file.name} يجب أن يكون أقل من 5 ميجابايت`)
+        }
+
+        const fileExt = file.name.split('.').pop()
+        const fileName = `${userId}/${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`
+        
+        const { error } = await supabase.storage.from(BUCKET).upload(fileName, file)
+        if (error) throw error
+      })
+
+      await Promise.all(uploadPromises)
+      toast.success(`تم رفع ${files.length} صورة بنجاح`)
+      await load()
+    } catch (e: any) {
+      console.error('Upload error:', e)
+      toast.error(e?.message || 'تعذر رفع الصور')
+    } finally {
+      setUploading(false)
+      // إعادة تعيين input
+      if (inputRef.current) {
+        inputRef.current.value = ''
+      }
+    }
+  }
+
   const onDelete = async (name: string) => {
     if (!confirm('هل تريد حذف هذه الصورة؟')) return
+    
     try {
       const fullPath = `${userId}/${name}`
-      const { error } = await supabase.storage.from(BUCKET).remove([fullPath])
-      if (error) throw error
+      const { data, error } = await supabase.storage.from(BUCKET).remove([fullPath])
+      
+      if (error) {
+        // إذا فشل، جرب بدون userId/ في البداية
+        if (error.message?.includes('not found') || error.message?.includes('Object not found')) {
+          // قد يكون المسار مختلفاً، جرب المسار الكامل
+          const { error: retryError } = await supabase.storage.from(BUCKET).remove([name])
+          if (retryError) {
+            throw retryError
+          }
+        } else {
+          throw error
+        }
+      }
+      
       toast.success('تم حذف الصورة')
       await load()
     } catch (e: any) {
       console.error('Delete error:', e)
-      toast.error(e?.message || 'تعذر حذف الصورة')
+      toast.error(e?.message || 'تعذر حذف الصورة. تأكد من أن لديك الصلاحيات اللازمة.')
     }
   }
 
   const onDownload = async (name: string) => {
     try {
       const fullPath = `${userId}/${name}`
-      const { data, error } = await supabase.storage.from(BUCKET).createSignedUrl(fullPath, 60)
-      if (error) throw error
-      if (!data?.signedUrl) throw new Error('تعذر إنشاء رابط تنزيل')
-      await downloadViaBlob(data.signedUrl, name)
+      let downloadUrl = ''
+      
+      // محاولة إنشاء signed URL أولاً
+      const { data: signed, error: signErr } = await supabase.storage
+        .from(BUCKET)
+        .createSignedUrl(fullPath, 60)
+      
+      if (!signErr && signed?.signedUrl) {
+        downloadUrl = signed.signedUrl
+      } else {
+        // إذا فشل، جرب getPublicUrl
+        const { data: publicData } = supabase.storage.from(BUCKET).getPublicUrl(fullPath)
+        if (publicData?.publicUrl) {
+          downloadUrl = publicData.publicUrl
+        } else {
+          throw new Error('تعذر إنشاء رابط تنزيل')
+        }
+      }
+      
+      await downloadViaBlob(downloadUrl, name)
       toast.success('تم بدء التنزيل')
     } catch (e: any) {
       console.error('Download error:', e)
@@ -165,24 +275,32 @@ export default function UserFiles({ userId }: { userId: string }) {
             <div className="min-w-0">
               <h1 className="text-lg sm:text-xl md:text-2xl font-bold text-gray-800">ملفاتي</h1>
               <p className="text-xs sm:text-sm text-gray-600 mt-1">
-                عرض صور الجوازات التي قمت برفعها في الطلبات — يمكنك تنزيلها على الهاتف عند الحاجة.
+                حفظ وإدارة صور الجوازات — يمكنك رفعها هنا أو من صفحة إنشاء الطلب، ثم تنزيلها على الهاتف عند الحاجة.
               </p>
             </div>
 
             <div className="flex items-center gap-2">
+              <input
+                ref={inputRef}
+                type="file"
+                accept="image/*"
+                multiple
+                onChange={(e) => onUpload(e.target.files)}
+                className="hidden"
+              />
               <button
                 type="button"
-                onClick={() => {
-                  toast('يمكنك رفع صور الجوازات من صفحة إنشاء الطلب', { icon: 'ℹ️' })
-                }}
-                disabled={true}
+                onClick={() => inputRef.current?.click()}
+                disabled={uploading}
                 className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition ${
-                  'bg-gray-200 text-gray-500 cursor-not-allowed'
+                  uploading
+                    ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
+                    : 'bg-blue-600 text-white hover:bg-blue-700'
                 }`}
-                title="يتم رفع صور الجوازات من صفحة إنشاء الطلب"
+                title="رفع صور الجوازات"
               >
-                <Upload className="w-4 h-4" />
-                رفع صور الجوازات
+                {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+                {uploading ? 'جاري الرفع...' : 'رفع صور الجوازات'}
               </button>
             </div>
           </div>
@@ -192,7 +310,7 @@ export default function UserFiles({ userId }: { userId: string }) {
             <div className="text-xs sm:text-sm text-blue-900">
               <p className="font-bold mb-1">ملاحظة</p>
               <p className="leading-relaxed">
-                هذه الصور هي صور الجوازات التي قمت برفعها عند إنشاء الطلبات. يمكنك تنزيلها للاستخدام اللاحق.
+                يمكنك رفع صور الجوازات هنا مباشرة أو من صفحة إنشاء الطلب. جميع الصور محفوظة بشكل آمن ويمكنك تنزيلها أو حذفها في أي وقت.
               </p>
             </div>
           </div>
@@ -209,7 +327,7 @@ export default function UserFiles({ userId }: { userId: string }) {
               <div className="text-center py-10">
                 <ImageIcon className="w-12 h-12 text-gray-300 mx-auto mb-3" />
                 <p className="text-sm text-gray-600">لا توجد صور جوازات محفوظة بعد</p>
-                <p className="text-xs text-gray-500 mt-1">ستظهر صور الجوازات هنا بعد رفعها في الطلبات</p>
+                <p className="text-xs text-gray-500 mt-1">يمكنك رفع صور الجوازات من الزر أعلاه أو من صفحة إنشاء الطلب</p>
               </div>
             ) : (
               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
