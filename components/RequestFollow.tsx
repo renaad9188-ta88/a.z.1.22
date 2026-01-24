@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import toast from 'react-hot-toast'
 import { CheckCircle, Clock, ArrowRight, MapPin, Navigation, Bus, Calendar } from 'lucide-react'
@@ -26,6 +27,7 @@ type ReqRow = {
 
 
 export default function RequestFollow({ requestId, userId }: { requestId: string; userId: string }) {
+  const router = useRouter()
   const supabase = createSupabaseBrowserClient()
   const [request, setRequest] = useState<ReqRow | null>(null)
   const [loading, setLoading] = useState(true)
@@ -155,9 +157,7 @@ export default function RequestFollow({ requestId, userId }: { requestId: string
       
       if (error) throw error
       
-      toast.success('تم حجز الرحلة بنجاح')
-      setShowAvailableTrips(false)
-      load()
+      toast.success('تم حجز الرحلة بنجاح! سيتم توجيهك إلى لوحة التحكم.')
       
       // إشعار للمستخدم
       try {
@@ -165,7 +165,7 @@ export default function RequestFollow({ requestId, userId }: { requestId: string
         await createNotification({
           userId: request.user_id,
           title: 'تم حجز الرحلة',
-          message: 'تم حجز رحلتك بنجاح. يمكنك متابعة تفاصيل الرحلة من هنا.',
+          message: 'تم حجز رحلتك بنجاح. يمكنك متابعة تفاصيل الرحلة من لوحة التحكم.',
           type: 'success',
           relatedType: 'trip',
           relatedId: request.id,
@@ -187,6 +187,12 @@ export default function RequestFollow({ requestId, userId }: { requestId: string
       } catch (notifyError) {
         console.error('Error sending admin notification:', notifyError)
       }
+      
+      // توجيه المستخدم إلى لوحة التحكم بعد الحجز
+      setTimeout(() => {
+        router.push('/dashboard')
+        router.refresh()
+      }, 1500)
     } catch (e: any) {
       console.error('Error booking trip:', e)
       toast.error(e.message || 'حدث خطأ أثناء حجز الرحلة')

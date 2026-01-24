@@ -600,6 +600,12 @@ export default function DashboardContent({ userId }: { userId: string }) {
                             <span className="break-words text-blue-700 font-medium">تاريخ القدوم: {formatDate(request.arrival_date)}</span>
                           </div>
                         )}
+                        {(request as any).trip_id && (
+                          <div className="flex items-center gap-2">
+                            <Calendar className="w-3 h-3 sm:w-4 sm:h-4 flex-shrink-0 text-green-600" />
+                            <span className="break-words text-green-700 font-medium">رحلة محجوزة</span>
+                          </div>
+                        )}
                         {request.departure_date && (
                           <div className="flex items-center gap-2">
                             <Plane className="w-3 h-3 sm:w-4 sm:h-4 flex-shrink-0 text-green-600 rotate-180" />
@@ -623,6 +629,14 @@ export default function DashboardContent({ userId }: { userId: string }) {
                       >
                         متابعة الطلب
                       </Link>
+                      {((request as any).trip_id || request.arrival_date) && request.status === 'approved' && (
+                        <button
+                          onClick={() => setSchedulingRequest(request as any)}
+                          className="w-full sm:w-auto px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition text-xs sm:text-sm font-semibold"
+                        >
+                          تغيير الحجز
+                        </button>
+                      )}
                     </div>
                   </div>
                 </div>
