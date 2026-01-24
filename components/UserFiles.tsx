@@ -15,7 +15,6 @@ type StorageItem = {
 }
 
 const BUCKET = 'passports'
-const FOLDER = '' // لا نستخدم folder، لأن الصور تُحفظ مباشرة في {userId}/
 
 async function downloadViaBlob(url: string, filename: string) {
   const res = await fetch(url)
@@ -41,20 +40,65 @@ export default function UserFiles({ userId }: { userId: string }) {
   const [items, setItems] = useState<StorageItem[]>([])
   const [signedUrls, setSignedUrls] = useState<Record<string, string>>({})
 
-  const prefix = userId // الصور تُحفظ مباشرة في {userId}/ بدون folder إضافي
-
   const load = async () => {
     try {
       setLoading(true)
       setSignedUrls({})
 
-      const { data, error } = await supabase.storage.from(BUCKET).list(prefix, {
+      // قراءة جميع الملفات من مجلد المستخدم
+      const { data, error } = await supabase.storage.from(BUCKET).list(userId, {
         limit: 100,
         offset: 0,
         sortBy: { column: 'updated_at', order: 'desc' },
       })
-      if (error) throw error
+      
+      if (error) {
+        // إذا فشل، جرب قراءة من الجذر ثم فلتر
+        const { data: allData, error: allError } = await supabase.storage.from(BUCKET).list('', {
+          limit: 1000,
+          offset: 0,
+        })
+        if (allError) throw allError
+        
+        // فلتر الملفات التي تبدأ بـ userId/ ولكن ليست في payments/
+        const filtered = (allData || []).filter((x) => {
+          if (!x.name) return false
+          // الملفات في userId/ مباشرة (ليست في مجلد فرعي)
+          return x.name.startsWith(`${userId}/`) && 
+                 !x.name.includes('/payments/') && 
+                 !x.name.endsWith('/') &&
+                 x.name.split('/').length === 2 // فقط ملفات مباشرة في userId/
+        })
+        
+        // استخراج أسماء الملفات فقط
+        const clean = filtered.map((x) => ({
+          name: x.name.split('/')[1], // اسم الملف فقط بدون userId/
+          id: x.id,
+          updated_at: x.updated_at,
+          created_at: x.created_at,
+          last_accessed_at: x.last_accessed_at,
+          metadata: x.metadata,
+        }))
+        setItems(clean)
+        
+        // Signed URLs
+        const urlMap: Record<string, string> = {}
+        await Promise.all(
+          clean.map(async (it) => {
+            const fullPath = `${userId}/${it.name}`
+            const { data: signed, error: signErr } = await supabase.storage
+              .from(BUCKET)
+              .createSignedUrl(fullPath, 60 * 60)
+            if (!signErr && signed?.signedUrl) {
+              urlMap[it.name] = signed.signedUrl
+            }
+          })
+        )
+        setSignedUrls(urlMap)
+        return
+      }
 
+      // إذا نجح list مباشرة
       const clean = (data || []).filter((x) => x?.name && !x.name.endsWith('/') && !x.name.includes('payments/'))
       setItems(clean)
 
@@ -62,7 +106,7 @@ export default function UserFiles({ userId }: { userId: string }) {
       const urlMap: Record<string, string> = {}
       await Promise.all(
         clean.map(async (it) => {
-          const fullPath = `${prefix}/${it.name}`
+          const fullPath = `${userId}/${it.name}`
           const { data: signed, error: signErr } = await supabase.storage
             .from(BUCKET)
             .createSignedUrl(fullPath, 60 * 60)
@@ -88,7 +132,7 @@ export default function UserFiles({ userId }: { userId: string }) {
   const onDelete = async (name: string) => {
     if (!confirm('هل تريد حذف هذه الصورة؟')) return
     try {
-      const fullPath = `${prefix}/${name}`
+      const fullPath = `${userId}/${name}`
       const { error } = await supabase.storage.from(BUCKET).remove([fullPath])
       if (error) throw error
       toast.success('تم حذف الصورة')
@@ -101,7 +145,7 @@ export default function UserFiles({ userId }: { userId: string }) {
 
   const onDownload = async (name: string) => {
     try {
-      const fullPath = `${prefix}/${name}`
+      const fullPath = `${userId}/${name}`
       const { data, error } = await supabase.storage.from(BUCKET).createSignedUrl(fullPath, 60)
       if (error) throw error
       if (!data?.signedUrl) throw new Error('تعذر إنشاء رابط تنزيل')
