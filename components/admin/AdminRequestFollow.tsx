@@ -601,29 +601,38 @@ export default function AdminRequestFollow({
                       </div>
                     )}
 
-                    <div className="flex flex-col sm:flex-row gap-2">
-                      <button
-                        type="button"
-                        onClick={() => setShowSchedule(true)}
-                        disabled={saving || request.status !== 'approved'}
-                        className="px-4 py-2.5 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition text-sm font-semibold disabled:opacity-50"
-                      >
-                        {request.arrival_date ? 'تعديل موعد القدوم' : 'تحديد موعد القدوم'}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => appendAdminResponseAndNotify('تم تأكيد الحجز', false)}
-                        disabled={saving}
-                        className="px-4 py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition text-sm font-semibold disabled:opacity-50"
-                        title="يرسل للمستخدم رسالة تأكيد الحجز"
-                      >
-                        تأكيد الحجز
-                      </button>
-                      {request.arrival_date && (
-                        <div className="px-4 py-2.5 bg-white border border-gray-200 rounded-lg text-sm text-gray-700">
-                          الموعد: <span className="font-bold">{formatDate(request.arrival_date)}</span>
-                        </div>
-                      )}
+                    <div className="space-y-2">
+                      <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-2">
+                        <p className="text-xs text-blue-800 font-semibold mb-1">💡 زر "تحديد موعد القدوم":</p>
+                        <p className="text-xs text-blue-700 leading-relaxed">
+                          يستخدم هذا الزر عندما يريد المستخدم تحديد موعد قدوم مخصص (بدون حجز رحلة من الرحلات المتاحة). 
+                          بعد تحديد الموعد، يمكن للمستخدم متابعة الرحلة على الخريطة.
+                        </p>
+                      </div>
+                      <div className="flex flex-col sm:flex-row gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setShowSchedule(true)}
+                          disabled={saving || request.status !== 'approved'}
+                          className="px-4 py-2.5 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition text-sm font-semibold disabled:opacity-50"
+                        >
+                          {request.arrival_date ? 'تعديل موعد القدوم' : 'تحديد موعد القدوم'}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => appendAdminResponseAndNotify('تم تأكيد الحجز', false)}
+                          disabled={saving}
+                          className="px-4 py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition text-sm font-semibold disabled:opacity-50"
+                          title="يرسل للمستخدم رسالة تأكيد الحجز"
+                        >
+                          تأكيد الحجز
+                        </button>
+                        {request.arrival_date && (
+                          <div className="px-4 py-2.5 bg-white border border-gray-200 rounded-lg text-sm text-gray-700">
+                            الموعد: <span className="font-bold">{formatDate(request.arrival_date)}</span>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
                 )}

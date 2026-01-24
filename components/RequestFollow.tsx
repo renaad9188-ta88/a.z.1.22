@@ -35,6 +35,7 @@ export default function RequestFollow({ requestId, userId }: { requestId: string
   const [availableTrips, setAvailableTrips] = useState<any[]>([])
   const [loadingTrips, setLoadingTrips] = useState(false)
   const [bookedTrip, setBookedTrip] = useState<any | null>(null)
+  const [bookedStops, setBookedStops] = useState<any[]>([])
   const [tripStopsById, setTripStopsById] = useState<Record<string, any[]>>({})
   const [loadingStopsId, setLoadingStopsId] = useState<string | null>(null)
   const [expandedTripId, setExpandedTripId] = useState<string | null>(null)
@@ -96,9 +97,25 @@ export default function RequestFollow({ requestId, userId }: { requestId: string
       
       if (error) throw error
       setBookedTrip(data)
+      
+      // Load stop points for booked trip
+      if (data) {
+        const { data: stopsData, error: stopsError } = await supabase
+          .from('route_trip_stop_points')
+          .select('id,name,order_index,lat,lng')
+          .eq('trip_id', tripId)
+          .order('order_index', { ascending: true })
+        
+        if (!stopsError && stopsData) {
+          setBookedStops(stopsData)
+        } else {
+          setBookedStops([])
+        }
+      }
     } catch (e: any) {
       console.error('Error loading booked trip:', e)
       setBookedTrip(null)
+      setBookedStops([])
     }
   }
 
@@ -391,12 +408,22 @@ export default function RequestFollow({ requestId, userId }: { requestId: string
                   </>
                 )}
                 {activeStep === 2 && (
-                  <div className="text-sm text-gray-700">
-                    {request.status === 'approved' && Boolean(request.payment_verified)
-                      ? 'تم الموافقة على الطلب وفتح الحجز. يمكنك الآن حجز موعد القدوم من المرحلة التالية.'
-                      : request.status === 'rejected'
-                      ? 'تم رفض الطلب. يمكنك مراجعة سبب الرفض من صفحة تفاصيل الطلب.'
-                      : 'بانتظار موافقة الإدارة على الطلب. سيتم إشعارك عند القبول.'}
+                  <div className="space-y-3">
+                    <div className="text-sm text-gray-700">
+                      {request.status === 'approved' && Boolean(request.payment_verified)
+                        ? 'تم الموافقة على الطلب وفتح الحجز. يمكنك الآن حجز موعد القدوم من المرحلة التالية.'
+                        : request.status === 'rejected'
+                        ? 'تم رفض الطلب. يمكنك مراجعة سبب الرفض من صفحة تفاصيل الطلب.'
+                        : 'بانتظار موافقة الإدارة على الطلب. سيتم إشعارك عند القبول.'}
+                    </div>
+                    {!request.status || request.status === 'pending' ? (
+                      <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 sm:p-4">
+                        <p className="text-xs sm:text-sm text-blue-800 font-semibold mb-1">ملاحظة مهمة:</p>
+                        <p className="text-xs sm:text-sm text-blue-700 leading-relaxed">
+                          بعد إرسال الطلب، تحتاج إلى من 4 أيام إلى 10 أيام حسب إجراءات الجهات الرسمية والرد عليك لفتح بوابة حجز الموعد وتتبع الطلب على الخريطة.
+                        </p>
+                      </div>
+                    ) : null}
                   </div>
                 )}
 
@@ -439,6 +466,26 @@ export default function RequestFollow({ requestId, userId }: { requestId: string
                                 </span>
                               </div>
                             </div>
+                            {/* محطات التوقف */}
+                            {bookedStops && bookedStops.length > 0 && (
+                              <div className="mt-3 pt-3 border-t border-green-300">
+                                <p className="text-xs font-semibold text-gray-800 mb-2 flex items-center gap-2">
+                                  <MapPin className="w-4 h-4 text-blue-600" />
+                                  نقاط التوقف:
+                                </p>
+                                <div className="flex flex-wrap gap-2">
+                                  {bookedStops.map((stop, idx) => (
+                                    <span
+                                      key={stop.id}
+                                      className="text-xs font-semibold px-2.5 py-1 rounded-full border border-blue-200 bg-white text-blue-900"
+                                      title={stop.name}
+                                    >
+                                      {idx + 1}. {stop.name}
+                                    </span>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
                           </div>
                           <button
                             onClick={handleChangeBooking}

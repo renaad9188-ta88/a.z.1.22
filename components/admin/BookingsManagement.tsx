@@ -574,37 +574,48 @@ export default function BookingsManagement() {
         </div>
 
         {/* Tabs */}
-        <div className="flex gap-2 mb-4 flex-wrap">
-          <button
-            onClick={() => setActiveTab('arrivals')}
-            className={`flex-1 px-4 py-2.5 rounded-lg text-sm font-bold transition ${
-              activeTab === 'arrivals'
-                ? 'bg-green-600 text-white'
-                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-            }`}
-          >
-            القادمون
-          </button>
-          <button
-            onClick={() => setActiveTab('departures')}
-            className={`flex-1 px-4 py-2.5 rounded-lg text-sm font-bold transition ${
-              activeTab === 'departures'
-                ? 'bg-purple-600 text-white'
-                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-            }`}
-          >
-            المغادرون
-          </button>
-          <button
-            onClick={() => setActiveTab('expected')}
-            className={`flex-1 px-4 py-2.5 rounded-lg text-sm font-bold transition ${
-              activeTab === 'expected'
-                ? 'bg-amber-600 text-white'
-                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-            }`}
-          >
-            متوقعون
-          </button>
+        <div className="space-y-3">
+          <div className="flex gap-2 mb-2 flex-wrap">
+            <button
+              onClick={() => setActiveTab('arrivals')}
+              className={`flex-1 px-4 py-2.5 rounded-lg text-sm font-bold transition ${
+                activeTab === 'arrivals'
+                  ? 'bg-green-600 text-white'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+            >
+              القادمون
+            </button>
+            <button
+              onClick={() => setActiveTab('departures')}
+              className={`flex-1 px-4 py-2.5 rounded-lg text-sm font-bold transition ${
+                activeTab === 'departures'
+                  ? 'bg-purple-600 text-white'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+            >
+              المغادرون
+            </button>
+            <button
+              onClick={() => setActiveTab('expected')}
+              className={`flex-1 px-4 py-2.5 rounded-lg text-sm font-bold transition ${
+                activeTab === 'expected'
+                  ? 'bg-amber-600 text-white'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+            >
+              متوقعون
+            </button>
+          </div>
+          {/* توضيح الفرق */}
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-xs sm:text-sm">
+            <p className="font-semibold text-blue-900 mb-1">💡 توضيح:</p>
+            <div className="space-y-1 text-blue-800">
+              <p><span className="font-bold">القادمون:</span> طلبات زيارة جديدة - يريدون القدوم وحجز موعد القدوم</p>
+              <p><span className="font-bold">المغادرون:</span> أشخاص قدموا بالفعل - يريدون المغادرة وحجز موعد المغادرة</p>
+              <p><span className="font-bold">متوقعون:</span> قائمة بالأشخاص الذين يجب تذكيرهم بالمغادرة (قبل 3 أيام من تاريخ المغادرة المتوقع)</p>
+            </div>
+          </div>
         </div>
       </div>
 

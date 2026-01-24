@@ -52,6 +52,8 @@ export default function JordanVisitPayment({ requestId, userId }: { requestId: s
 
   useEffect(() => {
     loadRequest()
+    // Scroll to top when page loads
+    window.scrollTo(0, 0)
   }, [requestId])
 
   // تحويل روابط صور الدفعات المحفوظة إلى signed URLs (لأن bucket passports خاص)
@@ -310,7 +312,7 @@ export default function JordanVisitPayment({ requestId, userId }: { requestId: s
         console.error('Notification error after submit:', notifyErr)
       }
 
-      toast.success('تم إرسال الطلب بنجاح!')
+      toast.success('تم إرسال الطلب بنجاح! سيتم الرد على طلبك قريباً.')
       router.push('/dashboard')
       router.refresh()
     } catch (e: any) {
