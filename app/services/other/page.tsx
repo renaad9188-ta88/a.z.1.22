@@ -138,8 +138,7 @@ export default function OtherServicesPage() {
               أو تواصل معنا مباشرة عبر واتساب
             </p>
             <Link
-              href="https://wa.me/966541700017"
-              target="_blank"
+              href="/contact"
               className="flex items-center justify-center gap-2 w-full py-2.5 sm:py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition font-semibold text-sm sm:text-base"
             >
               <MessageCircle className="w-5 h-5" />

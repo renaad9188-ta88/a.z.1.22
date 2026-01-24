@@ -15,8 +15,9 @@ import RouteManagement from './admin/RouteManagement'
 import SupervisorsManagement from './admin/SupervisorsManagement'
 import InvitesManagement from './admin/InvitesManagement'
 import CustomersManagement from './admin/CustomersManagement'
+import BookingsManagement from './admin/BookingsManagement'
 import { VisitRequest, UserProfile, AdminStats as StatsType } from './admin/types'
-import { ChevronDown, Layers } from 'lucide-react'
+import { ChevronDown, Layers, Calendar } from 'lucide-react'
 
 export default function AdminDashboard() {
   const router = useRouter()
@@ -37,6 +38,7 @@ export default function AdminDashboard() {
   const [showSupervisorsManagement, setShowSupervisorsManagement] = useState(false)
   const [showInvitesManagement, setShowInvitesManagement] = useState(false)
   const [showCustomersManagement, setShowCustomersManagement] = useState(false)
+  const [showBookingsManagement, setShowBookingsManagement] = useState(false)
   const [collapsedTypes, setCollapsedTypes] = useState<Record<string, boolean>>({})
 
   useEffect(() => {
@@ -351,6 +353,31 @@ export default function AdminDashboard() {
                   المشرفين
                 </button>
               )}
+              {currentRole === 'admin' && (
+                <button
+                  onClick={() => {
+                    if (showBookingsManagement) {
+                      setShowBookingsManagement(false)
+                    } else {
+                      setShowRouteManagement(false)
+                      setShowInvitesManagement(false)
+                      setShowCustomersManagement(false)
+                      setShowSupervisorsManagement(false)
+                      setShowBookingsManagement(true)
+                    }
+                  }}
+                  className={`px-2 sm:px-3 md:px-4 py-1 sm:py-1.5 md:py-2 text-xs sm:text-sm md:text-base transition inline-flex items-center gap-1.5 sm:gap-2 ${
+                    showBookingsManagement
+                      ? 'bg-blue-600 text-white rounded-lg'
+                      : 'text-gray-700 hover:text-blue-600'
+                  }`}
+                  title="إدارة الحجوزات والرحلات"
+                >
+                  <Calendar className="w-3.5 h-3.5 sm:w-4 sm:h-4 flex-shrink-0" />
+                  <span className="hidden sm:inline">الحجوزات</span>
+                  <span className="sm:hidden">حجوزات</span>
+                </button>
+              )}
               <Link
                 href="/admin/profile"
                 className="px-2 sm:px-3 md:px-4 py-1 sm:py-1.5 md:py-2 text-xs sm:text-sm md:text-base text-gray-700 hover:text-blue-600 transition"
@@ -415,6 +442,21 @@ export default function AdminDashboard() {
               </button>
             </div>
             <SupervisorsManagement />
+          </div>
+        ) : showBookingsManagement ? (
+          <div className="mb-6" key="bookings-management">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+              <h2 className="text-base sm:text-lg md:text-xl font-extrabold text-gray-900">إدارة الحجوزات والرحلات</h2>
+              <button
+                onClick={() => setShowBookingsManagement(false)}
+                className="w-full sm:w-auto px-3 sm:px-4 py-2 sm:py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition font-bold text-xs sm:text-sm md:text-base inline-flex items-center justify-center gap-2 shadow-md hover:shadow-lg"
+              >
+                <FileText className="w-3.5 h-3.5 sm:w-4 sm:h-4 flex-shrink-0" />
+                <span className="hidden sm:inline">العودة للطلبات</span>
+                <span className="sm:hidden">الطلبات</span>
+              </button>
+            </div>
+            <BookingsManagement />
           </div>
         ) : (
           <>

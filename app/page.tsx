@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { Phone, Mail, Globe, MessageCircle } from 'lucide-react'
+import { Phone, MessageCircle } from 'lucide-react'
 import HeroCarousel from '@/components/HeroCarousel'
 import ServicesSection from '@/components/ServicesSection'
 
@@ -20,37 +20,29 @@ export default function HomePage() {
           <div className="w-20 sm:w-24 h-0.5 bg-blue-600 rounded-full mx-auto"></div>
         </div>
         <div className="max-w-3xl mx-auto bg-white p-4 sm:p-6 rounded-xl shadow-lg">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-            <a href="tel:+966541700017" className="flex items-center gap-2 sm:gap-3 p-3 sm:p-4 bg-blue-50 rounded-lg hover:bg-blue-100 transition">
-              <span className="text-xl sm:text-2xl">📱</span>
-              <Phone className="w-4 h-4 sm:w-5 sm:h-5 text-blue-600 flex-shrink-0" />
-              <div className="min-w-0">
-                <p className="font-semibold text-xs sm:text-sm mb-0.5">الهاتف</p>
-                <p className="text-gray-600 text-xs truncate">+966541700017</p>
-              </div>
-            </a>
-            <a href="https://wa.me/966541700017" target="_blank" className="flex items-center gap-2 sm:gap-3 p-3 sm:p-4 bg-green-50 rounded-lg hover:bg-green-100 transition">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 mb-4">
+            <a href="https://wa.me/962798905595" target="_blank" className="flex items-center gap-2 sm:gap-3 p-3 sm:p-4 bg-green-50 rounded-lg hover:bg-green-100 transition">
               <span className="text-xl sm:text-2xl">💬</span>
               <MessageCircle className="w-4 h-4 sm:w-5 sm:h-5 text-green-600 flex-shrink-0" />
               <div className="min-w-0">
                 <p className="font-semibold text-xs sm:text-sm mb-0.5">واتساب</p>
-                <p className="text-gray-600 text-xs truncate">+966541700017</p>
+                <p className="text-gray-600 text-xs truncate">00962798905595</p>
               </div>
             </a>
-            <a href="mailto:info@maidaa-sa.com" className="flex items-center gap-2 sm:gap-3 p-3 sm:p-4 bg-purple-50 rounded-lg hover:bg-purple-100 transition">
-              <span className="text-xl sm:text-2xl">✉️</span>
-              <Mail className="w-4 h-4 sm:w-5 sm:h-5 text-purple-600 flex-shrink-0" />
+            <a href="tel:00962798905595" className="flex items-center gap-2 sm:gap-3 p-3 sm:p-4 bg-blue-50 rounded-lg hover:bg-blue-100 transition">
+              <span className="text-xl sm:text-2xl">📱</span>
+              <Phone className="w-4 h-4 sm:w-5 sm:h-5 text-blue-600 flex-shrink-0" />
               <div className="min-w-0">
-                <p className="font-semibold text-xs sm:text-sm mb-0.5">البريد الإلكتروني</p>
-                <p className="text-gray-600 text-xs truncate">info@maidaa-sa.com</p>
+                <p className="font-semibold text-xs sm:text-sm mb-0.5">الهاتف</p>
+                <p className="text-gray-600 text-xs truncate">00962798905595</p>
               </div>
             </a>
-            <a href="https://www.maidaa-sa.com" target="_blank" className="flex items-center gap-2 sm:gap-3 p-3 sm:p-4 bg-yellow-50 rounded-lg hover:bg-yellow-100 transition">
-              <span className="text-xl sm:text-2xl">🌐</span>
-              <Globe className="w-4 h-4 sm:w-5 sm:h-5 text-yellow-600 flex-shrink-0" />
+            <a href="tel:00962770460335" className="flex items-center gap-2 sm:gap-3 p-3 sm:p-4 bg-blue-50 rounded-lg hover:bg-blue-100 transition">
+              <span className="text-xl sm:text-2xl">📱</span>
+              <Phone className="w-4 h-4 sm:w-5 sm:h-5 text-blue-600 flex-shrink-0" />
               <div className="min-w-0">
-                <p className="font-semibold text-xs sm:text-sm mb-0.5">الموقع الإلكتروني</p>
-                <p className="text-gray-600 text-xs truncate">www.maidaa-sa.com</p>
+                <p className="font-semibold text-xs sm:text-sm mb-0.5">الهاتف</p>
+                <p className="text-gray-600 text-xs truncate">00962770460335</p>
               </div>
             </a>
           </div>
