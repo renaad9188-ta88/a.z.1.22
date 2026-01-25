@@ -21,6 +21,7 @@ type TripRow = {
   end_lat: number
   end_lng: number
   notes: string | null
+  trip_type?: 'arrival' | 'departure' | null
 }
 
 type StopPointRow = { id: string; name: string; lat: number; lng: number; order_index: number }
@@ -33,6 +34,8 @@ type PassengerRow = {
   trip_status: string | null
   arrival_date: string | null
   request_dropoff_points?: Array<{ name: string; address: string | null; lat: number; lng: number }>
+  selectedDropoffStop?: { name: string } | null
+  selectedPickupStop?: { name: string } | null
 }
 
 type ProfileRow = { user_id: string; full_name: string | null; phone: string | null }
@@ -131,7 +134,7 @@ export default function DriverTripDetailsPage() {
       // Load trip (RLS should restrict to assigned trips)
       const { data: tripData, error: tripErr } = await supabase
         .from('route_trips')
-        .select('id,route_id,trip_date,meeting_time,departure_time,start_location_name,start_lat,start_lng,end_location_name,end_lat,end_lng,notes')
+        .select('id,route_id,trip_date,meeting_time,departure_time,start_location_name,start_lat,start_lng,end_location_name,end_lat,end_lng,notes,trip_type')
         .eq('id', tripId)
         .maybeSingle()
       if (tripErr) throw tripErr
@@ -171,7 +174,7 @@ export default function DriverTripDetailsPage() {
       // Load passengers linked by trip_id
       const { data: paxData, error: paxErr } = await supabase
         .from('visit_requests')
-        .select('id,visitor_name,companions_count,user_id,trip_status,arrival_date,request_dropoff_points(name,address,lat,lng)')
+        .select('id,visitor_name,companions_count,user_id,trip_status,arrival_date,selected_dropoff_stop_id,selected_pickup_stop_id,request_dropoff_points(name,address,lat,lng)')
         .eq('trip_id', tripId)
         .order('created_at', { ascending: true })
       if (paxErr) throw paxErr
@@ -188,10 +191,31 @@ export default function DriverTripDetailsPage() {
         })
       }
 
+      // تحميل معلومات نقاط النزول/التحميل المختارة
+      const stopIds = rows
+        .map((r: any) => [r.selected_dropoff_stop_id, r.selected_pickup_stop_id])
+        .flat()
+        .filter(Boolean) as string[]
+      
+      let stopsMap: Record<string, { name: string }> = {}
+      if (stopIds.length > 0) {
+        const { data: stopsData } = await supabase
+          .from('route_trip_stop_points')
+          .select('id,name')
+          .in('id', stopIds)
+        if (stopsData) {
+          stopsData.forEach((s: any) => {
+            stopsMap[s.id] = { name: s.name }
+          })
+        }
+      }
+
       setPassengers(
         rows.map((r) => ({
           ...r,
           profile: profilesMap[r.user_id] || { full_name: null, phone: null },
+          selectedDropoffStop: r.selected_dropoff_stop_id ? stopsMap[r.selected_dropoff_stop_id] : null,
+          selectedPickupStop: r.selected_pickup_stop_id ? stopsMap[r.selected_pickup_stop_id] : null,
         }))
       )
     } catch (e: any) {
@@ -339,6 +363,11 @@ export default function DriverTripDetailsPage() {
                 <h1 className="text-lg sm:text-xl md:text-2xl font-extrabold text-gray-900 flex items-center gap-2">
                   <Bus className="w-6 h-6 text-blue-600" />
                   تفاصيل الرحلة
+                  {trip?.trip_type && (
+                    <span className="text-xs sm:text-sm font-extrabold px-2 py-1 rounded-full border border-blue-300 text-blue-800 bg-blue-50">
+                      {trip.trip_type === 'departure' ? 'المغادرون' : 'القادمون'}
+                    </span>
+                  )}
                 </h1>
                 {trip && (
                   <p className="text-sm text-gray-600 mt-1 truncate">
@@ -454,6 +483,16 @@ export default function DriverTripDetailsPage() {
                             {p.arrival_date && <div>تاريخ القدوم: {formatDate(p.arrival_date)}</div>}
                             {p.request_dropoff_points?.[0]?.name && (
                               <div>نقطة النزول: {p.request_dropoff_points[0].name}</div>
+                            )}
+                            {trip?.trip_type === 'arrival' && p.selectedDropoffStop && (
+                              <div className="text-blue-700 font-semibold">
+                                نقطة النزول المختارة: {p.selectedDropoffStop.name}
+                              </div>
+                            )}
+                            {trip?.trip_type === 'departure' && p.selectedPickupStop && (
+                              <div className="text-blue-700 font-semibold">
+                                نقطة التحميل المختارة: {p.selectedPickupStop.name}
+                              </div>
                             )}
                           </div>
                         </div>

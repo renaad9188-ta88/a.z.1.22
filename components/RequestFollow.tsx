@@ -39,6 +39,7 @@ export default function RequestFollow({ requestId, userId }: { requestId: string
   const [tripStopsById, setTripStopsById] = useState<Record<string, any[]>>({})
   const [loadingStopsId, setLoadingStopsId] = useState<string | null>(null)
   const [expandedTripId, setExpandedTripId] = useState<string | null>(null)
+  const [selectedStopByTrip, setSelectedStopByTrip] = useState<Record<string, string>>({}) // tripId -> stopId
 
   const load = async () => {
     try {
@@ -110,7 +111,7 @@ export default function RequestFollow({ requestId, userId }: { requestId: string
       
       const { data, error } = await supabase
         .from('route_trips')
-        .select('id,trip_date,meeting_time,departure_time,start_location_name,end_location_name,route_id')
+        .select('id,trip_date,meeting_time,departure_time,start_location_name,end_location_name,route_id,trip_type')
         .eq('is_active', true)
         .gte('trip_date', today)
         .order('trip_date', { ascending: true })
@@ -119,6 +120,13 @@ export default function RequestFollow({ requestId, userId }: { requestId: string
       
       if (error) throw error
       setAvailableTrips(data || [])
+      
+      // تحميل نقاط التوقف تلقائياً لكل رحلة
+      if (data && data.length > 0) {
+        for (const trip of data) {
+          await loadTripStops(trip.id)
+        }
+      }
     } catch (e: any) {
       console.error('Error loading available trips:', e)
       toast.error('تعذر تحميل الرحلات المتاحة')
@@ -128,19 +136,52 @@ export default function RequestFollow({ requestId, userId }: { requestId: string
     }
   }
 
+  const loadTripStops = async (tripId: string) => {
+    if (tripStopsById[tripId]) return
+    try {
+      const { data, error } = await supabase
+        .from('route_trip_stop_points')
+        .select('id,name,order_index,lat,lng')
+        .eq('trip_id', tripId)
+        .order('order_index', { ascending: true })
+      if (error) throw error
+      setTripStopsById((p) => ({ ...p, [tripId]: data || [] }))
+    } catch (e: any) {
+      console.error('Error loading stop points:', e)
+      setTripStopsById((p) => ({ ...p, [tripId]: [] }))
+    }
+  }
+
   const handleBookTrip = async (tripId: string) => {
     if (!request) return
     
     try {
+      const trip = availableTrips.find((t) => t.id === tripId)
+      const tripType = trip?.trip_type || 'arrival'
+      const selectedStopId = selectedStopByTrip[tripId] || null
+      
+      const updateData: any = {
+        trip_id: tripId,
+        updated_at: new Date().toISOString(),
+      }
+      
+      // حفظ نقطة النزول للقادمون أو نقطة التحميل للمغادرون
+      if (tripType === 'arrival' && selectedStopId) {
+        updateData.selected_dropoff_stop_id = selectedStopId
+      } else if (tripType === 'departure' && selectedStopId) {
+        updateData.selected_pickup_stop_id = selectedStopId
+      }
+      
       const { error } = await supabase
         .from('visit_requests')
-        .update({ trip_id: tripId, updated_at: new Date().toISOString() })
+        .update(updateData)
         .eq('id', request.id)
       
       if (error) throw error
       
       toast.success('تم حجز الرحلة بنجاح')
       setShowAvailableTrips(false)
+      setSelectedStopByTrip({})
       load()
       
       // إشعار للمستخدم
@@ -185,22 +226,8 @@ export default function RequestFollow({ requestId, userId }: { requestId: string
   const toggleTripStops = async (tripId: string) => {
     const next = expandedTripId === tripId ? null : tripId
     setExpandedTripId(next)
-    if (!next) return
-    if (tripStopsById[tripId]) return
-    try {
-      setLoadingStopsId(tripId)
-      const { data, error } = await supabase
-        .from('route_trip_stop_points')
-        .select('id,name,order_index,lat,lng')
-        .eq('trip_id', tripId)
-        .order('order_index', { ascending: true })
-      if (error) throw error
-      setTripStopsById((p) => ({ ...p, [tripId]: data || [] }))
-    } catch (e: any) {
-      console.error('Error loading stop points:', e)
-      setTripStopsById((p) => ({ ...p, [tripId]: [] }))
-    } finally {
-      setLoadingStopsId(null)
+    if (next) {
+      await loadTripStops(tripId)
     }
   }
 
@@ -608,9 +635,11 @@ export default function RequestFollow({ requestId, userId }: { requestId: string
                             <button
                               type="button"
                               onClick={() => toggleTripStops(trip.id)}
-                              className="text-xs sm:text-sm font-semibold text-blue-700 hover:text-blue-800 underline"
+                              className="w-full sm:w-auto text-xs sm:text-sm font-semibold text-blue-700 hover:text-blue-800 underline px-2 py-1 rounded hover:bg-blue-50 transition"
                             >
-                              {expandedTripId === trip.id ? 'إخفاء محطات التوقف' : 'عرض محطات التوقف'}
+                              {expandedTripId === trip.id 
+                                ? `إخفاء ${trip.trip_type === 'arrival' ? 'نقاط النزول' : 'نقاط التحميل'}`
+                                : `عرض ${trip.trip_type === 'arrival' ? 'نقاط النزول' : 'نقاط التحميل'}`}
                             </button>
 
                             {expandedTripId === trip.id && (
@@ -618,17 +647,56 @@ export default function RequestFollow({ requestId, userId }: { requestId: string
                                 {loadingStopsId === trip.id ? (
                                   <p className="text-xs text-gray-600">جاري تحميل محطات التوقف...</p>
                                 ) : (tripStopsById[trip.id] || []).length === 0 ? (
-                                  <p className="text-xs text-gray-600">لا توجد محطات توقف لهذه الرحلة.</p>
+                                  <p className="text-xs text-gray-600">
+                                    لا توجد {trip.trip_type === 'arrival' ? 'نقاط نزول' : 'نقاط تحميل'} لهذه الرحلة.
+                                  </p>
                                 ) : (
                                   <div className="space-y-2">
-                                    {(tripStopsById[trip.id] || []).map((s: any, idx: number) => (
-                                      <div key={s.id} className="flex items-center gap-2 text-xs sm:text-sm text-gray-700">
-                                        <span className="w-5 h-5 bg-blue-600 text-white rounded-full flex items-center justify-center text-[11px] font-bold">
-                                          {idx + 1}
-                                        </span>
-                                        <span className="font-semibold">{s.name}</span>
-                                      </div>
-                                    ))}
+                                    <p className="text-xs sm:text-sm font-semibold text-gray-800 mb-2">
+                                      {trip.trip_type === 'arrival' 
+                                        ? 'اختر نقطة النزول (اختياري):' 
+                                        : 'اختر نقطة التحميل (اختياري):'}
+                                    </p>
+                                    {(tripStopsById[trip.id] || []).map((s: any, idx: number) => {
+                                      const isSelected = selectedStopByTrip[trip.id] === s.id
+                                      return (
+                                        <button
+                                          key={s.id}
+                                          type="button"
+                                          onClick={() => {
+                                            setSelectedStopByTrip((p) => ({
+                                              ...p,
+                                              [trip.id]: isSelected ? '' : s.id,
+                                            }))
+                                          }}
+                                          className={`w-full flex items-center gap-2 text-xs sm:text-sm p-2 rounded-lg transition ${
+                                            isSelected
+                                              ? 'bg-blue-100 border-2 border-blue-500 text-blue-900'
+                                              : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50'
+                                          }`}
+                                        >
+                                          <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[11px] font-bold ${
+                                            isSelected
+                                              ? 'bg-blue-600 text-white'
+                                              : 'bg-gray-300 text-gray-700'
+                                          }`}>
+                                            {idx + 1}
+                                          </span>
+                                          <div className="flex-1 text-right">
+                                            <span className="font-bold text-gray-900 block">{s.name}</span>
+                                            {trip.trip_type === 'arrival' && (
+                                              <span className="text-[10px] text-gray-500">نقطة نزول</span>
+                                            )}
+                                            {trip.trip_type === 'departure' && (
+                                              <span className="text-[10px] text-gray-500">نقطة تحميل</span>
+                                            )}
+                                          </div>
+                                          {isSelected && (
+                                            <CheckCircle className="w-4 h-4 text-blue-600 flex-shrink-0" />
+                                          )}
+                                        </button>
+                                      )
+                                    })}
                                   </div>
                                 )}
                               </div>
@@ -637,7 +705,7 @@ export default function RequestFollow({ requestId, userId }: { requestId: string
                         </div>
                         <button
                           onClick={() => handleBookTrip(trip.id)}
-                          className="w-full sm:w-auto px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm font-semibold"
+                          className="w-full sm:w-auto px-4 py-2.5 sm:py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm font-semibold whitespace-nowrap"
                         >
                           حجز هذه الرحلة
                         </button>

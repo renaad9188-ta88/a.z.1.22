@@ -21,6 +21,9 @@ type RequestRow = {
   departure_date: string | null
   trip_status?: string | null
   vehicle_type?: string | null
+  trip_id?: string | null
+  selected_dropoff_stop_id?: string | null
+  selected_pickup_stop_id?: string | null
 }
 
 type StopRow = {
@@ -118,6 +121,15 @@ export default function RequestTracking({ requestId, userId }: { requestId: stri
   const [route, setRoute] = useState<Route | null>(null)
   const [routeStops, setRouteStops] = useState<RouteStopPoint[]>([])
   const [dropoffPoint, setDropoffPoint] = useState<DropoffPoint | null>(null)
+  const [tripInfo, setTripInfo] = useState<{
+    trip_date: string
+    meeting_time: string | null
+    departure_time: string | null
+    start_location_name: string
+    end_location_name: string
+    trip_type: 'arrival' | 'departure' | null
+  } | null>(null)
+  const [selectedStopPoint, setSelectedStopPoint] = useState<{ name: string } | null>(null)
   const [eta, setEta] = useState<{ durationText: string; distanceText?: string } | null>(null)
   const [sharingLocation, setSharingLocation] = useState(false)
   const [geoError, setGeoError] = useState<string | null>(null)
@@ -503,28 +515,66 @@ export default function RequestTracking({ requestId, userId }: { requestId: stri
       if (request?.visitor_name) {
         const labelText =
           peopleCount > 1 ? `${request.visitor_name} (+${peopleCount - 1})` : request.visitor_name
-        const info = new googleMaps.InfoWindow({
-          content: `
-            <div style="
-              padding: 6px 10px;
-              border-radius: 12px;
-              border: 1px solid #e5e7eb;
-              background: rgba(255,255,255,0.95);
-              box-shadow: 0 8px 20px rgba(0,0,0,0.12);
-              font-family: Arial, sans-serif;
-              font-size: 12px;
-              font-weight: 800;
-              color: #111827;
-              white-space: nowrap;
-            ">
-              <span style="margin-left:6px;">${vehicleMeta.emoji}</span>
-              <span>موقع ${vehicleMeta.label}</span>
-              <span style="margin:0 8px; color:#9ca3af;">•</span>
-              <span>${labelText}</span>
+        
+        // بناء محتوى البطاقة بشكل أفضل
+        let cardContent = `
+          <div style="
+            padding: 10px 14px;
+            border-radius: 12px;
+            border: 2px solid #3b82f6;
+            background: linear-gradient(135deg, #ffffff 0%, #f0f9ff 100%);
+            box-shadow: 0 8px 24px rgba(0,0,0,0.15);
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            min-width: 200px;
+            max-width: 300px;
+          ">
+            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+              <span style="font-size: 20px;">${vehicleMeta.emoji}</span>
+              <span style="font-size: 14px; font-weight: 800; color: #1e40af;">
+                موقع ${vehicleMeta.label}
+              </span>
             </div>
-          `,
+            <div style="border-top: 1px solid #e5e7eb; padding-top: 8px; margin-top: 8px;">
+              <div style="font-size: 13px; font-weight: 700; color: #111827; margin-bottom: 4px;">
+                ${labelText}
+              </div>
+        `
+        
+        // إضافة معلومات الرحلة إذا كانت متوفرة
+        if (tripInfo) {
+          const tripTypeLabel = tripInfo.trip_type === 'arrival' ? 'رحلة القادمين' : 'رحلة المغادرين'
+          cardContent += `
+              <div style="font-size: 11px; color: #6b7280; margin-top: 6px;">
+                <div style="margin-bottom: 3px;">${tripTypeLabel}</div>
+                <div style="margin-bottom: 3px;">${tripInfo.start_location_name} → ${tripInfo.end_location_name}</div>
+          `
+          if (tripInfo.departure_time) {
+            cardContent += `<div>وقت الانطلاق: ${tripInfo.departure_time}</div>`
+          }
+          cardContent += `</div>`
+        }
+        
+        // إضافة نقطة النزول/التحميل المختارة
+        if (selectedStopPoint) {
+          const stopLabel = tripInfo?.trip_type === 'arrival' ? 'نقطة النزول' : 'نقطة التحميل'
+          cardContent += `
+              <div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid #e5e7eb;">
+                <div style="font-size: 11px; color: #059669; font-weight: 700;">
+                  ${stopLabel}: ${selectedStopPoint.name}
+                </div>
+              </div>
+          `
+        }
+        
+        cardContent += `
+            </div>
+          </div>
+        `
+        
+        const info = new googleMaps.InfoWindow({
+          content: cardContent,
           disableAutoPan: true,
-          pixelOffset: new googleMaps.Size(0, -44),
+          pixelOffset: new googleMaps.Size(0, -50),
         })
         info.open({ map, anchor: driverMarker, shouldFocus: false })
       }
@@ -559,7 +609,7 @@ export default function RequestTracking({ requestId, userId }: { requestId: stri
       let query = supabase
         .from('visit_requests')
         .select(
-          'id,user_id,visitor_name,companions_count,companions_data,travel_date,city,status,arrival_date,departure_date,route_id,trip_status,vehicle_type,assigned_driver_id'
+          'id,user_id,visitor_name,companions_count,companions_data,travel_date,city,status,arrival_date,departure_date,route_id,trip_status,vehicle_type,assigned_driver_id,trip_id,selected_dropoff_stop_id,selected_pickup_stop_id'
         )
         .eq('id', requestId)
 
@@ -576,6 +626,48 @@ export default function RequestTracking({ requestId, userId }: { requestId: stri
         return
       }
       setRequest(req as any)
+
+      // Load trip information if trip_id exists
+      const tripId = (req as any)?.trip_id
+      if (tripId) {
+        try {
+          const { data: tripData } = await supabase
+            .from('route_trips')
+            .select('trip_date,meeting_time,departure_time,start_location_name,end_location_name,trip_type')
+            .eq('id', tripId)
+            .maybeSingle()
+          
+          if (tripData) {
+            setTripInfo({
+              trip_date: tripData.trip_date,
+              meeting_time: tripData.meeting_time,
+              departure_time: tripData.departure_time,
+              start_location_name: tripData.start_location_name,
+              end_location_name: tripData.end_location_name,
+              trip_type: tripData.trip_type as 'arrival' | 'departure' | null,
+            })
+
+            // Load selected stop point
+            const selectedStopId = tripData.trip_type === 'arrival' 
+              ? (req as any)?.selected_dropoff_stop_id 
+              : (req as any)?.selected_pickup_stop_id
+            
+            if (selectedStopId) {
+              const { data: stopData } = await supabase
+                .from('route_trip_stop_points')
+                .select('name')
+                .eq('id', selectedStopId)
+                .maybeSingle()
+              
+              if (stopData) {
+                setSelectedStopPoint({ name: stopData.name })
+              }
+            }
+          }
+        } catch (e) {
+          console.error('Error loading trip info:', e)
+        }
+      }
 
       // Load route and route stops (if route system exists)
       const { data: dropoffData } = await supabase
@@ -714,7 +806,7 @@ export default function RequestTracking({ requestId, userId }: { requestId: stri
     if (!mapsReady) return
     setTimeout(() => renderMap(), 0)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mapsReady, request, driverLocation, stops, route, routeStops, dropoffPoint])
+  }, [mapsReady, request, driverLocation, stops, route, routeStops, dropoffPoint, tripInfo, selectedStopPoint])
 
   // Realtime updates (if tables exist)
   useEffect(() => {
@@ -854,10 +946,12 @@ export default function RequestTracking({ requestId, userId }: { requestId: stri
             <div className="min-w-0">
               <h1 className="text-lg sm:text-xl md:text-2xl font-extrabold text-gray-900 flex items-center gap-2">
                 <MapPin className="w-5 h-5 sm:w-6 sm:h-6 text-blue-600" />
-                تتبّع القادمون على الخريطة
+                {tripInfo?.trip_type === 'departure' ? 'تتبّع المغادرون على الخريطة' : 'تتبّع القادمون على الخريطة'}
               </h1>
               <p className="text-xs sm:text-sm text-gray-600 mt-1">
-                مشاهدة موقع السائق ومحطات التوقف (تحديث لحظي عند توفره)
+                {tripInfo 
+                  ? `مشاهدة موقع ${tripInfo.trip_type === 'departure' ? 'الباص' : 'السائق'} ومحطات ${tripInfo.trip_type === 'departure' ? 'التحميل' : 'النزول'} (تحديث لحظي عند توفره)`
+                  : 'مشاهدة موقع السائق ومحطات التوقف (تحديث لحظي عند توفره)'}
               </p>
             </div>
             <Link
@@ -869,22 +963,42 @@ export default function RequestTracking({ requestId, userId }: { requestId: stri
           </div>
 
           {/* بطاقة سريعة (تظهر دائماً فوق الخريطة) */}
-          <div className="mt-4 rounded-xl border border-gray-200 bg-white p-4">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-              <div className="min-w-0">
-                <div className="flex items-center gap-2">
-                  <Users className="w-5 h-5 text-green-600" />
+          <div className="mt-4 rounded-xl border-2 border-blue-200 bg-gradient-to-br from-white to-blue-50 p-4 shadow-lg">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2 mb-2">
+                  <Users className="w-5 h-5 text-green-600 flex-shrink-0" />
                   <h2 className="text-sm sm:text-base font-extrabold text-gray-900 truncate">
                     {request?.visitor_name || '—'}
                   </h2>
                   <span className="text-xs font-mono font-bold text-gray-600 bg-gray-50 border border-gray-200 rounded-md px-2 py-0.5">
                     #{shortCode}
                   </span>
+                  {tripInfo?.trip_type && (
+                    <span className="text-xs font-extrabold px-2 py-1 rounded-full border border-blue-300 text-blue-800 bg-blue-100">
+                      {tripInfo.trip_type === 'arrival' ? 'القادمون' : 'المغادرون'}
+                    </span>
+                  )}
                 </div>
-                <p className="mt-1 text-xs sm:text-sm text-gray-600">
+                <p className="text-xs sm:text-sm text-gray-600 mb-1">
                   المدينة: <span className="font-semibold text-gray-800">{request?.city || '—'}</span> • عدد الأشخاص:{' '}
                   <span className="font-semibold text-gray-800 tabular-nums">{request ? peopleCount : '—'}</span>
                 </p>
+                {tripInfo && (
+                  <div className="mt-2 p-2 bg-white rounded-lg border border-blue-200">
+                    <p className="text-xs font-semibold text-gray-800 mb-1">
+                      {tripInfo.start_location_name} → {tripInfo.end_location_name}
+                    </p>
+                    {tripInfo.departure_time && (
+                      <p className="text-xs text-gray-600">وقت الانطلاق: {tripInfo.departure_time}</p>
+                    )}
+                    {selectedStopPoint && (
+                      <p className="text-xs text-green-700 font-semibold mt-1">
+                        {tripInfo.trip_type === 'arrival' ? 'نقطة النزول' : 'نقطة التحميل'}: {selectedStopPoint.name}
+                      </p>
+                    )}
+                  </div>
+                )}
                 {companionNames.length > 0 && (
                   <div className="mt-2 flex flex-wrap gap-1.5">
                     {companionNames.slice(0, 6).map((n) => (

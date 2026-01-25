@@ -19,6 +19,7 @@ type Trip = {
   end_lat: number
   end_lng: number
   is_active: boolean
+  trip_type?: 'arrival' | 'departure' | null
 }
 
 type StopPoint = {
@@ -43,6 +44,10 @@ type Passenger = {
   city: string
   phone: string | null
   full_name: string | null
+  selected_dropoff_stop_id?: string | null
+  selected_pickup_stop_id?: string | null
+  selectedDropoffStop?: { name: string } | null
+  selectedPickupStop?: { name: string } | null
 }
 
 function loadGoogleMaps(apiKey: string): Promise<void> {
@@ -124,7 +129,7 @@ export default function TripDetailsModal({
       // Load trip
       const { data: tripData, error: tripErr } = await supabase
         .from('route_trips')
-        .select('*')
+        .select('id,route_id,trip_date,meeting_time,departure_time,start_location_name,start_lat,start_lng,end_location_name,end_lat,end_lng,is_active,trip_type')
         .eq('id', tripId)
         .single()
       
@@ -163,6 +168,8 @@ export default function TripDetailsModal({
           companions_count,
           city,
           user_id,
+          selected_dropoff_stop_id,
+          selected_pickup_stop_id,
           profiles!inner(phone, full_name)
         `)
         .eq('trip_id', tripId)
@@ -171,6 +178,25 @@ export default function TripDetailsModal({
       if (passengersErr) {
         console.error('Error loading passengers:', passengersErr)
       } else {
+        // Load stop points for selected stops
+        const stopIds = (passengersData || [])
+          .map((p: any) => [p.selected_dropoff_stop_id, p.selected_pickup_stop_id])
+          .flat()
+          .filter(Boolean) as string[]
+        
+        let stopsMap: Record<string, { name: string }> = {}
+        if (stopIds.length > 0) {
+          const { data: stopsData } = await supabase
+            .from('route_trip_stop_points')
+            .select('id,name')
+            .in('id', stopIds)
+          if (stopsData) {
+            stopsData.forEach((s: any) => {
+              stopsMap[s.id] = { name: s.name }
+            })
+          }
+        }
+        
         const passengersList = (passengersData || []).map((p: any) => ({
           id: p.id,
           visitor_name: p.visitor_name,
@@ -178,6 +204,10 @@ export default function TripDetailsModal({
           city: p.city,
           phone: p.profiles?.phone || null,
           full_name: p.profiles?.full_name || null,
+          selected_dropoff_stop_id: p.selected_dropoff_stop_id,
+          selected_pickup_stop_id: p.selected_pickup_stop_id,
+          selectedDropoffStop: p.selected_dropoff_stop_id ? stopsMap[p.selected_dropoff_stop_id] : null,
+          selectedPickupStop: p.selected_pickup_stop_id ? stopsMap[p.selected_pickup_stop_id] : null,
         })) as Passenger[]
         setPassengers(passengersList)
       }
@@ -353,6 +383,11 @@ export default function TripDetailsModal({
             <h3 className="text-lg sm:text-xl font-bold text-gray-800 mb-1">
               تفاصيل الرحلة: {trip.start_location_name} → {trip.end_location_name}
             </h3>
+            {trip.trip_type && (
+              <span className="inline-block text-xs font-extrabold px-2 py-1 rounded-full border border-blue-300 text-blue-800 bg-blue-50 mb-2">
+                {trip.trip_type === 'departure' ? 'رحلة المغادرين' : 'رحلة القادمين'}
+              </span>
+            )}
             <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs sm:text-sm text-gray-600">
               <div className="flex items-center gap-1">
                 <Calendar className="w-3 h-3 sm:w-4 sm:h-4" />
@@ -496,6 +531,16 @@ export default function TripDetailsModal({
                         <span>المدينة: {passenger.city}</span>
                         <span>الأشخاص: {1 + (passenger.companions_count || 0)}</span>
                         {passenger.phone && <span>الهاتف: {passenger.phone}</span>}
+                        {trip.trip_type === 'arrival' && passenger.selectedDropoffStop && (
+                          <span className="text-blue-700 font-semibold">
+                            نقطة النزول: {passenger.selectedDropoffStop.name}
+                          </span>
+                        )}
+                        {trip.trip_type === 'departure' && passenger.selectedPickupStop && (
+                          <span className="text-blue-700 font-semibold">
+                            نقطة التحميل: {passenger.selectedPickupStop.name}
+                          </span>
+                        )}
                       </div>
                     </div>
                     <Link

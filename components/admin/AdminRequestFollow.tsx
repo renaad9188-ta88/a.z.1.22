@@ -97,6 +97,8 @@ export default function AdminRequestFollow({
   const [userProfile, setUserProfile] = useState<ContactProfile | null>(null)
   const [bookedTrip, setBookedTrip] = useState<TripLite | null>(null)
   const [bookedStops, setBookedStops] = useState<Array<{ id: string; name: string; order_index: number }> | null>(null)
+  const [selectedDropoffStop, setSelectedDropoffStop] = useState<{ id: string; name: string } | null>(null)
+  const [selectedPickupStop, setSelectedPickupStop] = useState<{ id: string; name: string } | null>(null)
 
   const load = async () => {
     try {
@@ -104,7 +106,7 @@ export default function AdminRequestFollow({
       const { data, error } = await supabase
         .from('visit_requests')
         .select(
-          'id,user_id,visitor_name,status,admin_notes,rejection_reason,payment_verified,remaining_amount,arrival_date,trip_status,trip_id,assigned_to,created_at,updated_at'
+          'id,user_id,visitor_name,status,admin_notes,rejection_reason,payment_verified,remaining_amount,arrival_date,trip_status,trip_id,assigned_to,selected_dropoff_stop_id,selected_pickup_stop_id,created_at,updated_at'
         )
         .eq('id', requestId)
         .single()
@@ -136,9 +138,35 @@ export default function AdminRequestFollow({
               .eq('trip_id', tripId)
               .order('order_index', { ascending: true })
             setBookedStops((stops as any) || [])
+            
+            // تحميل نقطة النزول/التحميل المختارة
+            const rowData = row as any
+            if (rowData.selected_dropoff_stop_id) {
+              const { data: dropoffStop } = await supabase
+                .from('route_trip_stop_points')
+                .select('id,name')
+                .eq('id', rowData.selected_dropoff_stop_id)
+                .maybeSingle()
+              setSelectedDropoffStop(dropoffStop ? { id: dropoffStop.id, name: dropoffStop.name } : null)
+            } else {
+              setSelectedDropoffStop(null)
+            }
+            
+            if (rowData.selected_pickup_stop_id) {
+              const { data: pickupStop } = await supabase
+                .from('route_trip_stop_points')
+                .select('id,name')
+                .eq('id', rowData.selected_pickup_stop_id)
+                .maybeSingle()
+              setSelectedPickupStop(pickupStop ? { id: pickupStop.id, name: pickupStop.name } : null)
+            } else {
+              setSelectedPickupStop(null)
+            }
           } else {
             setBookedTrip(null)
             setBookedStops(null)
+            setSelectedDropoffStop(null)
+            setSelectedPickupStop(null)
           }
         } catch {
           setBookedTrip(null)
@@ -631,6 +659,30 @@ export default function AdminRequestFollow({
                               <p className="text-xs text-gray-600">لا توجد نقاط توقف مسجلة لهذه الرحلة.</p>
                             )}
                           </div>
+
+                          {/* عرض نقطة النزول/التحميل المختارة */}
+                          {(selectedDropoffStop || selectedPickupStop) && (
+                            <div className="mt-3 bg-blue-50 border border-blue-200 rounded-lg p-3">
+                              {bookedTrip?.trip_type === 'arrival' && selectedDropoffStop && (
+                                <div className="flex items-center gap-2">
+                                  <MapPin className="w-4 h-4 text-blue-600 flex-shrink-0" />
+                                  <div>
+                                    <p className="text-xs font-extrabold text-blue-900">نقطة النزول المختارة:</p>
+                                    <p className="text-sm font-bold text-blue-800">{selectedDropoffStop.name}</p>
+                                  </div>
+                                </div>
+                              )}
+                              {bookedTrip?.trip_type === 'departure' && selectedPickupStop && (
+                                <div className="flex items-center gap-2">
+                                  <MapPin className="w-4 h-4 text-blue-600 flex-shrink-0" />
+                                  <div>
+                                    <p className="text-xs font-extrabold text-blue-900">نقطة التحميل المختارة:</p>
+                                    <p className="text-sm font-bold text-blue-800">{selectedPickupStop.name}</p>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          )}
                         </div>
                       ) : (
                         <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 sm:p-4">

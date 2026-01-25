@@ -122,8 +122,8 @@ export default function CreateTripModal({
     try {
       setSaving(true)
 
-      // Normalize trip type to DB canonical values used by homepage/public RPCs
-      const tripTypeDb = tripType === 'departure' ? 'departures' : 'arrivals'
+      // Normalize trip type to DB canonical values (singular: 'arrival' or 'departure')
+      const tripTypeDb = tripType === 'departure' ? 'departure' : 'arrival'
 
       // 1) Create trip
       const { data: trip, error: tripErr } = await supabase
@@ -257,33 +257,45 @@ export default function CreateTripModal({
           {/* Stop Points */}
           <div>
             <label className="block text-sm font-bold text-gray-800 mb-2">
-              {tripType === 'departure' ? 'نقاط الصعود' : 'محطات التوقف'} ({stopPoints.length}/{MAX_STOP_POINTS}) (اختياري)
+              {tripType === 'departure' 
+                ? `نقاط التحميل (الصعود) (${stopPoints.length}/${MAX_STOP_POINTS}) (اختياري)`
+                : `نقاط النزول (التوقف) (${stopPoints.length}/${MAX_STOP_POINTS}) (اختياري)`}
             </label>
+            <p className="text-xs text-gray-600 mb-2">
+              {tripType === 'departure' 
+                ? 'حدد نقاط التحميل التي سيركب منها الركاب عند المغادرة'
+                : 'حدد نقاط النزول التي سينزل فيها الركاب عند القدوم'}
+            </p>
             <div className="space-y-2">
               {stopPoints.map((stop, idx) => (
-                <div key={idx} className="flex items-center gap-2 p-3 bg-gray-50 border border-gray-200 rounded-lg">
-                  <span className="w-6 h-6 bg-blue-600 text-white rounded-full flex items-center justify-center text-xs font-bold">
-                    {idx + 1}
-                  </span>
-                  <MapPin className="w-4 h-4 text-gray-600 flex-shrink-0" />
-                  <span className="flex-1 text-sm text-gray-800">{stop.name}</span>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setEditingStopIndex(idx)
-                      setShowStopSelector(true)
-                    }}
-                    className="px-2 py-1 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 text-xs"
-                  >
-                    تعديل
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleRemoveStop(idx)}
-                    className="p-1 text-red-600 hover:bg-red-50 rounded-lg"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
+                <div key={idx} className="flex flex-col sm:flex-row sm:items-center gap-2 p-3 bg-gray-50 border border-gray-200 rounded-lg">
+                  <div className="flex items-center gap-2 flex-1 min-w-0">
+                    <span className="w-6 h-6 bg-blue-600 text-white rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0">
+                      {idx + 1}
+                    </span>
+                    <MapPin className="w-4 h-4 text-gray-600 flex-shrink-0" />
+                    <span className="flex-1 text-sm text-gray-800 truncate">{stop.name}</span>
+                  </div>
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditingStopIndex(idx)
+                        setShowStopSelector(true)
+                      }}
+                      className="px-2 sm:px-3 py-1.5 sm:py-1 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 text-xs font-semibold whitespace-nowrap"
+                    >
+                      تعديل
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveStop(idx)}
+                      className="p-1.5 sm:p-1 text-red-600 hover:bg-red-50 rounded-lg transition"
+                      aria-label="حذف"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
                 </div>
               ))}
               {stopPoints.length < MAX_STOP_POINTS && (
@@ -296,7 +308,7 @@ export default function CreateTripModal({
                   className="w-full px-4 py-2 border-2 border-dashed border-gray-300 rounded-lg hover:border-blue-500 hover:bg-blue-50 transition text-sm font-semibold text-gray-700"
                 >
                   <Plus className="w-4 h-4 inline mr-2" />
-                  {tripType === 'departure' ? 'إضافة نقطة صعود' : 'إضافة محطة توقف'}
+                  {tripType === 'departure' ? 'إضافة نقطة تحميل (صعود)' : 'إضافة نقطة نزول (توقف)'}
                 </button>
               )}
             </div>
@@ -410,18 +422,18 @@ export default function CreateTripModal({
               <div className="p-4 sm:p-6">
                 <h4 className="text-lg font-bold text-gray-800 mb-4">
                   {editingStopIndex !== null
-                    ? `${tripType === 'departure' ? 'تعديل نقطة الصعود' : 'تعديل محطة التوقف'} ${editingStopIndex + 1}`
+                    ? `${tripType === 'departure' ? 'تعديل نقطة التحميل (الصعود)' : 'تعديل نقطة النزول (التوقف)'} ${editingStopIndex + 1}`
                     : tripType === 'departure'
-                    ? 'إضافة نقطة صعود جديدة'
-                    : 'إضافة محطة توقف جديدة'}
+                    ? 'إضافة نقطة تحميل (صعود) جديدة'
+                    : 'إضافة نقطة نزول (توقف) جديدة'}
                 </h4>
                 <LocationSelector
                   title={
                     editingStopIndex !== null
-                      ? `${tripType === 'departure' ? 'نقطة الصعود' : 'محطة التوقف'} ${editingStopIndex + 1}`
+                      ? `${tripType === 'departure' ? 'نقطة التحميل (الصعود)' : 'نقطة النزول (التوقف)'} ${editingStopIndex + 1}`
                       : tripType === 'departure'
-                      ? 'نقطة الصعود'
-                      : 'محطة التوقف'
+                      ? 'نقطة التحميل (الصعود)'
+                      : 'نقطة النزول (التوقف)'
                   }
                   initial={editingStopIndex !== null ? stopPoints[editingStopIndex] : null}
                   selectionKind="stop"
