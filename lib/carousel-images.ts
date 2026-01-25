@@ -3,6 +3,17 @@
 // أو استخدم URLs للصور من الإنترنت
 
 export const carouselImages = {
+  // صورة البنر الرئيسي - الطريق الذهبي للنقل
+  main: {
+    // صورة حافلات VIP للنقل - يمكنك استبدالها بصورة حقيقية
+    url: 'https://images.unsplash.com/photo-1544620347-c4fd4a3d5957?w=1200&h=600&fit=crop&q=80',
+    // للصور المحلية: ضع الصورة في public/images/carousel/main-banner.jpg واستخدم:
+    // url: '/images/carousel/main-banner.jpg'
+    title: 'الطريق الذهبي للنقل',
+    subtitle: 'خدمات نقل VIP متميزة',
+    description: 'راحة وأمان في كل رحلة',
+  },
+  
   // صورة المعبر جابر / الحدود الأردنية السورية
   border: {
     // صورة حدود/معبر - يمكنك استبدالها بصورة حقيقية للمعبر جابر

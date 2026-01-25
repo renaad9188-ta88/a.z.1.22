@@ -18,6 +18,14 @@ interface Slide {
 const slides: Slide[] = [
   {
     id: 1,
+    title: carouselImages.main.title,
+    subtitle: carouselImages.main.subtitle,
+    description: carouselImages.main.description,
+    imageUrl: carouselImages.main.url,
+    textColor: 'text-white',
+  },
+  {
+    id: 2,
     title: carouselImages.border.title,
     subtitle: carouselImages.border.subtitle,
     description: carouselImages.border.description,
@@ -25,7 +33,7 @@ const slides: Slide[] = [
     textColor: 'text-white',
   },
   {
-    id: 2,
+    id: 3,
     title: carouselImages.arrivals.title,
     subtitle: carouselImages.arrivals.subtitle,
     description: carouselImages.arrivals.description,
@@ -33,7 +41,7 @@ const slides: Slide[] = [
     textColor: 'text-white',
   },
   {
-    id: 3,
+    id: 4,
     title: carouselImages.departures.title,
     subtitle: carouselImages.departures.subtitle,
     description: carouselImages.departures.description,
@@ -41,7 +49,7 @@ const slides: Slide[] = [
     textColor: 'text-white',
   },
   {
-    id: 4,
+    id: 5,
     title: carouselImages.travelers.title,
     subtitle: carouselImages.travelers.subtitle,
     description: carouselImages.travelers.description,
@@ -79,7 +87,7 @@ export default function HeroCarousel() {
   }
 
   return (
-    <section className="relative h-[200px] sm:h-[225px] md:h-[250px] lg:h-[275px] overflow-hidden">
+    <section className="relative h-[250px] sm:h-[300px] md:h-[350px] lg:h-[400px] overflow-hidden">
       {/* Slides */}
       <div className="relative h-full">
         {slides.map((slide, index) => (
@@ -104,7 +112,7 @@ export default function HeroCarousel() {
               <div className="absolute inset-0 bg-gradient-to-b from-black/50 via-black/40 to-black/60"></div>
               
               {/* Content */}
-              <div className={`relative z-10 h-full flex items-center justify-center text-center px-4 ${slide.textColor}`}>
+              <div className={`relative z-10 h-full flex items-start justify-center text-center px-4 pt-8 sm:pt-12 md:pt-16 lg:pt-20 ${slide.textColor}`}>
                 <div>
                   <h2 className="text-xl sm:text-2xl md:text-3xl lg:text-4xl font-bold mb-2 md:mb-3 drop-shadow-lg">
                     {slide.title}
@@ -123,13 +131,13 @@ export default function HeroCarousel() {
       </div>
 
       {/* Main Overlay Content */}
-      <div className="absolute inset-0 bg-black/30 flex items-center justify-center z-20 pointer-events-none">
+      <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-black/30 to-black/50 flex items-end justify-center z-20 pointer-events-none pb-8 sm:pb-10 md:pb-12 lg:pb-16">
         <div className="text-center text-white px-4">
-          <h1 className="text-xl sm:text-2xl md:text-3xl lg:text-4xl font-bold mb-1 md:mb-2">
-            معاً نحقق الأفضل
+          <h1 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl xl:text-6xl font-bold mb-2 md:mb-3 drop-shadow-2xl text-yellow-300 animate-pulse">
+            الطريق الذهبي للنقل
           </h1>
-          <p className="text-xs sm:text-sm md:text-base lg:text-lg mb-2 md:mb-3 opacity-90">
-            TOGETHER WE ACHIEVE THE BEST
+          <p className="text-sm sm:text-base md:text-lg lg:text-xl mb-2 md:mb-3 opacity-95 font-semibold drop-shadow-lg">
+            THE GOLDEN ROAD FOR TRANSPORTATION
           </p>
         </div>
       </div>
@@ -151,7 +159,7 @@ export default function HeroCarousel() {
       </button>
 
       {/* Dots Indicator */}
-      <div className="absolute bottom-2 left-1/2 -translate-x-1/2 z-30 flex gap-1.5">
+      <div className="absolute bottom-16 sm:bottom-20 md:bottom-24 lg:bottom-28 left-1/2 -translate-x-1/2 z-30 flex gap-1.5">
         {slides.map((_, index) => (
           <button
             key={index}

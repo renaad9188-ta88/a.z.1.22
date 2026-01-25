@@ -62,3 +62,4 @@ CREATE TRIGGER update_contact_messages_updated_at
   FOR EACH ROW
   EXECUTE FUNCTION update_contact_messages_updated_at();
 
+
