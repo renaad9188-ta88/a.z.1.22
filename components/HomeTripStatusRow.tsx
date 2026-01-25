@@ -266,34 +266,38 @@ export default function HomeTripStatusRow() {
             <div
               className="
                 absolute z-30 top-full mt-2
-                left-0 right-0 w-auto
-                sm:right-auto sm:w-[min(30rem,calc(100vw-1.5rem))]
-                bg-white rounded-xl border border-gray-100 shadow-xl p-3 text-xs text-gray-700
+                left-0 right-0 w-full max-w-[calc(100vw-1rem)]
+                sm:left-0 sm:right-auto sm:w-auto sm:min-w-[20rem] sm:max-w-[28rem]
+                md:max-w-[32rem]
+                lg:max-w-[30rem]
+                xl:max-w-[28rem]
+                bg-white rounded-xl border border-gray-100 shadow-xl p-3 sm:p-4 text-xs sm:text-sm text-gray-700
+                max-h-[80vh] overflow-y-auto
               "
             >
               {arrivalsList.length === 0 ? (
-                <div className="text-gray-500">
+                <div className="text-gray-500 text-center py-2 text-xs sm:text-sm">
                   {rpcNeedsSetup ? 'يلزم تفعيل عرض الرحلات من Supabase (تشغيل ملف RPC الخاص بالرحلات).' : 'لا توجد رحلات قادمة'}
                 </div>
               ) : (
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between gap-3 text-[10px] sm:text-[11px] text-gray-500 pb-1 border-b border-gray-100">
-                    <span className="min-w-0 truncate">التاريخ والوقت</span>
-                    <span className="flex-shrink-0 whitespace-nowrap">عدد الأشخاص</span>
+                <div className="space-y-2 sm:space-y-2.5">
+                  <div className="flex items-center justify-between gap-2 sm:gap-3 text-[10px] sm:text-xs text-gray-500 pb-2 border-b border-gray-100">
+                    <span className="min-w-0 truncate font-semibold">التاريخ والوقت</span>
+                    <span className="flex-shrink-0 whitespace-nowrap font-semibold">عدد الأشخاص</span>
                   </div>
                   {arrivalsList.map((x, idx) => (
-                    <div key={idx} className="flex items-center justify-between gap-2">
-                      <div className="flex items-center gap-2 min-w-0">
-                        <span className="tabular-nums whitespace-nowrap">
+                    <div key={idx} className="flex items-center justify-between gap-2 sm:gap-3 py-1.5 sm:py-2 hover:bg-gray-50 rounded-lg px-1 -mx-1 transition-colors">
+                      <div className="flex items-center gap-1.5 sm:gap-2 min-w-0 flex-1">
+                        <span className="tabular-nums text-[11px] sm:text-xs font-medium break-words">
                           {formatDate(x.trip_date)} · {String(x.trip_time || '10:00').slice(0, 5)}
                         </span>
                         {!x.trip_time && (
-                          <span className="text-[10px] px-2 py-0.5 rounded-full bg-gray-100 text-gray-600 border border-gray-200 whitespace-nowrap">
+                          <span className="text-[9px] sm:text-[10px] px-1.5 sm:px-2 py-0.5 rounded-full bg-gray-100 text-gray-600 border border-gray-200 whitespace-nowrap flex-shrink-0">
                             تجريبي
                           </span>
                         )}
                       </div>
-                      <span className="font-extrabold tabular-nums text-gray-900 flex-shrink-0">{x.people_count}</span>
+                      <span className="font-extrabold tabular-nums text-gray-900 flex-shrink-0 text-xs sm:text-sm">{x.people_count}</span>
                     </div>
                   ))}
                 </div>
@@ -334,34 +338,38 @@ export default function HomeTripStatusRow() {
             <div
               className="
                 absolute z-30 top-full mt-2
-                left-0 right-0 w-auto
-                sm:left-auto sm:right-0 sm:w-[min(30rem,calc(100vw-1.5rem))]
-                bg-white rounded-xl border border-gray-100 shadow-xl p-3 text-xs text-gray-700
+                left-0 right-0 w-full max-w-[calc(100vw-1rem)]
+                sm:left-auto sm:right-0 sm:w-auto sm:min-w-[20rem] sm:max-w-[28rem]
+                md:max-w-[32rem]
+                lg:max-w-[30rem]
+                xl:max-w-[28rem]
+                bg-white rounded-xl border border-gray-100 shadow-xl p-3 sm:p-4 text-xs sm:text-sm text-gray-700
+                max-h-[80vh] overflow-y-auto
               "
             >
               {departuresList.length === 0 ? (
-                <div className="text-gray-500">
+                <div className="text-gray-500 text-center py-2 text-xs sm:text-sm">
                   {rpcNeedsSetup ? 'يلزم تفعيل عرض الرحلات من Supabase (تشغيل ملف RPC الخاص بالرحلات).' : 'لا توجد رحلات قادمة'}
                 </div>
               ) : (
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between gap-3 text-[10px] sm:text-[11px] text-gray-500 pb-1 border-b border-gray-100">
-                    <span className="min-w-0 truncate">التاريخ والوقت</span>
-                    <span className="flex-shrink-0 whitespace-nowrap">عدد الأشخاص</span>
+                <div className="space-y-2 sm:space-y-2.5">
+                  <div className="flex items-center justify-between gap-2 sm:gap-3 text-[10px] sm:text-xs text-gray-500 pb-2 border-b border-gray-100">
+                    <span className="min-w-0 truncate font-semibold">التاريخ والوقت</span>
+                    <span className="flex-shrink-0 whitespace-nowrap font-semibold">عدد الأشخاص</span>
                   </div>
                   {departuresList.map((x, idx) => (
-                    <div key={idx} className="flex items-center justify-between gap-2">
-                      <div className="flex items-center gap-2 min-w-0">
-                        <span className="tabular-nums whitespace-nowrap">
+                    <div key={idx} className="flex items-center justify-between gap-2 sm:gap-3 py-1.5 sm:py-2 hover:bg-gray-50 rounded-lg px-1 -mx-1 transition-colors">
+                      <div className="flex items-center gap-1.5 sm:gap-2 min-w-0 flex-1">
+                        <span className="tabular-nums text-[11px] sm:text-xs font-medium break-words">
                           {formatDate(x.trip_date)} · {String(x.trip_time || '10:00').slice(0, 5)}
                         </span>
                         {!x.trip_time && (
-                          <span className="text-[10px] px-2 py-0.5 rounded-full bg-gray-100 text-gray-600 border border-gray-200 whitespace-nowrap">
+                          <span className="text-[9px] sm:text-[10px] px-1.5 sm:px-2 py-0.5 rounded-full bg-gray-100 text-gray-600 border border-gray-200 whitespace-nowrap flex-shrink-0">
                             تجريبي
                           </span>
                         )}
                       </div>
-                      <span className="font-extrabold tabular-nums text-gray-900 flex-shrink-0">{x.people_count}</span>
+                      <span className="font-extrabold tabular-nums text-gray-900 flex-shrink-0 text-xs sm:text-sm">{x.people_count}</span>
                     </div>
                   ))}
                 </div>

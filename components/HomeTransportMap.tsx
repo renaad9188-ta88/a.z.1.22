@@ -538,8 +538,8 @@ export default function HomeTransportMap() {
   return (
     <div className="max-w-6xl mx-auto">
       <div className="bg-white rounded-2xl shadow-md border border-gray-100 overflow-hidden">
-        <div className="p-4 sm:p-5 border-b border-gray-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div className="min-w-0">
+        <div className="p-4 sm:p-5 border-b border-gray-100">
+          <div className="mb-3 sm:mb-4">
             <h3 className="text-sm sm:text-base md:text-lg font-extrabold text-gray-900 flex items-center gap-2">
               <MapPin className="w-5 h-5 text-blue-600" />
               خريطة تسلسل الرحلة والمسار
@@ -548,38 +548,35 @@ export default function HomeTransportMap() {
               رحلة حالية إن وجدت — وإن لم توجد نعرض نموذج رحلة مع نقاط التوقف ورسم المسار
             </p>
           </div>
-          <div className="flex flex-wrap items-center gap-2 flex-shrink-0">
+          {/* أزرار القادمون والمغادرون - تقسيم الشاشة إلى قسمين متساويين */}
+          <div className="grid grid-cols-2 gap-3 sm:gap-4">
             <button
               type="button"
               onClick={() => setMode('arrivals')}
               className={[
-                'px-3 py-1.5 rounded-full text-[11px] font-extrabold border transition',
+                'w-full px-4 py-3 sm:py-4 rounded-xl text-sm sm:text-base font-extrabold border-2 transition-all duration-200 flex items-center justify-center gap-2 sm:gap-3',
                 mode === 'arrivals'
-                  ? 'bg-blue-600 text-white border-blue-600'
-                  : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50',
+                  ? 'bg-blue-600 text-white border-blue-600 shadow-lg shadow-blue-200 scale-[1.02]'
+                  : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50 hover:border-gray-300',
               ].join(' ')}
               aria-label="القادمون"
             >
-              <span className="inline-flex items-center gap-1.5">
-                <Plane className="w-3.5 h-3.5" />
-                القادمون
-              </span>
+              <Plane className="w-5 h-5 sm:w-6 sm:h-6" />
+              <span>القادمون</span>
             </button>
             <button
               type="button"
               onClick={() => setMode('departures')}
               className={[
-                'px-3 py-1.5 rounded-full text-[11px] font-extrabold border transition',
+                'w-full px-4 py-3 sm:py-4 rounded-xl text-sm sm:text-base font-extrabold border-2 transition-all duration-200 flex items-center justify-center gap-2 sm:gap-3',
                 mode === 'departures'
-                  ? 'bg-green-600 text-white border-green-600'
-                  : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50',
+                  ? 'bg-green-600 text-white border-green-600 shadow-lg shadow-green-200 scale-[1.02]'
+                  : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50 hover:border-gray-300',
               ].join(' ')}
               aria-label="المغادرون"
             >
-              <span className="inline-flex items-center gap-1.5">
-                <Plane className="w-3.5 h-3.5 rotate-180" />
-                المغادرون
-              </span>
+              <Plane className="w-5 h-5 sm:w-6 sm:h-6 rotate-180" />
+              <span>المغادرون</span>
             </button>
           </div>
         </div>

@@ -20,9 +20,9 @@ export const carouselImages = {
     url: 'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=1200&h=600&fit=crop&q=80',
     // للصور المحلية: ضع الصورة في public/images/carousel/border.jpg واستخدم:
     // url: '/images/carousel/border.jpg'
-    title: 'المعبر جابر',
-    subtitle: 'نقطة العبور الرئيسية',
-    description: 'خدمات عبور سريعة وآمنة',
+    title: 'شركة نوفا للسياحة و السفر',
+    subtitle: 'خدمات سياحية متميزة',
+    description: 'نوفر لك أفضل الخدمات السياحية',
   },
   
   // صورة القادمون - مسافرين قادمين
@@ -30,9 +30,9 @@ export const carouselImages = {
     // صورة مسافرين قادمين/استقبال
     url: 'https://images.unsplash.com/photo-1488646953014-85cb44e25828?w=1200&h=600&fit=crop&q=80',
     // للصور المحلية: '/images/carousel/arrivals.jpg'
-    title: 'القادمون',
-    subtitle: 'خدمة استقبال مميزة',
-    description: 'نرحب بكم بأفضل الخدمات',
+    title: 'تتبع رحلتك أولاً بأول',
+    subtitle: 'متابعة لحظية',
+    description: 'راقب رحلتك على الخريطة مباشرة',
   },
   
   // صورة المغادرون - مسافرين مغادرين
@@ -40,8 +40,8 @@ export const carouselImages = {
     // صورة مسافرين مغادرين/سفر
     url: 'https://images.unsplash.com/photo-1436491865332-7a61a109cc05?w=1200&h=600&fit=crop&q=80',
     // للصور المحلية: '/images/carousel/departures.jpg'
-    title: 'المغادرون',
-    subtitle: 'خدمة سفر آمنة',
+    title: 'رحلة آمنة ومريحة',
+    subtitle: 'خدمات نقل متميزة',
     description: 'نوفر لك رحلة مريحة وآمنة',
   },
   
@@ -50,9 +50,9 @@ export const carouselImages = {
     // صورة عائلات/مسافرين
     url: 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=1200&h=600&fit=crop&q=80',
     // للصور المحلية: '/images/carousel/travelers.jpg'
-    title: 'المسافرون',
-    subtitle: 'رحلة مميزة',
-    description: 'نوفر لك جميع الخدمات',
+    title: 'خدمات شاملة',
+    subtitle: 'نوفر لك كل ما تحتاجه',
+    description: 'من التنظيم إلى المتابعة',
   },
 }
 

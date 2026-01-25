@@ -8,6 +8,8 @@ const cairo = Cairo({
   subsets: ['latin', 'arabic'],
   weight: ['400', '500', '600', '700'],
   variable: '--font-cairo',
+  display: 'swap', // تحسين تحميل الخط
+  fallback: ['Cairo', 'Arial', 'sans-serif'], // fallback fonts
 })
 
 export const metadata: Metadata = {
@@ -19,6 +21,8 @@ export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
   maximumScale: 5,
+  colorScheme: 'light', // إجبار Light Mode
+  themeColor: '#ffffff', // لون ثيم فاتح
 }
 
 export default function RootLayout({
@@ -27,8 +31,8 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <html lang="ar" dir="rtl">
-      <body className={cairo.className}>
+    <html lang="ar" dir="rtl" style={{ colorScheme: 'light' }}>
+      <body className={cairo.className} style={{ colorScheme: 'light' }}>
         <Header />
         {/* Padding top matches fixed header height (header is taller due to back button) */}
         <div className="pt-20 sm:pt-24">

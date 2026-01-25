@@ -55,13 +55,13 @@ export default function HomeCounters() {
               </div>
               <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
                 <div className="w-9 h-9 sm:w-10 sm:h-10 md:w-12 md:h-12 rounded-xl bg-blue-50 flex items-center justify-center">
-                  <Plane className="w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6 text-blue-600" />
+                  <Plane className="w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6 text-blue-400" />
                 </div>
                 <div className="w-9 h-9 sm:w-10 sm:h-10 md:w-12 md:h-12 rounded-xl bg-amber-50 flex items-center justify-center">
-                  <Bus className="w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6 text-amber-600" />
+                  <Bus className="w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6 text-amber-400" />
                 </div>
                 <div className="hidden sm:flex w-9 h-9 sm:w-10 sm:h-10 md:w-12 md:h-12 rounded-xl bg-slate-50 items-center justify-center">
-                  <Car className="w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6 text-slate-700" />
+                  <Car className="w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6 text-slate-400" />
                 </div>
               </div>
             </div>
@@ -69,12 +69,12 @@ export default function HomeCounters() {
               <div className="text-2xl sm:text-3xl md:text-4xl font-extrabold text-gray-900 tabular-nums tracking-tight">
                 {arrivalsCount}
               </div>
-              <span className="text-[10px] sm:text-xs text-blue-700 bg-blue-50 border border-blue-100 px-2 py-1 rounded-full font-semibold">
+              <span className="text-[10px] sm:text-xs text-blue-500 bg-blue-50 border border-blue-100 px-2 py-1 rounded-full font-semibold">
                 بيانات عامة
               </span>
             </div>
           </div>
-          <div className="h-1 bg-gradient-to-r from-blue-500 to-blue-600" />
+          <div className="h-1 bg-gradient-to-r from-blue-400 to-blue-500" />
         </div>
 
         {/* المغادرون (على الشمال) */}
@@ -87,13 +87,13 @@ export default function HomeCounters() {
               </div>
               <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
                 <div className="w-9 h-9 sm:w-10 sm:h-10 md:w-12 md:h-12 rounded-xl bg-green-50 flex items-center justify-center">
-                  <Plane className="w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6 text-green-600 rotate-180" />
+                  <Plane className="w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6 text-green-400 rotate-180" />
                 </div>
                 <div className="w-9 h-9 sm:w-10 sm:h-10 md:w-12 md:h-12 rounded-xl bg-amber-50 flex items-center justify-center">
-                  <Bus className="w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6 text-amber-600" />
+                  <Bus className="w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6 text-amber-400" />
                 </div>
                 <div className="hidden sm:flex w-9 h-9 sm:w-10 sm:h-10 md:w-12 md:h-12 rounded-xl bg-slate-50 items-center justify-center">
-                  <Car className="w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6 text-slate-700" />
+                  <Car className="w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6 text-slate-400" />
                 </div>
               </div>
             </div>
@@ -101,12 +101,12 @@ export default function HomeCounters() {
               <div className="text-2xl sm:text-3xl md:text-4xl font-extrabold text-gray-900 tabular-nums tracking-tight">
                 {departuresCount}
               </div>
-              <span className="text-[10px] sm:text-xs text-green-700 bg-green-50 border border-green-100 px-2 py-1 rounded-full font-semibold">
+              <span className="text-[10px] sm:text-xs text-green-500 bg-green-50 border border-green-100 px-2 py-1 rounded-full font-semibold">
                 بيانات عامة
               </span>
             </div>
           </div>
-          <div className="h-1 bg-gradient-to-r from-green-500 to-green-600" />
+          <div className="h-1 bg-gradient-to-r from-green-400 to-green-500" />
         </div>
       </div>
     </div>

@@ -113,14 +113,14 @@ export default function HeroCarousel() {
               
               {/* Content */}
               <div className={`relative z-10 h-full flex items-start justify-center text-center px-4 pt-8 sm:pt-12 md:pt-16 lg:pt-20 ${slide.textColor}`}>
-                <div>
-                  <h2 className="text-xl sm:text-2xl md:text-3xl lg:text-4xl font-bold mb-2 md:mb-3 drop-shadow-lg">
+                <div className="max-w-4xl mx-auto">
+                  <h2 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl xl:text-6xl font-extrabold mb-3 sm:mb-4 md:mb-5 drop-shadow-2xl text-white leading-tight">
                     {slide.title}
                   </h2>
-                  <p className="text-sm sm:text-base md:text-lg lg:text-xl mb-1 md:mb-2 font-semibold drop-shadow-md">
+                  <p className="text-base sm:text-lg md:text-xl lg:text-2xl mb-2 sm:mb-3 md:mb-4 font-bold drop-shadow-xl text-white/95">
                     {slide.subtitle}
                   </p>
-                  <p className="text-xs sm:text-sm md:text-base text-white/95 drop-shadow-md">
+                  <p className="text-sm sm:text-base md:text-lg lg:text-xl text-white/90 drop-shadow-lg font-medium">
                     {slide.description}
                   </p>
                 </div>
@@ -128,18 +128,6 @@ export default function HeroCarousel() {
             </div>
           </div>
         ))}
-      </div>
-
-      {/* Main Overlay Content */}
-      <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-black/30 to-black/50 flex items-end justify-center z-20 pointer-events-none pb-8 sm:pb-10 md:pb-12 lg:pb-16">
-        <div className="text-center text-white px-4">
-          <h1 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl xl:text-6xl font-bold mb-2 md:mb-3 drop-shadow-2xl text-yellow-300 animate-pulse">
-            الطريق الذهبي للنقل
-          </h1>
-          <p className="text-sm sm:text-base md:text-lg lg:text-xl mb-2 md:mb-3 opacity-95 font-semibold drop-shadow-lg">
-            THE GOLDEN ROAD FOR TRANSPORTATION
-          </p>
-        </div>
       </div>
 
       {/* Navigation Arrows */}
