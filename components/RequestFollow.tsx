@@ -6,7 +6,7 @@ import toast from 'react-hot-toast'
 import { CheckCircle, Clock, ArrowRight, MapPin, Navigation, Bus, Calendar, Upload, X, DollarSign } from 'lucide-react'
 import { createSupabaseBrowserClient } from '@/lib/supabase'
 import TripSchedulingModal from '@/components/admin/TripSchedulingModal'
-import { formatDate } from '@/lib/date-utils'
+import { formatDate, formatDateTime } from '@/lib/date-utils'
 
 type ReqRow = {
   id: string
@@ -188,7 +188,7 @@ export default function RequestFollow({ requestId, userId }: { requestId: string
       
       let updatedNotes = currentNotes
       if (hadPreviousBooking) {
-        const modificationNote = `\n\n=== تعديل الحجز ===\nتم تعديل الحجز من قبل المستخدم\nالرحلة السابقة: ${previousTripId}\nالرحلة الجديدة: ${tripId}\n${tripInfo}${stopInfo ? `\nنقطة ${tripType === 'arrival' ? 'النزول' : 'التحميل'}: ${stopInfo}` : ''}\nتاريخ التعديل: ${new Date().toLocaleDateString('ar-SA')} ${new Date().toLocaleTimeString('ar-SA')}`
+        const modificationNote = `\n\n=== تعديل الحجز ===\nتم تعديل الحجز من قبل المستخدم\nالرحلة السابقة: ${previousTripId}\nالرحلة الجديدة: ${tripId}\n${tripInfo}${stopInfo ? `\nنقطة ${tripType === 'arrival' ? 'النزول' : 'التحميل'}: ${stopInfo}` : ''}\nتاريخ التعديل: ${formatDateTime(new Date())}`
         updatedNotes = currentNotes + modificationNote
         updateData.admin_notes = updatedNotes
       }
@@ -327,7 +327,7 @@ export default function RequestFollow({ requestId, userId }: { requestId: string
 
       // تحديث admin_notes
       const currentNotes = (request.admin_notes || '') as string
-      const updatedNotes = currentNotes + `\nصورة الدفع المتبقي: ${imageUrl}\nتم رفع صورة الدفع المتبقي بتاريخ: ${new Date().toLocaleDateString('ar-SA')}`
+      const updatedNotes = currentNotes + `\nصورة الدفع المتبقي: ${imageUrl}\nتم رفع صورة الدفع المتبقي بتاريخ: ${formatDate(new Date())}`
 
       const { error: updateError } = await supabase
         .from('visit_requests')

@@ -5,6 +5,7 @@ import { createSupabaseBrowserClient } from '@/lib/supabase'
 import toast from 'react-hot-toast'
 import { Calendar, Clock, MapPin, Navigation, History } from 'lucide-react'
 import Link from 'next/link'
+import { formatDate } from '@/lib/date-utils'
 
 type Trip = {
   id: string
@@ -106,14 +107,6 @@ export default function DriverTripsList({ driverRowId }: { driverRowId: string }
     }
   }
 
-  const formatDate = (dateStr: string) => {
-    try {
-      const d = new Date(dateStr + 'T00:00:00')
-      return d.toLocaleDateString('ar-JO', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })
-    } catch {
-      return dateStr
-    }
-  }
 
   if (loading) {
     return (

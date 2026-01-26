@@ -7,6 +7,48 @@ interface AdminResponseProps {
   adminNotes: string | null
 }
 
+// دالة لإزالة الروابط من النص
+const removeUrls = (text: string): string => {
+  // إزالة روابط HTTP/HTTPS (بما في ذلك الروابط التي تنتهي بعلامات ترقيم)
+  const urlRegex = /https?:\/\/[^\s\)\]\}]+/gi
+  return text.replace(urlRegex, '')
+}
+
+// دالة لتحسين تنسيق النص
+const cleanText = (text: string): string => {
+  // إزالة الروابط
+  let cleaned = removeUrls(text)
+  
+  // إزالة المسافات الزائدة بين الكلمات (لكن نحافظ على الأسطر)
+  cleaned = cleaned.replace(/[ \t]+/g, ' ')
+  
+  // إزالة المسافات في بداية ونهاية كل سطر
+  cleaned = cleaned.split('\n').map(line => line.trim()).join('\n')
+  
+  // إزالة الأسطر الفارغة المتعددة (نحافظ على سطر فارغ واحد كحد أقصى)
+  cleaned = cleaned.replace(/\n\s*\n\s*\n+/g, '\n\n')
+  
+  return cleaned.trim()
+}
+
+// دالة لتحويل التاريخ إلى ميلادي
+const formatResponseDate = (dateStr: string): string => {
+  if (!dateStr) return ''
+  
+  try {
+    // إذا كان التاريخ بصيغة ISO (مثل 2024-01-15T10:30:00.000Z) أو صيغة أخرى
+    const date = new Date(dateStr)
+    if (!isNaN(date.getTime())) {
+      // استخدام formatDate للحصول على التاريخ الميلادي بصيغة MM/DD/YYYY
+      return formatDate(date)
+    }
+    // إذا فشل التحليل، إرجاع النص الأصلي
+    return dateStr
+  } catch {
+    return dateStr
+  }
+}
+
 export default function AdminResponse({ adminNotes }: AdminResponseProps) {
   if (!adminNotes) return null
 
@@ -30,7 +72,8 @@ export default function AdminResponse({ adminNotes }: AdminResponseProps) {
     }
     if (foundResponse) {
       if (line.includes('تاريخ الرد:')) {
-        responseDate = line.replace('تاريخ الرد:', '').trim()
+        const datePart = line.replace('تاريخ الرد:', '').trim()
+        responseDate = formatResponseDate(datePart)
         continue
       }
       if (line) {
@@ -39,7 +82,7 @@ export default function AdminResponse({ adminNotes }: AdminResponseProps) {
     }
   }
 
-  const responseText = responseLines.join('\n').trim()
+  const responseText = cleanText(responseLines.join('\n').trim())
 
   if (!responseText) return null
 

@@ -5,6 +5,7 @@ import { createSupabaseBrowserClient } from '@/lib/supabase'
 import { Users, MapPin, Phone, Calendar, User, Navigation } from 'lucide-react'
 import toast from 'react-hot-toast'
 import Link from 'next/link'
+import { formatDate } from '@/lib/date-utils'
 
 type PassengerRequest = {
   id: string
@@ -221,18 +222,6 @@ export default function DriverPassengers() {
     )
   }
 
-  const formatDate = (dateString: string | null) => {
-    if (!dateString) return 'غير محدد'
-    try {
-      return new Date(dateString).toLocaleDateString('ar-JO', {
-        year: 'numeric',
-        month: 'short',
-        day: 'numeric'
-      })
-    } catch {
-      return dateString
-    }
-  }
 
   const getPeopleCount = (request: PassengerRequest) => {
     // الزائر الرئيسي + المرافقين

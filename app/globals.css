@@ -139,15 +139,55 @@ p, span, div, a, label, li {
   color: inherit; /* يرث من العنصر الأب */
 }
 
-/* ضمان أن الأيقونات مرئية - لكن لا نؤثر على الألوان المحددة */
+/* تحسين الأيقونات لتكون أكثر احترافية - outline style */
 svg {
   display: inline-block;
   vertical-align: middle;
   flex-shrink: 0;
-  /* لا نحدد لون افتراضي للأيقونات - نتركها ترث من العنصر الأب */
   color: inherit;
-  fill: currentColor;
+  /* إزالة fill لجعل الأيقونات outline فقط (تخطيط بدون ألوان داخلية) */
+  fill: none;
   stroke: currentColor;
+  /* عرض الخط للوضوح - مهم لجميع الأجهزة */
+  stroke-width: 2;
+  /* تحسين جودة الرسم */
+  shape-rendering: geometricPrecision;
+  /* تحسين الحواف */
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  /* ضمان ظهور الأيقونات على جميع الأجهزة */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  /* منع التعتيم على iOS */
+  opacity: 1;
+  /* ضمان الوضوح على الشاشات عالية الدقة */
+  image-rendering: -webkit-optimize-contrast;
+  image-rendering: crisp-edges;
+}
+
+/* أيقونات صغيرة - حجم موحد */
+svg.w-3\.5,
+svg[class*="w-3.5"] {
+  width: 0.875rem;
+  height: 0.875rem;
+}
+
+svg.w-4,
+svg[class*="w-4"] {
+  width: 1rem;
+  height: 1rem;
+}
+
+svg.w-4\.5,
+svg[class*="w-4.5"] {
+  width: 1.125rem;
+  height: 1.125rem;
+}
+
+/* تحسين الأيقونات في الأزرار */
+button svg,
+a svg {
+  flex-shrink: 0;
 }
 
 /* ضمان أن الأيقونات في الأزرار والأزرار نفسها مرئية */
@@ -185,9 +225,37 @@ a svg {
 .bg-green-600 svg,
 .bg-red-600 svg,
 .bg-gray-800 svg,
-.bg-gray-900 svg {
-  color: white;
-  opacity: 1; /* الأيقونات البيضاء تبقى واضحة */
+.bg-gray-900 svg,
+.bg-blue-500 svg,
+.bg-green-500 svg {
+  color: #ffffff !important;
+  opacity: 1 !important; /* الأيقونات البيضاء تبقى واضحة */
+  stroke: #ffffff !important; /* ضمان اللون الأبيض على جميع الأجهزة */
+}
+
+/* ضمان وضوح الألوان على جميع الأجهزة */
+.text-blue-500,
+.text-blue-600,
+.text-blue-700 {
+  color: #3b82f6 !important; /* أزرق واضح */
+}
+
+.text-green-500,
+.text-green-600,
+.text-green-700 {
+  color: #10b981 !important; /* أخضر واضح */
+}
+
+.text-gray-400 {
+  color: #9ca3af !important; /* رمادي فاتح واضح */
+}
+
+.text-gray-500 {
+  color: #6b7280 !important; /* رمادي متوسط واضح */
+}
+
+.text-gray-600 {
+  color: #4b5563 !important; /* رمادي فاتح طبيعي */
 }
 
 /* Prevent horizontal scroll */
@@ -246,6 +314,102 @@ body {
   .ltr {
     direction: ltr;
     unicode-bidi: plaintext;
+  }
+}
+
+/* تحسين الـ Modals والـ Popups لجميع الأجهزة */
+.fixed.inset-0 {
+  /* ضمان ظهور الـ backdrop على جميع الأجهزة */
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  /* تحسين على iOS */
+  -webkit-overflow-scrolling: touch;
+  /* منع التمرير في الخلفية على iOS */
+  overscroll-behavior: contain;
+}
+
+/* تحسين الـ Modals على الأجهزة المحمولة */
+@media (max-width: 640px) {
+  .fixed.inset-0 > div {
+    /* ضمان أن الـ modal يظهر بشكل صحيح على الشاشات الصغيرة */
+    max-width: calc(100vw - 1rem);
+    margin: 0.5rem;
+  }
+}
+
+/* تحسين الأيقونات على iOS/Safari */
+@supports (-webkit-touch-callout: none) {
+  svg {
+    /* تحسينات خاصة لـ iOS */
+    -webkit-transform: translateZ(0);
+    transform: translateZ(0);
+    /* منع التعتيم على iOS */
+    -webkit-backface-visibility: hidden;
+    backface-visibility: hidden;
+  }
+}
+
+/* ضمان وضوح الألوان على الشاشات المختلفة */
+@media (prefers-contrast: high) {
+  svg {
+    stroke-width: 2.5; /* خط أسمك للوضوح */
+  }
+  
+  .text-gray-400 {
+    color: #6b7280 !important; /* أغمق قليلاً للوضوح */
+  }
+}
+
+/* تحسين على الشاشات عالية الدقة */
+@media (-webkit-min-device-pixel-ratio: 2), (min-resolution: 192dpi) {
+  svg {
+    /* تحسين جودة الرسم على الشاشات عالية الدقة */
+    shape-rendering: auto;
+  }
+}
+
+/* ضمان ظهور الـ z-index بشكل صحيح على جميع الأجهزة */
+.z-50 {
+  z-index: 50;
+  /* ضمان على iOS */
+  -webkit-transform: translateZ(0);
+  transform: translateZ(0);
+}
+
+/* تحسين الـ backdrop blur على الأجهزة التي تدعمه */
+@supports (backdrop-filter: blur(4px)) {
+  .backdrop-blur-sm {
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+  }
+}
+
+/* منع مشاكل الـ touch على iOS */
+button,
+a,
+[role="button"] {
+  /* تحسين الاستجابة للمس على iOS */
+  -webkit-tap-highlight-color: rgba(0, 0, 0, 0.1);
+  tap-highlight-color: rgba(0, 0, 0, 0.1);
+}
+
+/* تحسين النصوص على جميع الأجهزة */
+* {
+  /* ضمان وضوح النصوص */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+/* تحسين الألوان على الشاشات المختلفة */
+@media (prefers-color-scheme: light) {
+  /* ضمان الألوان الفاتحة دائماً */
+  body {
+    background-color: #ffffff;
+    color: #374151;
   }
 }
 

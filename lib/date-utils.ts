@@ -1,7 +1,7 @@
 /**
  * تنسيق التاريخ الميلادي بالإنجليزية
  * @param date - التاريخ (Date object أو string)
- * @returns تاريخ منسق بالصيغة: MM/DD/YYYY
+ * @returns تاريخ منسق بالصيغة: DD/MM/YYYY
  */
 export const formatDate = (date: Date | string | null | undefined): string => {
   if (!date) {
@@ -15,8 +15,8 @@ export const formatDate = (date: Date | string | null | undefined): string => {
       return 'تاريخ غير صحيح'
     }
     
-    // استخدام en-US للحصول على التاريخ الميلادي والأرقام الإنجليزية
-    return dateObj.toLocaleDateString('en-US', {
+    // استخدام en-GB للحصول على التاريخ الميلادي بصيغة DD/MM/YYYY
+    return dateObj.toLocaleDateString('en-GB', {
       year: 'numeric',
       month: '2-digit',
       day: '2-digit',
@@ -30,7 +30,7 @@ export const formatDate = (date: Date | string | null | undefined): string => {
 /**
  * تنسيق التاريخ مع الوقت
  * @param date - التاريخ (Date object أو string)
- * @returns تاريخ ووقت منسق
+ * @returns تاريخ ووقت منسق بصيغة DD/MM/YYYY HH:MM
  */
 export const formatDateTime = (date: Date | string): string => {
   const dateObj = typeof date === 'string' ? new Date(date) : date
@@ -39,12 +39,18 @@ export const formatDateTime = (date: Date | string): string => {
     return 'تاريخ غير صحيح'
   }
   
-  return dateObj.toLocaleDateString('en-US', {
+  // استخدام en-GB للحصول على التاريخ بصيغة DD/MM/YYYY
+  const dateStr = dateObj.toLocaleDateString('en-GB', {
     year: 'numeric',
     month: '2-digit',
     day: '2-digit',
+  })
+  
+  const timeStr = dateObj.toLocaleTimeString('en-GB', {
     hour: '2-digit',
     minute: '2-digit',
   })
+  
+  return `${dateStr} ${timeStr}`
 }
 

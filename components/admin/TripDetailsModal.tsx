@@ -5,6 +5,7 @@ import { createSupabaseBrowserClient } from '@/lib/supabase'
 import toast from 'react-hot-toast'
 import { X, MapPin, Navigation, Bus, Users, Phone, Calendar, Clock, MessageCircle } from 'lucide-react'
 import Link from 'next/link'
+import { formatDate } from '@/lib/date-utils'
 
 type Trip = {
   id: string
@@ -342,14 +343,6 @@ export default function TripDetailsModal({
     )
   }, [mapsReady, trip, stopPoints])
 
-  const formatDate = (dateStr: string) => {
-    try {
-      const d = new Date(dateStr + 'T00:00:00')
-      return d.toLocaleDateString('ar-JO', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })
-    } catch {
-      return dateStr
-    }
-  }
 
   if (loading) {
     return (
