@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "vercel-build": "next build"
+    "vercel-build": "next build",
+    "postinstall": "npm dedupe"
   },
   "dependencies": {
     "@supabase/ssr": "^0.0.10",
