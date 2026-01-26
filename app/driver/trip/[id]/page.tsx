@@ -33,6 +33,8 @@ type PassengerRow = {
   user_id: string
   trip_status: string | null
   arrival_date: string | null
+  selected_dropoff_stop_id?: string | null
+  selected_pickup_stop_id?: string | null
   request_dropoff_points?: Array<{ name: string; address: string | null; lat: number; lng: number }>
   selectedDropoffStop?: { name: string } | null
   selectedPickupStop?: { name: string } | null

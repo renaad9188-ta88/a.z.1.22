@@ -35,6 +35,8 @@ function loadGoogleMaps(apiKey: string): Promise<void> {
 type LatLng = { lat: number; lng: number }
 
 type PublicTripMapRow = {
+  id?: string
+  route_id?: string
   trip_id: string | null
   trip_type: 'arrivals' | 'departures' | string | null
   trip_date: string | null
@@ -248,6 +250,7 @@ export default function HomeTransportMap() {
           const userTripRow: PublicTripMapRow = {
             id: tripData.id,
             route_id: tripData.route_id,
+            trip_id: tripData.id,
             trip_type: tripData.trip_type,
             trip_date: tripData.trip_date,
             meeting_time: tripData.meeting_time,
@@ -358,6 +361,9 @@ export default function HomeTransportMap() {
           ? `${userHint.start_location_name} → ${userHint.end_location_name}`
           : 'المسار غير محدد'
         
+        // Detect screen size for responsive InfoWindow
+        const isMobile = window.innerWidth < 640
+        
         // Calculate progress if driver location is available
         let progressInfo = ''
         if (driverLocation && start && end) {
@@ -378,9 +384,6 @@ export default function HomeTransportMap() {
             <div style="text-align: center; margin-top: 2px;">التقدم: ${progressPercent}%</div>
           </div>`
         }
-        
-        // Detect screen size for responsive InfoWindow
-        const isMobile = window.innerWidth < 640
         const maxWidth = isMobile ? 'calc(100vw - 2rem)' : '280px'
         const fontSize = isMobile ? '14px' : '15px'
         const smallFontSize = isMobile ? '11px' : '12px'

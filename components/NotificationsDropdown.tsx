@@ -108,24 +108,26 @@ export default function NotificationsDropdown({ userId }: NotificationsDropdownP
     hasMarkedAsReadRef.current = true
     const unreadIds = unreadNotifications.map(n => n.id)
     
-    supabase
-      .from('notifications')
-      .update({ 
-        is_read: true,
-        read_at: new Date().toISOString()
-      })
-      .in('id', unreadIds)
-      .eq('user_id', userId)
-      .then(() => {
+    ;(async () => {
+      try {
+        await supabase
+          .from('notifications')
+          .update({ 
+            is_read: true,
+            read_at: new Date().toISOString()
+          })
+          .in('id', unreadIds)
+          .eq('user_id', userId)
+        
         setNotifications(prev =>
           prev.map(n => unreadIds.includes(n.id) ? { ...n, is_read: true } : n)
         )
         setUnreadCount(0)
-      })
-      .catch((error) => {
+      } catch (error) {
         console.error('Error marking notifications as read on open:', error)
         hasMarkedAsReadRef.current = false // إعادة المحاولة في المرة القادمة
-      })
+      }
+    })()
   }, [isOpen, userId, notifications.length]) // إضافة notifications.length للتحقق من تحميل الإشعارات
 
   const loadNotifications = async () => {

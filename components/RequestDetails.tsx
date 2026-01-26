@@ -36,22 +36,23 @@ export default function RequestDetails({ requestId, userId }: { requestId: strin
   // تحديد الإشعارات المرتبطة بهذا الطلب كمقروءة عند فتح الصفحة
   useEffect(() => {
     if (requestId && userId) {
-      supabase
-        .from('notifications')
-        .update({ 
-          is_read: true,
-          read_at: new Date().toISOString()
-        })
-        .eq('user_id', userId)
-        .eq('related_type', 'request')
-        .eq('related_id', requestId)
-        .eq('is_read', false)
-        .then(() => {
+      ;(async () => {
+        try {
+          await supabase
+            .from('notifications')
+            .update({ 
+              is_read: true,
+              read_at: new Date().toISOString()
+            })
+            .eq('user_id', userId)
+            .eq('related_type', 'request')
+            .eq('related_id', requestId)
+            .eq('is_read', false)
           // لا حاجة لتحديث الحالة هنا لأن NotificationsDropdown يستمع للتغييرات
-        })
-        .catch((error) => {
+        } catch (error) {
           console.error('Error marking request notifications as read:', error)
-        })
+        }
+      })()
     }
   }, [requestId, userId, supabase])
 
