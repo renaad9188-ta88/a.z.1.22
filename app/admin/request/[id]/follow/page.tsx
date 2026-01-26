@@ -2,7 +2,7 @@ import { createSupabaseServerClient } from '@/lib/supabase-server'
 import { redirect } from 'next/navigation'
 import AdminRequestFollow from '@/components/admin/AdminRequestFollow'
 
-export default async function AdminRequestFollowPage({ params }: { params: { id: string } }) {
+export default async function AdminRequestFollowPage({ params }: { params: Promise<{ id: string }> | { id: string } }) {
   const supabase = createSupabaseServerClient()
   const {
     data: { user },
@@ -22,7 +22,8 @@ export default async function AdminRequestFollowPage({ params }: { params: { id:
   const role = ((profile?.role || '') as string).toLowerCase()
   if (role !== 'admin' && role !== 'supervisor') redirect('/dashboard')
 
-  return <AdminRequestFollow requestId={params.id} adminUserId={user.id} role={role as any} />
+  const resolvedParams = await Promise.resolve(params)
+  return <AdminRequestFollow requestId={resolvedParams.id} adminUserId={user.id} role={role as any} />
 }
 
 
