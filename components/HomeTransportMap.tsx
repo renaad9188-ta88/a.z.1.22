@@ -23,7 +23,7 @@ function loadGoogleMaps(apiKey: string): Promise<void> {
     const script = document.createElement('script')
     script.dataset.googleMaps = '1'
     // Important: use places library to avoid breaking other pages in SPA navigation.
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places&language=ar`
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places,geometry&language=ar`
     script.async = true
     script.defer = true
     script.onload = () => resolve()
@@ -82,6 +82,8 @@ export default function HomeTransportMap() {
   const [tripRow, setTripRow] = useState<PublicTripMapRow | null>(null)
   const [userHint, setUserHint] = useState<UserHint | null>(null)
   const [loadingUserHint, setLoadingUserHint] = useState(false)
+  const [driverLocation, setDriverLocation] = useState<{ lat: number; lng: number } | null>(null)
+  const [driverLocationLoading, setDriverLocationLoading] = useState(false)
 
   const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || ''
 
@@ -324,11 +326,12 @@ export default function HomeTransportMap() {
       })
     )
 
-    // Bus marker (same style as driver page) at start
+    // Bus marker - use driver location if available, otherwise use start position
+    const busPosition = driverLocation || start
     const busMarker = new googleMaps.Marker({
-      position: start,
+      position: busPosition,
       map,
-      title: 'الباص',
+      title: driverLocation ? 'موقع الباص (مباشر)' : 'الباص',
       icon: {
         url: 'http://maps.google.com/mapfiles/ms/icons/bus.png',
         scaledSize: new googleMaps.Size(40, 40),
@@ -336,18 +339,45 @@ export default function HomeTransportMap() {
       zIndex: 50,
     })
     markersRef.current.push(busMarker)
+    
+    // If driver location exists, extend bounds to include it
+    if (driverLocation) {
+      bounds.extend(driverLocation)
+    }
 
-    // Show user card above bus marker if trip is today
+    // Show user card above bus marker if trip is today OR if driver location is available
     if (userHint?.trip_id && userHint?.trip_date) {
       const today = new Date().toISOString().split('T')[0]
       const tripDateStr = new Date(userHint.trip_date + 'T00:00:00').toISOString().split('T')[0]
       const isTripToday = tripDateStr === today
-
-      if (isTripToday) {
+      
+      // Show card if trip is today OR if driver is moving (has live location)
+      if (isTripToday || driverLocation) {
         const peopleCount = 1 + (userHint.companions_count || 0)
         const routeInfo = userHint.start_location_name && userHint.end_location_name
           ? `${userHint.start_location_name} → ${userHint.end_location_name}`
           : 'المسار غير محدد'
+        
+        // Calculate progress if driver location is available
+        let progressInfo = ''
+        if (driverLocation && start && end) {
+          // Simple progress calculation: distance from start to current / total distance
+          const distanceToStart = googleMaps.geometry.spherical.computeDistanceBetween(
+            new googleMaps.LatLng(start.lat, start.lng),
+            new googleMaps.LatLng(driverLocation.lat, driverLocation.lng)
+          )
+          const totalDistance = googleMaps.geometry.spherical.computeDistanceBetween(
+            new googleMaps.LatLng(start.lat, start.lng),
+            new googleMaps.LatLng(end.lat, end.lng)
+          )
+          const progressPercent = totalDistance > 0 ? Math.min(100, Math.round((distanceToStart / totalDistance) * 100)) : 0
+          progressInfo = `<div style="color: #059669; font-size: ${isMobile ? '10px' : '11px'}; margin-top: 6px; padding-top: 6px; border-top: 1px solid #e5e7eb; font-weight: 600;">
+            <div style="background: #d1fae5; border-radius: 4px; height: 6px; margin-bottom: 4px; overflow: hidden;">
+              <div style="background: #10b981; height: 100%; width: ${progressPercent}%; transition: width 0.3s;"></div>
+            </div>
+            <div style="text-align: center; margin-top: 2px;">التقدم: ${progressPercent}%</div>
+          </div>`
+        }
         
         // Detect screen size for responsive InfoWindow
         const isMobile = window.innerWidth < 640
@@ -361,6 +391,7 @@ export default function HomeTransportMap() {
         infoWindowContent.innerHTML = `
           <div style="font-weight: 700; color: #111827; font-size: ${fontSize}; margin-bottom: 6px; border-bottom: 1px solid #e5e7eb; padding-bottom: 6px; word-wrap: break-word;">
             ${userHint.visitor_name || 'الراكب'}
+            ${driverLocation ? '<span style="color: #10b981; font-size: 10px; margin-right: 4px;">●</span>' : ''}
           </div>
           <div style="color: #4b5563; font-size: ${smallFontSize}; margin-bottom: 4px; word-wrap: break-word;">
             <strong>عدد الأشخاص:</strong> ${peopleCount}
@@ -371,6 +402,8 @@ export default function HomeTransportMap() {
           </div>
           ${userHint.meeting_time ? `<div style="color: #4b5563; font-size: ${smallFontSize}; margin-bottom: 4px; word-wrap: break-word;"><strong>وقت التجمع:</strong> ${userHint.meeting_time}</div>` : ''}
           ${userHint.departure_time ? `<div style="color: #4b5563; font-size: ${smallFontSize}; margin-bottom: 4px; word-wrap: break-word;"><strong>وقت الانطلاق:</strong> ${userHint.departure_time}</div>` : ''}
+          ${driverLocation ? '<div style="color: #059669; font-size: ' + (isMobile ? '10px' : '11px') + '; margin-top: 6px; font-weight: 600;">📍 يتم تتبع الرحلة الآن</div>' : ''}
+          ${progressInfo}
           <div style="color: #2563eb; font-size: ${isMobile ? '10px' : '11px'}; margin-top: 8px; font-weight: 600; text-align: center; padding-top: 6px; border-top: 1px solid #e5e7eb;">
             اضغط لعرض التفاصيل الكاملة
           </div>
@@ -392,8 +425,10 @@ export default function HomeTransportMap() {
           infoWindow.open({ map, anchor: busMarker })
         })
         
-        // Auto-open info window
-        infoWindow.open({ map, anchor: busMarker, shouldFocus: false })
+        // Auto-open info window if driver location is available (trip is active)
+        if (driverLocation) {
+          infoWindow.open({ map, anchor: busMarker, shouldFocus: false })
+        }
         // Store reference to prevent garbage collection
         ;(busMarker as any).infoWindow = infoWindow
       }
@@ -539,11 +574,94 @@ export default function HomeTransportMap() {
         meeting_time: tripInfo?.meeting_time || null,
         departure_time: tripInfo?.departure_time || null,
       })
+      
+      // Load driver location if trip is today and driver is assigned
+      if (tripId && tripDate) {
+        const today = new Date().toISOString().split('T')[0]
+        const tripDateStr = new Date(tripDate + 'T00:00:00').toISOString().split('T')[0]
+        if (tripDateStr === today) {
+          await loadDriverLocation(data.id, tripId)
+        }
+      }
     } catch (e) {
       console.error('HomeTransportMap load user hint error:', e)
       setUserHint(null)
     } finally {
       setLoadingUserHint(false)
+    }
+  }
+
+  const loadDriverLocation = async (requestId: string, tripId: string) => {
+    try {
+      setDriverLocationLoading(true)
+      
+      // Get assigned driver from visit_requests
+      const { data: requestData } = await supabase
+        .from('visit_requests')
+        .select('assigned_driver_id')
+        .eq('id', requestId)
+        .maybeSingle()
+      
+      const assignedDriverId = (requestData as any)?.assigned_driver_id
+      if (!assignedDriverId) {
+        setDriverLocation(null)
+        return
+      }
+      
+      // Try to get driver location from driver_live_status (live tracking)
+      const { data: liveStatus, error: liveErr } = await supabase
+        .from('driver_live_status')
+        .select('lat, lng, is_available, updated_at')
+        .eq('driver_id', assignedDriverId)
+        .eq('is_available', true)
+        .maybeSingle()
+      
+      if (!liveErr && liveStatus && liveStatus.lat && liveStatus.lng) {
+        // Check if location is recent (within last 5 minutes)
+        const updatedAt = new Date(liveStatus.updated_at).getTime()
+        const now = Date.now()
+        const FIVE_MINUTES = 5 * 60 * 1000
+        
+        if (now - updatedAt < FIVE_MINUTES) {
+          setDriverLocation({ lat: Number(liveStatus.lat), lng: Number(liveStatus.lng) })
+          
+          // Set up polling to update driver location every 30 seconds
+          const pollInterval = setInterval(async () => {
+            const { data: updatedStatus } = await supabase
+              .from('driver_live_status')
+              .select('lat, lng, is_available, updated_at')
+              .eq('driver_id', assignedDriverId)
+              .eq('is_available', true)
+              .maybeSingle()
+            
+            if (updatedStatus && updatedStatus.lat && updatedStatus.lng) {
+              const updatedAt = new Date(updatedStatus.updated_at).getTime()
+              const now = Date.now()
+              if (now - updatedAt < FIVE_MINUTES) {
+                setDriverLocation({ lat: Number(updatedStatus.lat), lng: Number(updatedStatus.lng) })
+              } else {
+                setDriverLocation(null)
+                clearInterval(pollInterval)
+              }
+            } else {
+              setDriverLocation(null)
+              clearInterval(pollInterval)
+            }
+          }, 30000) // Poll every 30 seconds
+          
+          // Store interval ID for cleanup
+          ;(window as any).__driverLocationPollInterval = pollInterval
+        } else {
+          setDriverLocation(null)
+        }
+      } else {
+        setDriverLocation(null)
+      }
+    } catch (e) {
+      console.error('Error loading driver location:', e)
+      setDriverLocation(null)
+    } finally {
+      setDriverLocationLoading(false)
     }
   }
 
@@ -605,7 +723,7 @@ export default function HomeTransportMap() {
     if (!ready) return
     renderTrip()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ready, JSON.stringify(tripRow), userHint])
+  }, [ready, JSON.stringify(tripRow), userHint, driverLocation])
 
   // Handle hash navigation and load user trip when navigating to map
   useEffect(() => {
