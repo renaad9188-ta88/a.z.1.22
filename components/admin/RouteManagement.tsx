@@ -796,7 +796,7 @@ export default function RouteManagement() {
 
                       {(routeTrips[route.id] || []).length === 0 ? (
                         <div className="text-sm text-gray-600 bg-gray-50 border border-gray-200 rounded-lg p-3">
-                          لا توجد رحلات مجدولة لهذا الخط بعد. استخدم زر "تحديد موعد" داخل طلب الزيارة أو من القائمة أدناه بعد ظهورها.
+                          لا توجد رحلات مجدولة لهذا الخط بعد. استخدم زر &quot;تحديد موعد&quot; داخل طلب الزيارة أو من القائمة أدناه بعد ظهورها.
                         </div>
                       ) : (
                         <div className="space-y-2">
@@ -1041,7 +1041,7 @@ export default function RouteManagement() {
 
           {drivers.length === 0 && (
             <div className="text-sm text-gray-600 bg-gray-50 border border-gray-200 rounded-lg p-4">
-              لا يوجد سائقون بعد. اضغط "إضافة سائق" لإنشاء أول سائق.
+              لا يوجد سائقون بعد. اضغط &quot;إضافة سائق&quot; لإنشاء أول سائق.
             </div>
           )}
         </div>

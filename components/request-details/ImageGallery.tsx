@@ -1,6 +1,7 @@
 'use client'
 
 import { X, ChevronLeft, ChevronRight } from 'lucide-react'
+import Image from 'next/image'
 
 interface ImageGalleryProps {
   images: string[]
@@ -41,11 +42,14 @@ export default function ImageGallery({ images, currentIndex, onClose, onNext, on
       )}
 
       <div className="relative w-full h-full max-w-5xl max-h-[90vh] flex items-center justify-center">
-        <img
+        <Image
           src={images[currentIndex]}
           alt={`صورة ${currentIndex + 1}`}
+          width={1200}
+          height={800}
           className="max-w-full max-h-full object-contain"
           style={{ maxHeight: '90vh' }}
+          unoptimized
           onError={(e) => {
             const target = e.target as HTMLImageElement
             target.style.display = 'none'

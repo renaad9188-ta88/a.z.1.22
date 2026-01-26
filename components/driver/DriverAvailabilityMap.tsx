@@ -659,7 +659,7 @@ export default function DriverAvailabilityMap({ selectedTripId }: { selectedTrip
 
       <div className="mt-3 text-[11px] sm:text-xs text-gray-500 flex items-center gap-2">
         <Navigation className="w-4 h-4" />
-        التتبع يُرسل فقط عند تفعيل "متاح"، ويمكنك إيقافه فوراً.
+        التتبع يُرسل فقط عند تفعيل &quot;متاح&quot;، ويمكنك إيقافه فوراً.
       </div>
     </div>
   )

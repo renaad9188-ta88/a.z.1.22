@@ -1,6 +1,7 @@
 'use client'
 
 import { DollarSign } from 'lucide-react'
+import Image from 'next/image'
 
 interface PaymentImagesProps {
   paymentImages: string[]
@@ -29,11 +30,13 @@ export default function PaymentImages({ paymentImages, signedPaymentImages, onOp
               }}
               className="relative aspect-video cursor-pointer group rounded-lg overflow-hidden border border-gray-300"
             >
-              <img
+              <Image
                 src={displayUrl}
                 alt={`صورة دفعة ${index + 1}`}
+                width={400}
+                height={300}
                 className="w-full h-full object-cover group-hover:scale-105 transition-transform"
-                loading="lazy"
+                unoptimized
                 onError={(e) => {
                   const target = e.target as HTMLImageElement
                   target.style.display = 'none'

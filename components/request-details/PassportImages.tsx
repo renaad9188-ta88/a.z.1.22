@@ -1,6 +1,7 @@
 'use client'
 
 import { FileText } from 'lucide-react'
+import Image from 'next/image'
 
 interface PassportImagesProps {
   passportImages: string[]
@@ -29,11 +30,13 @@ export default function PassportImages({ passportImages, signedPassportImages, o
               }}
               className="relative aspect-video cursor-pointer group rounded-lg overflow-hidden border border-gray-300"
             >
-              <img
+              <Image
                 src={displayUrl}
                 alt={`صورة جواز ${index + 1}`}
+                width={400}
+                height={300}
                 className="w-full h-full object-cover group-hover:scale-105 transition-transform"
-                loading="lazy"
+                unoptimized
                 onError={(e) => {
                   const target = e.target as HTMLImageElement
                   target.style.display = 'none'

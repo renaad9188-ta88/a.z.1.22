@@ -661,7 +661,7 @@ export default function RequestDetailsModal({
                     </div>
                   </div>
                   <p className="mt-2 text-[11px] text-gray-600 leading-relaxed">
-                    بعد مراجعة هذه البيانات يمكنك تفعيل "تم تأكيد الدفعة" لفتح الحجز للمستخدم.
+                    بعد مراجعة هذه البيانات يمكنك تفعيل &quot;تم تأكيد الدفعة&quot; لفتح الحجز للمستخدم.
                   </p>
                 </div>
               )}

@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, useCallback } from 'react'
 import toast from 'react-hot-toast'
 import { MapPin, Search } from 'lucide-react'
 
@@ -150,7 +150,7 @@ export default function LocationSelector({
     mapObjRef.current!.fitBounds(bounds, 40)
   }
 
-  const updateMarker = (loc: LatLng) => {
+  const updateMarker = useCallback((loc: LatLng) => {
     if (!mapObjRef.current || !(window as any).google?.maps) return
     const googleMaps = (window as any).google.maps as typeof google.maps
     if (markerRef.current) {
@@ -170,7 +170,7 @@ export default function LocationSelector({
       const lng = e.latLng.lng()
       setSelectedLocation({ lat, lng })
     })
-  }
+  }, [selectionKind])
 
   useEffect(() => {
     if (!mapsReady || !mapRef.current || !(window as any).google?.maps) return
@@ -221,7 +221,7 @@ export default function LocationSelector({
         mapObjRef.current?.setZoom(14)
       })
     }
-  }, [mapsReady, selectedLocation, pointName, selectionKind])
+  }, [mapsReady, selectedLocation, pointName, selectionKind, updateMarker])
 
   useEffect(() => {
     if (!mapsReady) return

@@ -625,7 +625,7 @@ export default function AdminRequestFollow({
                       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                         <div className="min-w-0">
                           <p className="font-extrabold text-gray-900 text-sm">المستخدم أرسل الطلب - جاهز للاستلام</p>
-                          <p className="text-xs text-gray-600 mt-1">اضغط "تم استلام الطلب" لإرسال رد تلقائي للمستخدم وتسجيل الاستلام.</p>
+                          <p className="text-xs text-gray-600 mt-1">اضغط &quot;تم استلام الطلب&quot; لإرسال رد تلقائي للمستخدم وتسجيل الاستلام.</p>
                         </div>
                         <div className="flex flex-wrap gap-2">
                           {waDigits && (

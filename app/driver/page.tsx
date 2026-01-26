@@ -166,7 +166,7 @@ export default function DriverDashboard() {
             مرحباً {driverProfile?.full_name || 'سائق'}
           </h2>
           <p className="text-xs sm:text-sm text-gray-600">
-            اضغط "متاح" ليظهر موقعك للإدارة ويتم تتبعك أثناء الرحلة فقط.
+            اضغط &quot;متاح&quot; ليظهر موقعك للإدارة ويتم تتبعك أثناء الرحلة فقط.
           </p>
         </div>
 

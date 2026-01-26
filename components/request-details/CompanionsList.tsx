@@ -1,6 +1,7 @@
 'use client'
 
 import { User, Maximize2 } from 'lucide-react'
+import Image from 'next/image'
 
 interface CompanionsListProps {
   companions: any[]
@@ -58,11 +59,13 @@ export default function CompanionsList({ companions, signedPassportImages, onOpe
                         }}
                         className="relative aspect-video cursor-pointer group rounded-lg overflow-hidden border border-gray-300"
                       >
-                        <img
+                        <Image
                           src={displayUrl}
                           alt={`صورة جواز ${companion.name}`}
+                          width={400}
+                          height={300}
                           className="w-full h-full object-cover group-hover:scale-105 transition-transform"
-                          loading="lazy"
+                          unoptimized
                           onError={(e) => {
                             const target = e.target as HTMLImageElement
                             target.style.display = 'none'
