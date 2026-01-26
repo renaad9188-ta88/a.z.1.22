@@ -31,6 +31,7 @@ export default function NotificationsDropdown({ userId }: NotificationsDropdownP
   const [isAdmin, setIsAdmin] = useState(false)
   const triggerRef = useRef<HTMLButtonElement | null>(null)
   const [panelStyle, setPanelStyle] = useState<React.CSSProperties>({})
+  const hasMarkedAsReadRef = useRef(false)
 
   useEffect(() => {
     if (!userId) {
@@ -86,6 +87,46 @@ export default function NotificationsDropdown({ userId }: NotificationsDropdownP
       }
     }
   }, [userId])
+
+  // تحديد جميع الإشعارات كمقروءة عند فتح قائمة الإشعارات
+  useEffect(() => {
+    if (!isOpen || !userId || notifications.length === 0) {
+      // إعادة تعيين المرجع عند إغلاق القائمة
+      if (!isOpen) {
+        hasMarkedAsReadRef.current = false
+      }
+      return
+    }
+    
+    // تجنب التكرار - إذا تم تحديد الإشعارات كمقروءة بالفعل، لا نعيد
+    if (hasMarkedAsReadRef.current) return
+    
+    const unreadNotifications = notifications.filter(n => !n.is_read)
+    
+    if (unreadNotifications.length === 0) return
+    
+    hasMarkedAsReadRef.current = true
+    const unreadIds = unreadNotifications.map(n => n.id)
+    
+    supabase
+      .from('notifications')
+      .update({ 
+        is_read: true,
+        read_at: new Date().toISOString()
+      })
+      .in('id', unreadIds)
+      .eq('user_id', userId)
+      .then(() => {
+        setNotifications(prev =>
+          prev.map(n => unreadIds.includes(n.id) ? { ...n, is_read: true } : n)
+        )
+        setUnreadCount(0)
+      })
+      .catch((error) => {
+        console.error('Error marking notifications as read on open:', error)
+        hasMarkedAsReadRef.current = false // إعادة المحاولة في المرة القادمة
+      })
+  }, [isOpen, userId, notifications.length]) // إضافة notifications.length للتحقق من تحميل الإشعارات
 
   const loadNotifications = async () => {
     if (!userId) {

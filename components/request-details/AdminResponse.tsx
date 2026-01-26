@@ -14,10 +14,76 @@ const removeUrls = (text: string): string => {
   return text.replace(urlRegex, '')
 }
 
+// دالة لتحويل الأرقام العربية إلى إنجليزية
+const arabicToEnglish = (str: string): string => {
+  const arabicDigits = '٠١٢٣٤٥٦٧٨٩'
+  return str.replace(/[٠-٩]/g, (char) => arabicDigits.indexOf(char).toString())
+}
+
+// دالة لتحويل التاريخ الهجري إلى ميلادي
+const convertHijriToGregorian = (hijriText: string): string => {
+  // البحث عن التواريخ الهجرية بصيغ مختلفة
+  // مثال: "٧‏/٨‏/١٤٤٧ هـ" أو "7/8/1447 هـ" أو "تاريخ: ٧/٨/١٤٤٧"
+  const hijriDateRegex = /(\d{1,2}|[٠-٩]{1,2})[‏\/\s]+(\d{1,2}|[٠-٩]{1,2})[‏\/\s]+(\d{4}|[٠-٩]{4})\s*هـ?/g
+  
+  return hijriText.replace(hijriDateRegex, (match, day, month, year) => {
+    try {
+      // تحويل الأرقام العربية إلى إنجليزية
+      const dayStr = arabicToEnglish(day)
+      const monthStr = arabicToEnglish(month)
+      const yearStr = arabicToEnglish(year)
+      
+      const dayNum = parseInt(dayStr)
+      const monthNum = parseInt(monthStr)
+      const yearNum = parseInt(yearStr)
+      
+      if (isNaN(dayNum) || isNaN(monthNum) || isNaN(yearNum) || 
+          dayNum < 1 || dayNum > 30 || monthNum < 1 || monthNum > 12) {
+        return match
+      }
+      
+      // تحويل التاريخ الهجري إلى ميلادي
+      // بداية التقويم الهجري: 16 يوليو 622 ميلادي
+      const hijriEpoch = new Date(622, 6, 16) // 16 يوليو 622
+      
+      // حساب عدد الأيام من بداية التقويم الهجري
+      // السنة الهجرية = 354 أو 355 يوم (متوسط 354.37)
+      // الشهر الهجري = 29 أو 30 يوم (متوسط 29.5)
+      const daysInHijriYear = 354.37
+      const daysInHijriMonth = 29.5
+      
+      // حساب إجمالي الأيام
+      const totalHijriDays = (yearNum - 1) * daysInHijriYear + 
+                            (monthNum - 1) * daysInHijriMonth + 
+                            (dayNum - 1)
+      
+      // تحويل إلى أيام ميلادية (1 يوم هجري ≈ 0.9702 يوم ميلادي)
+      const gregorianDays = totalHijriDays * 0.9702
+      
+      // حساب التاريخ الميلادي
+      const gregorianDate = new Date(hijriEpoch.getTime() + gregorianDays * 24 * 60 * 60 * 1000)
+      
+      // التحقق من صحة التاريخ
+      if (isNaN(gregorianDate.getTime())) {
+        return match
+      }
+      
+      // تنسيق التاريخ الميلادي
+      return formatDate(gregorianDate)
+    } catch (error) {
+      // في حالة الفشل، نعيد النص الأصلي
+      return match
+    }
+  })
+}
+
 // دالة لتحسين تنسيق النص
 const cleanText = (text: string): string => {
   // إزالة الروابط
   let cleaned = removeUrls(text)
+  
+  // تحويل التواريخ الهجرية إلى ميلادية
+  cleaned = convertHijriToGregorian(cleaned)
   
   // إزالة المسافات الزائدة بين الكلمات (لكن نحافظ على الأسطر)
   cleaned = cleaned.replace(/[ \t]+/g, ' ')

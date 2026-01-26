@@ -60,12 +60,47 @@ export default function AdminDashboard() {
     if (requestId) {
       setSelectedRequest(found)
       setSelectedUserProfile(userProfiles[found.user_id] || null)
+      
+      // تحديد الإشعارات المرتبطة بهذا الطلب كمقروءة
+      if (currentUserId) {
+        supabase
+          .from('notifications')
+          .update({ 
+            is_read: true,
+            read_at: new Date().toISOString()
+          })
+          .eq('user_id', currentUserId)
+          .eq('related_type', 'request')
+          .eq('related_id', requestId)
+          .eq('is_read', false)
+          .catch((error) => {
+            console.error('Error marking request notifications as read:', error)
+          })
+      }
     } else if (tripId) {
       setSchedulingRequest(found)
+      
+      // تحديد الإشعارات المرتبطة بهذه الرحلة كمقروءة
+      if (currentUserId) {
+        supabase
+          .from('notifications')
+          .update({ 
+            is_read: true,
+            read_at: new Date().toISOString()
+          })
+          .eq('user_id', currentUserId)
+          .eq('related_type', 'trip')
+          .eq('related_id', tripId)
+          .eq('is_read', false)
+          .catch((error) => {
+            console.error('Error marking trip notifications as read:', error)
+          })
+      }
     }
+    
     // نزيل الباراميتر من الرابط حتى ما يفتح كل مرة عند تحديث الصفحة
     router.replace('/admin')
-  }, [loading, requests, userProfiles, router, searchParams])
+  }, [loading, requests, userProfiles, router, searchParams, currentUserId, supabase])
 
   const loadRequests = async () => {
     try {
