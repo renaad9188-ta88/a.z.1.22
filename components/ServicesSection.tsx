@@ -61,7 +61,7 @@ export default function ServicesSection() {
         <HomeCounters />
 
         {/* Map under counters */}
-        <div className="mb-2 sm:mb-3">
+        <div id="map" className="mb-2 sm:mb-3 scroll-mt-20">
           <HomeTransportMap />
         </div>
 

@@ -56,6 +56,12 @@ type UserHint = {
   trip_id: string | null
   trip_date: string | null
   arrival_date: string | null
+  companions_count?: number
+  city?: string
+  start_location_name?: string
+  end_location_name?: string
+  meeting_time?: string | null
+  departure_time?: string | null
 }
 
 export default function HomeTransportMap() {
@@ -190,6 +196,76 @@ export default function HomeTransportMap() {
   const fetchTripMap = async (kind: 'arrivals' | 'departures') => {
     try {
       setLoadingTrip(true)
+      
+      // إذا كان المستخدم لديه رحلة محجوزة، حمّل رحلته بدلاً من الرحلة العامة
+      if (userHint?.trip_id) {
+        const { data: tripData, error: tripError } = await supabase
+          .from('route_trips')
+          .select(`
+            id,
+            route_id,
+            trip_type,
+            trip_date,
+            meeting_time,
+            departure_time,
+            start_location_name,
+            start_lat,
+            start_lng,
+            end_location_name,
+            end_lat,
+            end_lng,
+            is_active
+          `)
+          .eq('id', userHint.trip_id)
+          .eq('is_active', true)
+          .maybeSingle()
+        
+        if (!tripError && tripData) {
+          // Load route info
+          const { data: routeData } = await supabase
+            .from('routes')
+            .select('id, name, start_location_name, start_lat, start_lng, end_location_name, end_lat, end_lng')
+            .eq('id', tripData.route_id)
+            .maybeSingle()
+          
+          // Load trip stop points
+          const { data: stopsData } = await supabase
+            .from('route_trip_stop_points')
+            .select('id, trip_id, name, lat, lng, order_index')
+            .eq('trip_id', userHint.trip_id)
+            .order('order_index', { ascending: true })
+          
+          const stops = (stopsData || []).map((s: any) => ({
+            name: s.name,
+            lat: s.lat,
+            lng: s.lng,
+            order_index: s.order_index || 0,
+          }))
+          
+          // Create trip row format
+          const userTripRow: PublicTripMapRow = {
+            id: tripData.id,
+            route_id: tripData.route_id,
+            trip_type: tripData.trip_type,
+            trip_date: tripData.trip_date,
+            meeting_time: tripData.meeting_time,
+            departure_time: tripData.departure_time,
+            start_location_name: tripData.start_location_name || routeData?.start_location_name || '',
+            start_lat: tripData.start_lat || routeData?.start_lat || 0,
+            start_lng: tripData.start_lng || routeData?.start_lng || 0,
+            end_location_name: tripData.end_location_name || routeData?.end_location_name || '',
+            end_lat: tripData.end_lat || routeData?.end_lat || 0,
+            end_lng: tripData.end_lng || routeData?.end_lng || 0,
+            stops: stops,
+            is_demo: false,
+          }
+          
+          setTripRow(userTripRow)
+          return
+        }
+      }
+      
+      // Fallback to public trip map
       const { data, error } = await supabase.rpc('get_public_trip_map', { p_kind: kind })
       if (error) throw error
       const row = (Array.isArray(data) ? data[0] : data) as PublicTripMapRow | null
@@ -268,25 +344,55 @@ export default function HomeTransportMap() {
       const isTripToday = tripDateStr === today
 
       if (isTripToday) {
+        const peopleCount = 1 + (userHint.companions_count || 0)
+        const routeInfo = userHint.start_location_name && userHint.end_location_name
+          ? `${userHint.start_location_name} → ${userHint.end_location_name}`
+          : 'المسار غير محدد'
+        
+        // Detect screen size for responsive InfoWindow
+        const isMobile = window.innerWidth < 640
+        const maxWidth = isMobile ? 'calc(100vw - 2rem)' : '280px'
+        const fontSize = isMobile ? '14px' : '15px'
+        const smallFontSize = isMobile ? '11px' : '12px'
+        const padding = isMobile ? '10px 12px' : '12px 14px'
+        
+        const infoWindowContent = document.createElement('div')
+        infoWindowContent.style.cssText = `padding: ${padding}; font-family: Arial, sans-serif; max-width: ${maxWidth}; width: ${maxWidth}; line-height: 1.5; cursor: pointer; box-sizing: border-box; word-wrap: break-word;`
+        infoWindowContent.innerHTML = `
+          <div style="font-weight: 700; color: #111827; font-size: ${fontSize}; margin-bottom: 6px; border-bottom: 1px solid #e5e7eb; padding-bottom: 6px; word-wrap: break-word;">
+            ${userHint.visitor_name || 'الراكب'}
+          </div>
+          <div style="color: #4b5563; font-size: ${smallFontSize}; margin-bottom: 4px; word-wrap: break-word;">
+            <strong>عدد الأشخاص:</strong> ${peopleCount}
+          </div>
+          ${userHint.city ? `<div style="color: #4b5563; font-size: ${smallFontSize}; margin-bottom: 4px; word-wrap: break-word;"><strong>المدينة:</strong> ${userHint.city}</div>` : ''}
+          <div style="color: #4b5563; font-size: ${smallFontSize}; margin-bottom: 4px; word-wrap: break-word;">
+            <strong>المسار:</strong> ${routeInfo}
+          </div>
+          ${userHint.meeting_time ? `<div style="color: #4b5563; font-size: ${smallFontSize}; margin-bottom: 4px; word-wrap: break-word;"><strong>وقت التجمع:</strong> ${userHint.meeting_time}</div>` : ''}
+          ${userHint.departure_time ? `<div style="color: #4b5563; font-size: ${smallFontSize}; margin-bottom: 4px; word-wrap: break-word;"><strong>وقت الانطلاق:</strong> ${userHint.departure_time}</div>` : ''}
+          <div style="color: #2563eb; font-size: ${isMobile ? '10px' : '11px'}; margin-top: 8px; font-weight: 600; text-align: center; padding-top: 6px; border-top: 1px solid #e5e7eb;">
+            اضغط لعرض التفاصيل الكاملة
+          </div>
+        `
+        
+        // Add click listener to navigate to request follow page
+        infoWindowContent.addEventListener('click', () => {
+          window.location.href = `/dashboard/request/${userHint.request_id}/follow`
+        })
+        
         const infoWindow = new googleMaps.InfoWindow({
-          content: `
-            <div style="
-              padding: 10px 12px;
-              font-family: Arial, sans-serif;
-              max-width: 200px;
-              line-height: 1.4;
-            ">
-              <div style="font-weight: 700; color: #111827; font-size: 13px; margin-bottom: 4px;">
-                ${userHint.visitor_name || 'الراكب'}
-              </div>
-              <div style="color: #4b5563; font-size: 11px;">
-                يتم تتبع رحلتك الآن
-              </div>
-            </div>
-          `,
+          content: infoWindowContent,
           disableAutoPan: true,
           pixelOffset: new googleMaps.Size(0, -50),
         })
+        
+        // Add click listener to marker to open info window
+        busMarker.addListener('click', () => {
+          infoWindow.open({ map, anchor: busMarker })
+        })
+        
+        // Auto-open info window
         infoWindow.open({ map, anchor: busMarker, shouldFocus: false })
         // Store reference to prevent garbage collection
         ;(busMarker as any).infoWindow = infoWindow
@@ -390,7 +496,7 @@ export default function HomeTransportMap() {
 
       const { data, error } = await supabase
         .from('visit_requests')
-        .select('id, visitor_name, trip_id, arrival_date, created_at, admin_notes')
+        .select('id, visitor_name, trip_id, arrival_date, created_at, admin_notes, companions_count, city, selected_dropoff_stop_id, selected_pickup_stop_id')
         .eq('user_id', user.id)
         .order('created_at', { ascending: false })
         .limit(1)
@@ -404,16 +510,18 @@ export default function HomeTransportMap() {
 
       const tripId = (data as any).trip_id || null
       let tripDate: string | null = null
+      let tripInfo: any = null
 
-      // Load trip_date if trip_id exists
+      // Load trip information if trip_id exists
       if (tripId) {
         const { data: tripData } = await supabase
           .from('route_trips')
-          .select('trip_date')
+          .select('trip_date, meeting_time, departure_time, start_location_name, end_location_name')
           .eq('id', tripId)
           .maybeSingle()
         if (tripData) {
           tripDate = (tripData as any).trip_date || null
+          tripInfo = tripData
         }
       }
 
@@ -424,6 +532,12 @@ export default function HomeTransportMap() {
         trip_id: tripId,
         trip_date: tripDate,
         arrival_date: (data as any).arrival_date || null,
+        companions_count: (data as any).companions_count || 0,
+        city: (data as any).city || null,
+        start_location_name: tripInfo?.start_location_name || null,
+        end_location_name: tripInfo?.end_location_name || null,
+        meeting_time: tripInfo?.meeting_time || null,
+        departure_time: tripInfo?.departure_time || null,
       })
     } catch (e) {
       console.error('HomeTransportMap load user hint error:', e)
@@ -485,13 +599,72 @@ export default function HomeTransportMap() {
     if (!ready) return
     fetchTripMap(mode)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mode, ready])
+  }, [mode, ready, userHint?.trip_id])
 
   useEffect(() => {
     if (!ready) return
     renderTrip()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready, JSON.stringify(tripRow), userHint])
+
+  // Handle hash navigation and load user trip when navigating to map
+  useEffect(() => {
+    if (typeof window === 'undefined' || !ready) return
+    
+    const handleHashChange = async () => {
+      if (window.location.hash === '#map') {
+        // Force load user hint to show their trip
+        await loadUserHint()
+        
+        // Wait a bit for userHint to update, then check trip type and update mode
+        setTimeout(async () => {
+          const { data: { user } } = await supabase.auth.getUser()
+          if (user) {
+            const { data: requestData } = await supabase
+              .from('visit_requests')
+              .select('trip_id')
+              .eq('user_id', user.id)
+              .order('created_at', { ascending: false })
+              .limit(1)
+              .maybeSingle()
+            
+            if (requestData?.trip_id) {
+              const { data: tripData } = await supabase
+                .from('route_trips')
+                .select('trip_type')
+                .eq('id', requestData.trip_id)
+                .maybeSingle()
+              
+              if (tripData?.trip_type === 'departure' && mode !== 'departures') {
+                setMode('departures')
+              } else if (tripData?.trip_type === 'arrival' && mode !== 'arrivals') {
+                setMode('arrivals')
+              }
+            }
+          }
+        }, 500)
+        
+        // Scroll to map
+        setTimeout(() => {
+          const mapElement = document.getElementById('map')
+          if (mapElement) {
+            mapElement.scrollIntoView({ behavior: 'smooth', block: 'start' })
+          }
+        }, 800)
+      }
+    }
+    
+    // Check on mount
+    handleHashChange()
+    
+    // Listen for hash changes
+    window.addEventListener('hashchange', handleHashChange)
+    
+    return () => {
+      window.removeEventListener('hashchange', handleHashChange)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ready])
 
   const tripLabel = useMemo(() => {
     const isArr = mode === 'arrivals'

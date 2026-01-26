@@ -71,7 +71,7 @@ export default function LoginForm() {
       if (role === 'driver') {
         router.push('/driver')
       } else {
-        router.push('/dashboard')
+        router.push('/') // توجيه إلى الصفحة الرئيسية
       }
       router.refresh()
     } catch (error: any) {

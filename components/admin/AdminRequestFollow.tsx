@@ -3,11 +3,11 @@
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import toast from 'react-hot-toast'
-import { ArrowRight, CheckCircle, Clock, Save, MessageCircle, Phone, Bus, Calendar, MapPin } from 'lucide-react'
+import { ArrowRight, CheckCircle, Clock, Save, MessageCircle, Phone, Bus, Calendar, MapPin, DollarSign } from 'lucide-react'
 import { createSupabaseBrowserClient } from '@/lib/supabase'
 import TripSchedulingModal from '@/components/admin/TripSchedulingModal'
 import { formatDate } from '@/lib/date-utils'
-import { parseAdminNotes } from '@/components/request-details/utils'
+import { parseAdminNotes, getSignedImageUrl } from '@/components/request-details/utils'
 import { notifyRequestApproved, notifyRequestRejected, notifyPaymentVerified, notifyCustomMessage } from '@/lib/notifications'
 
 type Role = 'admin' | 'supervisor'
@@ -78,6 +78,41 @@ function extractAllAdminResponses(notes: string): Array<{ body: string; dateText
   return res.reverse()
 }
 
+function extractTripModifications(notes: string): Array<{ oldTripId?: string; newTripId?: string; tripInfo?: string; stopInfo?: string; dateText?: string }> {
+  const marker = '=== تعديل الحجز ==='
+  if (!notes.includes(marker)) return []
+  const parts = notes.split(marker).slice(1) // content after each marker
+  const res: Array<{ oldTripId?: string; newTripId?: string; tripInfo?: string; stopInfo?: string; dateText?: string }> = []
+  for (const p of parts) {
+    const chunk = (p || '').trim()
+    if (!chunk) continue
+    const mod: any = {}
+    const lines = chunk.split('\n')
+    for (const line of lines) {
+      const trimmed = line.trim()
+      if (trimmed.startsWith('الرحلة السابقة:')) {
+        mod.oldTripId = trimmed.replace('الرحلة السابقة:', '').trim()
+      } else if (trimmed.startsWith('الرحلة الجديدة:')) {
+        mod.newTripId = trimmed.replace('الرحلة الجديدة:', '').trim()
+      } else if (trimmed.startsWith('نقطة النزول:') || trimmed.startsWith('نقطة التحميل:')) {
+        mod.stopInfo = trimmed.split(':')[1]?.trim()
+      } else if (trimmed.startsWith('تاريخ التعديل:')) {
+        mod.dateText = trimmed.replace('تاريخ التعديل:', '').trim()
+      } else if (trimmed && !trimmed.startsWith('تم تعديل الحجز') && !trimmed.startsWith('من قبل')) {
+        // معلومات الرحلة (المسار والتاريخ)
+        if (!mod.tripInfo) {
+          mod.tripInfo = trimmed
+        }
+      }
+    }
+    if (mod.newTripId || mod.tripInfo) {
+      res.push(mod)
+    }
+  }
+  // newest first
+  return res.reverse()
+}
+
 export default function AdminRequestFollow({
   requestId,
   adminUserId,
@@ -99,6 +134,7 @@ export default function AdminRequestFollow({
   const [bookedStops, setBookedStops] = useState<Array<{ id: string; name: string; order_index: number }> | null>(null)
   const [selectedDropoffStop, setSelectedDropoffStop] = useState<{ id: string; name: string } | null>(null)
   const [selectedPickupStop, setSelectedPickupStop] = useState<{ id: string; name: string } | null>(null)
+  const [remainingPaymentImageUrl, setRemainingPaymentImageUrl] = useState<string | null>(null)
 
   const load = async () => {
     try {
@@ -106,7 +142,7 @@ export default function AdminRequestFollow({
       const { data, error } = await supabase
         .from('visit_requests')
         .select(
-          'id,user_id,visitor_name,status,admin_notes,rejection_reason,payment_verified,remaining_amount,arrival_date,trip_status,trip_id,assigned_to,selected_dropoff_stop_id,selected_pickup_stop_id,created_at,updated_at'
+          'id,user_id,visitor_name,status,admin_notes,rejection_reason,payment_verified,remaining_amount,arrival_date,trip_status,trip_id,assigned_to,selected_dropoff_stop_id,selected_pickup_stop_id,deposit_paid,created_at,updated_at'
         )
         .eq('id', requestId)
         .single()
@@ -214,32 +250,103 @@ export default function AdminRequestFollow({
   const adminInfo = useMemo(() => parseAdminNotes((request?.admin_notes || '') as string) || {}, [request])
   const latestResponse = useMemo(() => extractLatestAdminResponse((request?.admin_notes || '') as string), [request])
   const responseHistory = useMemo(() => extractAllAdminResponses((request?.admin_notes || '') as string), [request])
+  const tripModifications = useMemo(() => extractTripModifications((request?.admin_notes || '') as string), [request])
 
   const steps = useMemo(() => {
     const notes = (request?.admin_notes || '') as string
-    const postApprovalSubmitted = notes.includes(POST_APPROVAL_SUBMITTED_MARK) || (adminInfo?.postApprovalStatus || '') === 'مرسل'
+    const isDraft = notes.startsWith('[DRAFT]')
     const paymentVerified = Boolean(request?.payment_verified)
     const hasArrival = Boolean(request?.arrival_date)
     const isApproved = request?.status === 'approved' || request?.status === 'completed'
-    const isReceived = Boolean(request) && request?.status !== 'pending'
+    // الخطوة 1 تتفعل عندما يدفع المستخدم (!isDraft) وبعد أن يضغط الإدمن "تم استلام الطلب" (status !== 'pending')
+    const isReceived = Boolean(request) && !isDraft && request?.status !== 'pending'
     const hasBooking = Boolean((request as any)?.trip_id)
+    const hasRemainingPaymentImage = notes.includes('صورة الدفع المتبقي:')
 
     return [
-      { id: 1, title: 'استلام الطلب', done: isReceived, help: 'اضغط "تم استلام الطلب" لإرسال رد تلقائي للمستخدم وتسجيل الاستلام.' },
-      { id: 2, title: 'مراجعة + قبول/رفض', done: Boolean(isApproved) || request?.status === 'rejected', help: 'قم بقبول الطلب أو رفضه.' },
-      { id: 3, title: 'استلام استكمال المستخدم', done: postApprovalSubmitted, help: 'بانتظار إرسال المستخدم لاستكمال ما بعد الموافقة.' },
-      { id: 4, title: 'تأكيد الدفع (فتح الحجز)', done: paymentVerified, help: 'بعد التأكيد يظهر للمستخدم الحجز.' },
-      { id: 5, title: 'الحجز/المتابعة', done: hasBooking || hasArrival, help: 'ستظهر هنا الرحلة التي حجزها المستخدم + يمكنك متابعة الموعد.' },
+      { 
+        id: 1, 
+        title: 'استلام الطلب', 
+        done: isReceived, 
+        help: isDraft 
+          ? 'المستخدم قام برفع الجواز لكن لم يدفع الرسوم بعد. بانتظار دفع الرسوم لإرسال الطلب للإدارة.'
+          : 'المستخدم قام برفع الجواز ودفع الرسوم. اضغط "تم استلام الطلب" لإرسال رد تلقائي للمستخدم وتسجيل الاستلام.' 
+      },
+      { 
+        id: 2, 
+        title: 'الموافقة على الطلب', 
+        done: isApproved || request?.status === 'rejected', 
+        help: 'قم بقبول الطلب أو رفضه. بعد الموافقة، سيتم تفعيل دفع المبلغ المتبقي للمستخدم.' 
+      },
+      { 
+        id: 3, 
+        title: 'تأكيد دفع المبلغ المتبقي (فتح الحجز)', 
+        done: paymentVerified, 
+        help: 'بعد أن يرفع المستخدم صورة الدفع المتبقي (25 دينار)، قم بتأكيد الدفع لفتح الحجز له.' 
+      },
+      { 
+        id: 4, 
+        title: 'الحجز/المتابعة', 
+        done: hasBooking || hasArrival, 
+        help: 'ستظهر هنا الرحلة التي حجزها المستخدم + يمكنك متابعة الموعد.' 
+      },
     ]
-  }, [request, adminInfo])
+  }, [request])
 
   useEffect(() => {
-    const firstIncomplete = steps.find((s) => !s.done)?.id || 5
+    const notes = (request?.admin_notes || '') as string
+    const isDraft = notes.startsWith('[DRAFT]')
+    
+    // إذا كان الطلب draft (لم يدفع)، الخطوة 1 نشطة
+    if (isDraft) {
+      setActiveStep(1)
+      return
+    }
+    
+    // بعد الدفع، نحدد الخطوة النشطة بناءً على الخطوات المكتملة
+    const firstIncomplete = steps.find((s) => !s.done)?.id || 4
     setActiveStep(firstIncomplete)
-  }, [steps])
+  }, [request, steps])
+
+  // تحميل signed URL لصورة الدفع المتبقي
+  useEffect(() => {
+    const loadPaymentImageUrl = async () => {
+      if (!request) {
+        setRemainingPaymentImageUrl(null)
+        return
+      }
+      
+      const notes = (request.admin_notes || '') as string
+      const match = notes.match(/صورة الدفع المتبقي:\s*([^\n]+)/)
+      const rawUrl = match?.[1]?.trim()
+      
+      if (!rawUrl) {
+        setRemainingPaymentImageUrl(null)
+        return
+      }
+      
+      // إذا كان الرابط يحتوي على token (signed URL)، استخدمه مباشرة
+      if (rawUrl.includes('?token=') || rawUrl.includes('&token=')) {
+        setRemainingPaymentImageUrl(rawUrl)
+        return
+      }
+      
+      // إذا لم يكن signed URL، قم بإنشاء signed URL جديد
+      try {
+        const signedUrl = await getSignedImageUrl(rawUrl, supabase)
+        setRemainingPaymentImageUrl(signedUrl)
+      } catch (error) {
+        console.error('Error loading payment image signed URL:', error)
+        // في حالة الخطأ، استخدم الرابط الأصلي
+        setRemainingPaymentImageUrl(rawUrl)
+      }
+    }
+    
+    loadPaymentImageUrl()
+  }, [request, supabase])
 
   const current = steps.find((s) => s.id === activeStep)
-  const canGoNext = activeStep < 5 && Boolean(current?.done)
+  const canGoNext = activeStep < 4 && Boolean(current?.done)
   const canGoPrev = activeStep > 1
 
   const approve = async () => {
@@ -251,7 +358,17 @@ export default function AdminRequestFollow({
         .update({ status: 'approved', updated_at: new Date().toISOString() } as any)
         .eq('id', request.id)
       if (error) throw error
-      await notifyRequestApproved(request.user_id, request.id, request.visitor_name)
+      
+      // إرسال الإشعار بشكل منفصل مع معالجة الأخطاء واستخدام نفس Supabase client
+      try {
+        // استخدام نفس Supabase client المستخدم في الصفحة
+        const { notifyRequestApproved } = await import('@/lib/notifications')
+        await notifyRequestApproved(request.user_id, request.id, request.visitor_name, supabase)
+      } catch (notifyError) {
+        console.error('Error sending notification:', notifyError)
+        // لا نوقف العملية إذا فشل الإشعار
+      }
+      
       toast.success('تم قبول الطلب')
       await load()
     } catch (e: any) {
@@ -333,6 +450,13 @@ export default function AdminRequestFollow({
     if (!request) return
     const clean = (msg || '').trim()
     if (!clean) return toast.error('لا يوجد نص لإرساله')
+    
+    // إذا كان alsoMarkReceived = true و status !== 'pending'، يعني تم استلامه مسبقاً
+    if (alsoMarkReceived && request.status !== 'pending') {
+      toast.error('تم استلام الطلب مسبقاً. لا يمكن إرسال إشعار الاستلام مرة أخرى.')
+      return
+    }
+    
     try {
       setSaving(true)
       const stamp = new Date().toISOString()
@@ -458,67 +582,107 @@ export default function AdminRequestFollow({
 
               {/* Actions */}
               <div className="mt-4 space-y-2">
-                {activeStep === 1 && (
-                  <div className="bg-white border border-gray-200 rounded-lg p-3 space-y-3">
-                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-                      <div className="min-w-0">
-                        <p className="font-extrabold text-gray-900 text-sm">خيارات سريعة</p>
-                        <p className="text-xs text-gray-600">اضغط لإرسال رد جاهز للمستخدم وتسجيله في ملاحظات الطلب.</p>
+                {activeStep === 1 && (() => {
+                  const notes = (request?.admin_notes || '') as string
+                  const isDraft = notes.startsWith('[DRAFT]')
+                  const isPending = request?.status === 'pending'
+                  
+                  // التحقق من أن الطلب تم إرساله فعلياً
+                  // يجب أن يكون: status === 'pending' وليس draft
+                  const canReceive = isPending && !isDraft
+                  
+                  // إذا لم يتم إرسال الطلب بعد (status !== 'pending' أو draft)
+                  if (!canReceive) {
+                    return (
+                      <div className="bg-amber-50 border-2 border-amber-200 rounded-lg p-4 space-y-3">
+                        <div className="flex items-center gap-2 mb-2">
+                          <Clock className="w-5 h-5 text-amber-600" />
+                          <p className="font-extrabold text-amber-900 text-sm">
+                            {isDraft
+                              ? 'المستخدم رفع الجواز - بانتظار دفع الرسوم وإرسال الطلب'
+                              : 'بانتظار إرسال الطلب من المستخدم'
+                            }
+                          </p>
+                        </div>
+                        <p className="text-sm text-amber-800">
+                          {isDraft
+                            ? 'المستخدم قام برفع الجواز لكن لم يدفع الرسوم ولم يرسل الطلب بعد. سيتم تفعيل زر "استلام الطلب" بعد دفع الرسوم وإرسال الطلب.'
+                            : 'المستخدم لم يرسل الطلب بعد. سيتم تفعيل زر "استلام الطلب" بعد إرسال الطلب.'
+                          }
+                        </p>
+                        <div className="bg-white border border-amber-200 rounded-lg p-3">
+                          <p className="text-xs text-gray-700">
+                            <strong>ملاحظة:</strong> لا يمكنك استلام الطلب أو الموافقة عليه قبل أن يرسل المستخدم الطلب.
+                          </p>
+                        </div>
                       </div>
-                      <div className="flex flex-wrap gap-2">
-                        {waDigits && (
-                          <a
-                            href={`https://wa.me/${waDigits}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="px-3 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition text-xs font-semibold inline-flex items-center gap-2"
-                            title="واتساب"
-                          >
-                            <MessageCircle className="w-4 h-4" />
-                            واتساب
-                          </a>
-                        )}
-                        {callDigits && (
-                          <a
-                            href={`tel:${callDigits}`}
-                            className="px-3 py-2 bg-gray-800 text-white rounded-lg hover:bg-black transition text-xs font-semibold inline-flex items-center gap-2"
-                            title="اتصال"
-                          >
-                            <Phone className="w-4 h-4" />
-                            اتصال
-                          </a>
-                        )}
+                    )
+                  }
+                  
+                  // إذا تم إرسال الطلب (status === 'pending' و !isDraft) - يظهر زر استلام الطلب
+                  return (
+                    <div className="bg-white border border-gray-200 rounded-lg p-3 space-y-3">
+                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                        <div className="min-w-0">
+                          <p className="font-extrabold text-gray-900 text-sm">المستخدم أرسل الطلب - جاهز للاستلام</p>
+                          <p className="text-xs text-gray-600 mt-1">اضغط "تم استلام الطلب" لإرسال رد تلقائي للمستخدم وتسجيل الاستلام.</p>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          {waDigits && (
+                            <a
+                              href={`https://wa.me/${waDigits}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="px-3 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition text-xs font-semibold inline-flex items-center gap-2"
+                              title="واتساب"
+                            >
+                              <MessageCircle className="w-4 h-4" />
+                              واتساب
+                            </a>
+                          )}
+                          {callDigits && (
+                            <a
+                              href={`tel:${callDigits}`}
+                              className="px-3 py-2 bg-gray-800 text-white rounded-lg hover:bg-black transition text-xs font-semibold inline-flex items-center gap-2"
+                              title="اتصال"
+                            >
+                              <Phone className="w-4 h-4" />
+                              اتصال
+                            </a>
+                          )}
+                        </div>
                       </div>
-                    </div>
 
-                    <div className="flex flex-col sm:flex-row gap-2">
-                      <button
-                        type="button"
-                        onClick={() => appendAdminResponseAndNotify('تم استلام طلبك وسيتم التواصل معك قريباً.', true)}
-                        disabled={saving}
-                        className="px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm font-semibold disabled:opacity-50"
-                      >
-                        تم استلام الطلب
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => appendAdminResponseAndNotify('يرجى تزويدنا بصورة جواز أوضح/صالحة لإكمال الطلب.')}
-                        disabled={saving}
-                        className="px-4 py-2.5 bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition text-sm font-semibold disabled:opacity-50"
-                      >
-                        طلب صورة أوضح للجواز
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => appendAdminResponseAndNotify('يرجى مراجعة بيانات الطلب وإكمال النواقص ثم إعادة الإرسال.')}
-                        disabled={saving}
-                        className="px-4 py-2.5 bg-gray-800 text-white rounded-lg hover:bg-black transition text-sm font-semibold disabled:opacity-50"
-                      >
-                        طلب إكمال النواقص
-                      </button>
+                      <div className="flex flex-col sm:flex-row gap-2">
+                        <button
+                          type="button"
+                          onClick={() => appendAdminResponseAndNotify('تم استلام طلبك وسيتم التواصل معك قريباً.', true)}
+                          disabled={saving}
+                          className="px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          تم استلام الطلب
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => appendAdminResponseAndNotify('يرجى تزويدنا بصورة جواز أوضح/صالحة لإكمال الطلب.')}
+                          disabled={saving}
+                          className="px-4 py-2.5 bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition text-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          طلب صورة أوضح للجواز
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => appendAdminResponseAndNotify('يرجى مراجعة بيانات الطلب وإكمال النواقص ثم إعادة الإرسال.')}
+                          disabled={saving}
+                          className="px-4 py-2.5 bg-gray-800 text-white rounded-lg hover:bg-black transition text-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          طلب إكمال النواقص
+                        </button>
+                      </div>
                     </div>
-                  </div>
-                )}
+                  )
+                })()}
+
                 {activeStep === 2 && (
                   <div className="flex flex-col sm:flex-row gap-2">
                     <button
@@ -541,57 +705,96 @@ export default function AdminRequestFollow({
                 )}
 
                 {activeStep === 3 && (
-                  <div className="bg-white border border-gray-200 rounded-lg p-3">
-                    <p className="font-extrabold text-gray-900 text-sm mb-2">استكمال المستخدم</p>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs sm:text-sm text-gray-700">
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="text-gray-500">الحالة</span>
-                        <span className="font-bold">
-                          {(adminInfo?.postApprovalStatus || '') === 'مرسل' || (request.admin_notes || '').includes(POST_APPROVAL_SUBMITTED_MARK)
-                            ? 'مرسل'
-                            : (adminInfo?.postApprovalStatus || '') === 'محفوظ'
-                            ? 'محفوظ'
-                            : 'غير مرسل'}
-                        </span>
-                      </div>
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="text-gray-500">الكفالة</span>
-                        <span className="font-bold truncate">{adminInfo?.guaranteeMethod || 'غير محدد'}</span>
-                      </div>
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="text-gray-500">طريقة دفع المتبقي</span>
-                        <span className="font-bold truncate">{adminInfo?.remainingPaymentMethod || 'غير محدد'}</span>
-                      </div>
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="text-gray-500">المتبقي</span>
-                        <span className="font-bold">{`${remaining} دينار`}</span>
-                      </div>
+                  <div className="bg-white border border-gray-200 rounded-lg p-4 space-y-4">
+                    <div className="flex items-center gap-2 mb-3">
+                      <DollarSign className="w-5 h-5 text-blue-600" />
+                      <p className="font-extrabold text-gray-900 text-sm">تأكيد دفع المبلغ المتبقي</p>
                     </div>
+                    
+                    {/* عرض صورة الدفع المتبقي إن وجدت */}
+                    {(() => {
+                      const notes = (request?.admin_notes || '') as string
+                      const match = notes.match(/صورة الدفع المتبقي:\s*([^\n]+)/)
+                      const hasPaymentImage = match?.[1]?.trim()
+                      
+                      if (hasPaymentImage && remainingPaymentImageUrl) {
+                        return (
+                          <div className="space-y-3">
+                            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                              <p className="text-xs text-blue-800 mb-2 font-semibold">صورة الدفع المتبقي المرفوعة:</p>
+                              <a
+                                href={remainingPaymentImageUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="block"
+                              >
+                                <img
+                                  src={remainingPaymentImageUrl}
+                                  alt="صورة الدفع المتبقي"
+                                  className="w-full h-48 object-cover rounded-lg border border-gray-300"
+                                  onError={(e) => {
+                                    console.error('Error loading payment image:', e)
+                                    // في حالة فشل تحميل الصورة، حاول استخدام الرابط الأصلي
+                                    const rawUrl = match?.[1]?.trim()
+                                    if (rawUrl && rawUrl !== remainingPaymentImageUrl) {
+                                      (e.target as HTMLImageElement).src = rawUrl
+                                    }
+                                  }}
+                                />
+                              </a>
+                            </div>
+                            <div className="bg-white border border-gray-200 rounded-lg p-3">
+                              <p className="text-xs text-gray-700 mb-2">
+                                المبلغ المتبقي: <span className="font-bold text-blue-700">25 دينار</span>
+                              </p>
+                              <p className="text-xs text-gray-600 leading-relaxed">
+                                يشمل: الحجز + الموافقة + الإجراءات + توقيع الكفالة + تصوير الكفالة + رفعها على الموقع
+                              </p>
+                            </div>
+                            <div className="flex flex-col sm:flex-row gap-2">
+                              <button
+                                type="button"
+                                onClick={() => setPaymentVerified(true)}
+                                disabled={saving || Boolean(request.payment_verified)}
+                                className="px-4 py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition text-sm font-semibold disabled:opacity-50"
+                              >
+                                تأكيد الدفع (فتح الحجز)
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setPaymentVerified(false)}
+                                disabled={saving || !Boolean(request.payment_verified)}
+                                className="px-4 py-2.5 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 transition text-sm font-semibold disabled:opacity-50"
+                              >
+                                إلغاء تأكيد الدفع
+                              </button>
+                            </div>
+                          </div>
+                        )
+                      } else if (hasPaymentImage && !remainingPaymentImageUrl) {
+                        // جاري تحميل signed URL
+                        return (
+                          <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                            <p className="text-xs text-blue-800 mb-2 font-semibold">صورة الدفع المتبقي المرفوعة:</p>
+                            <div className="w-full h-48 bg-gray-100 rounded-lg border border-gray-300 flex items-center justify-center">
+                              <p className="text-gray-500 text-sm">جاري تحميل الصورة...</p>
+                            </div>
+                          </div>
+                        )
+                      } else {
+                        return (
+                          <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
+                            <p className="text-xs text-amber-800">
+                              بانتظار رفع المستخدم لصورة الدفع المتبقي (25 دينار). بعد الرفع، سيتم إشعارك.
+                            </p>
+                          </div>
+                        )
+                      }
+                    })()}
                   </div>
                 )}
 
                 {activeStep === 4 && (
-                  <div className="flex flex-col sm:flex-row gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setPaymentVerified(true)}
-                      disabled={saving || Boolean(request.payment_verified)}
-                      className="px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm font-semibold disabled:opacity-50"
-                    >
-                      تأكيد الدفع (فتح الحجز)
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setPaymentVerified(false)}
-                      disabled={saving || !Boolean(request.payment_verified)}
-                      className="px-4 py-2.5 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 transition text-sm font-semibold disabled:opacity-50"
-                    >
-                      إلغاء تأكيد الدفع
-                    </button>
-                  </div>
-                )}
-
-                {activeStep === 5 && (
                   <div className="space-y-3">
                     {/* Booked trip details (user-selected trip) */}
                     {(request as any)?.trip_id ? (
@@ -697,29 +900,126 @@ export default function AdminRequestFollow({
                       </div>
                     )}
 
-                    <div className="flex flex-col sm:flex-row gap-2">
-                      <button
-                        type="button"
-                        onClick={() => setShowSchedule(true)}
-                        disabled={saving || request.status !== 'approved'}
-                        className="px-4 py-2.5 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition text-sm font-semibold disabled:opacity-50"
-                      >
-                        {request.arrival_date ? 'تعديل موعد القدوم' : 'تحديد موعد القدوم'}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => appendAdminResponseAndNotify('تم تأكيد الحجز', false)}
-                        disabled={saving}
-                        className="px-4 py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition text-sm font-semibold disabled:opacity-50"
-                        title="يرسل للمستخدم رسالة تأكيد الحجز"
-                      >
-                        تأكيد الحجز
-                      </button>
-                      {request.arrival_date && (
-                        <div className="px-4 py-2.5 bg-white border border-gray-200 rounded-lg text-sm text-gray-700">
-                          الموعد: <span className="font-bold">{formatDate(request.arrival_date)}</span>
+                    {/* عرض سجل التعديلات */}
+                    {tripModifications.length > 0 && (
+                      <div className="bg-yellow-50 border-2 border-yellow-300 rounded-xl p-3 sm:p-4 space-y-3">
+                        <div className="flex items-center gap-2 mb-2">
+                          <Clock className="w-4 h-4 sm:w-5 sm:h-5 text-yellow-700 flex-shrink-0" />
+                          <p className="font-extrabold text-yellow-900 text-xs sm:text-sm">سجل تعديلات الحجز</p>
                         </div>
-                      )}
+                        <div className="space-y-2">
+                          {tripModifications.map((mod, idx) => (
+                            <div key={idx} className="bg-white border border-yellow-200 rounded-lg p-2.5 sm:p-3">
+                              <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 mb-2">
+                                <p className="text-xs font-bold text-yellow-800">تعديل #{tripModifications.length - idx}</p>
+                                {mod.dateText && (
+                                  <p className="text-xs text-gray-600 break-words">{mod.dateText}</p>
+                                )}
+                              </div>
+                              {mod.tripInfo && (
+                                <p className="text-xs sm:text-sm text-gray-800 mb-1 break-words">
+                                  <span className="font-semibold">الرحلة:</span> {mod.tripInfo}
+                                </p>
+                              )}
+                              {mod.stopInfo && (
+                                <p className="text-xs sm:text-sm text-gray-800 break-words">
+                                  <span className="font-semibold">النقطة المختارة:</span> {mod.stopInfo}
+                                </p>
+                              )}
+                              {mod.oldTripId && mod.newTripId && (
+                                <p className="text-xs text-gray-600 mt-1 break-words">
+                                  تم التغيير من الرحلة {mod.oldTripId} إلى {mod.newTripId}
+                                </p>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="flex flex-col sm:flex-row gap-2">
+                      {(() => {
+                        const notes = (request?.admin_notes || '') as string
+                        const isBookingConfirmed = notes.includes('تم تأكيد الحجز')
+                        
+                        // بعد تأكيد الحجز: إظهار زر تعديل الحجز + زر التواصل
+                        if (isBookingConfirmed) {
+                          const contactRaw = String(userProfile?.whatsapp_phone || userProfile?.phone || '')
+                          const waDigits = contactRaw.replace(/[^\d]/g, '')
+                          const callDigits = String(userProfile?.phone || userProfile?.jordan_phone || '').replace(/[^\d+]/g, '')
+                          
+                          return (
+                            <div className="flex flex-col sm:flex-row gap-2">
+                              {(request as any)?.trip_id && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    // فتح modal تعديل الحجز
+                                    setShowSchedule(true)
+                                  }}
+                                  className="px-4 py-2.5 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition text-sm font-semibold inline-flex items-center justify-center gap-2"
+                                >
+                                  <Calendar className="w-4 h-4" />
+                                  تعديل الحجز
+                                </button>
+                              )}
+                              {waDigits && (
+                                <a
+                                  href={`https://wa.me/${waDigits}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="px-4 py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition text-sm font-semibold inline-flex items-center justify-center gap-2"
+                                >
+                                  <MessageCircle className="w-4 h-4" />
+                                  واتساب
+                                </a>
+                              )}
+                              {callDigits && (
+                                <a
+                                  href={`tel:${callDigits}`}
+                                  className="px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm font-semibold inline-flex items-center justify-center gap-2"
+                                >
+                                  <Phone className="w-4 h-4" />
+                                  اتصال
+                                </a>
+                              )}
+                              {!waDigits && !callDigits && (
+                                <div className="px-4 py-2.5 bg-gray-100 border border-gray-300 rounded-lg text-sm text-gray-600">
+                                  لا يوجد رقم هاتف متاح
+                                </div>
+                              )}
+                            </div>
+                          )
+                        }
+                        
+                        // قبل تأكيد الحجز: عرض الأزرار العادية
+                        return (
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => setShowSchedule(true)}
+                              disabled={saving || request.status !== 'approved'}
+                              className="px-4 py-2.5 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition text-sm font-semibold disabled:opacity-50"
+                            >
+                              {request.arrival_date ? 'تعديل موعد القدوم' : 'تحديد موعد القدوم'}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => appendAdminResponseAndNotify('تم تأكيد الحجز', false)}
+                              disabled={saving}
+                              className="px-4 py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition text-sm font-semibold disabled:opacity-50"
+                              title="يرسل للمستخدم رسالة تأكيد الحجز"
+                            >
+                              تأكيد الحجز
+                            </button>
+                            {request.arrival_date && (
+                              <div className="px-4 py-2.5 bg-white border border-gray-200 rounded-lg text-sm text-gray-700">
+                                الموعد: <span className="font-bold">{formatDate(request.arrival_date)}</span>
+                              </div>
+                            )}
+                          </>
+                        )
+                      })()}
                     </div>
                   </div>
                 )}

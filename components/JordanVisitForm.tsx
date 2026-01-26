@@ -11,12 +11,7 @@ const DEPARTURE_CITIES = [
   'دير الزور', 'الحسكة', 'الرقة', 'إدلب', 'السويداء', 'القنيطرة', 'أخرى'
 ]
 
-const TOURISM_COMPANIES = [
-  'اختيار الموقع حسب الأنسب',
-  'شركة الأجنحة البيضاء للسياحة والسفر',
-  'شركة دهشان للسياحة والسفر',
-  'شركة نوفا',
-]
+const DEFAULT_TOURISM_COMPANY = 'شركة نوفا'
 
 const DEFAULT_TRANSPORT_COMPANY = 'شركة الرويال للنقل'
 const DEFAULT_PURPOSE = 'زيارات الاقارب ( سياحة )'
@@ -41,11 +36,8 @@ export default function JordanVisitForm() {
   const [formData, setFormData] = useState({
     jordanPhone: '',
     whatsappPhone: '',
-    tourismCompany: TOURISM_COMPANIES[0], // قيمة افتراضية
-    note: '',
     departureCity: '',
     otherCity: '',
-    purpose: '',
   })
 
   useEffect(() => {
@@ -279,10 +271,9 @@ export default function JordanVisitForm() {
       const companionsOnly = personsData.slice(1) // المرافقين فقط (بدون الزائر الرئيسي)
 
       const companiesBlock = [
-        `الشركات (طلب زيارة): ${formData.tourismCompany || TOURISM_COMPANIES[0]}`,
+        `الشركات (طلب زيارة): ${DEFAULT_TOURISM_COMPANY}`,
         `شركة النقل: ${DEFAULT_TRANSPORT_COMPANY}`,
-        formData.note?.trim() ? `ملاحظة: ${formData.note.trim()}` : null,
-      ].filter(Boolean).join('\n')
+      ].join('\n')
 
       const { data: requestData, error } = await supabase
         .from('visit_requests')
@@ -300,7 +291,7 @@ export default function JordanVisitForm() {
           passport_expiry: new Date().toISOString().split('T')[0],
           companions_count: companionsOnly.length,
           companions_data: companionsOnly,
-          admin_notes: `خدمة: زيارة الأردن لمدة شهر\nاسم الحساب: ${accountName || 'غير محدد'}\nالهاتف الأردني: ${formData.jordanPhone}\nواتساب سوري (اختياري): ${formData.whatsappPhone || 'غير مدخل'}\n${companiesBlock}\nالغرض: ${(formData.purpose || '').trim() || DEFAULT_PURPOSE}`,
+          admin_notes: `خدمة: زيارة الأردن لمدة شهر\nاسم الحساب: ${accountName || 'غير محدد'}\nالهاتف الأردني: ${formData.jordanPhone}\nواتساب سوري (اختياري): ${formData.whatsappPhone || 'غير مدخل'}\n${companiesBlock}\nالغرض: ${DEFAULT_PURPOSE}`,
         })
         .select()
         .single()
@@ -389,30 +380,11 @@ export default function JordanVisitForm() {
                   <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1.5 sm:mb-2">
                     الشركات (طلب زيارة)
                   </label>
-                  <select
-                    value={formData.tourismCompany}
-                    onChange={(e) => setFormData({ ...formData, tourismCompany: e.target.value })}
-                    className="w-full px-3 sm:px-4 py-2.5 sm:py-3 text-sm sm:text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 bg-white"
-                  >
-                    {TOURISM_COMPANIES.map((c) => (
-                      <option key={c} value={c}>{c}</option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1.5 sm:mb-2">
-                    ملاحظة (اختياري)
-                  </label>
-                  <textarea
-                    value={formData.note}
-                    onChange={(e) => setFormData({ ...formData, note: e.target.value })}
-                    rows={3}
-                    className="w-full px-3 sm:px-4 py-2.5 sm:py-3 text-sm sm:text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 resize-none"
-                    placeholder="اكتب أي ملاحظة للإدارة..."
-                  />
-                  <p className="mt-1 text-xs text-gray-500 leading-relaxed">
-                    سيتم إرسال أرقام الهواتف والواتساب للتنسيق وفتح مجموعات القدوم والتتبع.
+                  <div className="w-full px-3 sm:px-4 py-2.5 sm:py-3 text-sm sm:text-base border border-gray-300 rounded-lg bg-gray-50 text-gray-700 flex items-center">
+                    {DEFAULT_TOURISM_COMPANY}
+                  </div>
+                  <p className="mt-1 text-xs text-gray-500">
+                    الشركة المعتمدة حالياً في المنصة
                   </p>
                 </div>
 
@@ -445,16 +417,6 @@ export default function JordanVisitForm() {
                   </div>
                 )}
 
-                <div>
-                  <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1.5 sm:mb-2">الغرض من الزيارة (اختياري)</label>
-                  <textarea 
-                    value={formData.purpose} 
-                    onChange={(e) => setFormData({ ...formData, purpose: e.target.value })} 
-                    rows={3} 
-                    className="w-full px-3 sm:px-4 py-2.5 sm:py-3 text-sm sm:text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 resize-none" 
-                    placeholder="اذكر الغرض من الزيارة..." 
-                  />
-                </div>
               </div>
             </div>
 

@@ -12,11 +12,11 @@ export interface CreateNotificationParams {
 /**
  * إنشاء إشعار جديد للمستخدم
  */
-export async function createNotification(params: CreateNotificationParams): Promise<string | null> {
+export async function createNotification(params: CreateNotificationParams, supabaseClient?: ReturnType<typeof createSupabaseBrowserClient>): Promise<string | null> {
   try {
     console.log('🔔 [CREATE NOTIFICATION] Creating notification for user:', params.userId, 'Title:', params.title)
     
-    const supabase = createSupabaseBrowserClient()
+    const supabase = supabaseClient || createSupabaseBrowserClient()
     
     // محاولة استخدام الدالة أولاً
     const { data: rpcData, error: rpcError } = await supabase.rpc('create_notification', {
@@ -65,7 +65,7 @@ export async function createNotification(params: CreateNotificationParams): Prom
 /**
  * إنشاء إشعار عند موافقة على طلب
  */
-export async function notifyRequestApproved(userId: string, requestId: string, visitorName: string) {
+export async function notifyRequestApproved(userId: string, requestId: string, visitorName: string, supabaseClient?: ReturnType<typeof createSupabaseBrowserClient>) {
   return createNotification({
     userId,
     title: 'تم قبول طلبك',
@@ -79,7 +79,7 @@ export async function notifyRequestApproved(userId: string, requestId: string, v
     type: 'success',
     relatedType: 'request',
     relatedId: requestId,
-  })
+  }, supabaseClient)
 }
 
 /**

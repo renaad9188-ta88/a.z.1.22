@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import toast from 'react-hot-toast'
-import { CheckCircle, Clock, ArrowRight, MapPin, Navigation, Bus, Calendar } from 'lucide-react'
+import { CheckCircle, Clock, ArrowRight, MapPin, Navigation, Bus, Calendar, Upload, X, DollarSign } from 'lucide-react'
 import { createSupabaseBrowserClient } from '@/lib/supabase'
 import TripSchedulingModal from '@/components/admin/TripSchedulingModal'
 import { formatDate } from '@/lib/date-utils'
@@ -40,6 +40,9 @@ export default function RequestFollow({ requestId, userId }: { requestId: string
   const [loadingStopsId, setLoadingStopsId] = useState<string | null>(null)
   const [expandedTripId, setExpandedTripId] = useState<string | null>(null)
   const [selectedStopByTrip, setSelectedStopByTrip] = useState<Record<string, string>>({}) // tripId -> stopId
+  const [remainingPaymentImage, setRemainingPaymentImage] = useState<File | null>(null)
+  const [remainingPaymentPreview, setRemainingPaymentPreview] = useState<string | null>(null)
+  const [uploadingRemainingPayment, setUploadingRemainingPayment] = useState(false)
 
   const load = async () => {
     try {
@@ -172,6 +175,24 @@ export default function RequestFollow({ requestId, userId }: { requestId: string
         updateData.selected_pickup_stop_id = selectedStopId
       }
       
+      // التحقق من وجود حجز سابق
+      const hadPreviousBooking = Boolean(request.trip_id)
+      const previousTripId = request.trip_id
+      
+      // إضافة سجل التعديل في admin_notes
+      const currentNotes = (request.admin_notes || '') as string
+      const tripInfo = trip ? `${trip.start_location_name} → ${trip.end_location_name} (${formatDate(trip.trip_date)})` : 'رحلة جديدة'
+      const stopInfo = selectedStopId && tripStopsById[tripId] 
+        ? tripStopsById[tripId].find((s: any) => s.id === selectedStopId)?.name 
+        : null
+      
+      let updatedNotes = currentNotes
+      if (hadPreviousBooking) {
+        const modificationNote = `\n\n=== تعديل الحجز ===\nتم تعديل الحجز من قبل المستخدم\nالرحلة السابقة: ${previousTripId}\nالرحلة الجديدة: ${tripId}\n${tripInfo}${stopInfo ? `\nنقطة ${tripType === 'arrival' ? 'النزول' : 'التحميل'}: ${stopInfo}` : ''}\nتاريخ التعديل: ${new Date().toLocaleDateString('ar-SA')} ${new Date().toLocaleTimeString('ar-SA')}`
+        updatedNotes = currentNotes + modificationNote
+        updateData.admin_notes = updatedNotes
+      }
+      
       const { error } = await supabase
         .from('visit_requests')
         .update(updateData)
@@ -179,7 +200,7 @@ export default function RequestFollow({ requestId, userId }: { requestId: string
       
       if (error) throw error
       
-      toast.success('تم حجز الرحلة بنجاح')
+      toast.success(hadPreviousBooking ? 'تم تعديل الحجز بنجاح' : 'تم حجز الرحلة بنجاح')
       setShowAvailableTrips(false)
       setSelectedStopByTrip({})
       load()
@@ -189,8 +210,10 @@ export default function RequestFollow({ requestId, userId }: { requestId: string
         const { createNotification } = await import('@/lib/notifications')
         await createNotification({
           userId: request.user_id,
-          title: 'تم حجز الرحلة',
-          message: 'تم حجز رحلتك بنجاح. يمكنك متابعة تفاصيل الرحلة من هنا.',
+          title: hadPreviousBooking ? 'تم تعديل الحجز' : 'تم حجز الرحلة',
+          message: hadPreviousBooking 
+            ? 'تم تعديل حجز رحلتك بنجاح. سيتم مراجعة التعديل من الإدارة.'
+            : 'تم حجز رحلتك بنجاح. يمكنك متابعة تفاصيل الرحلة من هنا.',
           type: 'success',
           relatedType: 'trip',
           relatedId: request.id,
@@ -199,18 +222,34 @@ export default function RequestFollow({ requestId, userId }: { requestId: string
         console.error('Error sending notification:', notifyError)
       }
       
-      // إشعار للإدمن
-      try {
-        const { notifyAllAdmins } = await import('@/lib/notifications')
-        await notifyAllAdmins({
-          title: 'حجز رحلة جديد',
-          message: `تم حجز رحلة للمستخدم ${request.visitor_name}`,
-          type: 'info',
-          relatedType: 'trip',
-          relatedId: request.id,
-        })
-      } catch (notifyError) {
-        console.error('Error sending admin notification:', notifyError)
+      // إشعار للإدمن عند التعديل
+      if (hadPreviousBooking) {
+        try {
+          const { notifyAllAdmins } = await import('@/lib/notifications')
+          await notifyAllAdmins({
+            title: 'تم تعديل الحجز من قبل المستخدم',
+            message: `قام المستخدم ${request.visitor_name} بتعديل حجز رحلته.\nالرحلة الجديدة: ${tripInfo}${stopInfo ? `\nنقطة ${tripType === 'arrival' ? 'النزول' : 'التحميل'}: ${stopInfo}` : ''}`,
+            type: 'warning',
+            relatedType: 'trip',
+            relatedId: request.id,
+          })
+        } catch (notifyError) {
+          console.error('Error sending admin notification:', notifyError)
+        }
+      } else {
+        // إشعار للإدمن عند الحجز الأول
+        try {
+          const { notifyAllAdmins } = await import('@/lib/notifications')
+          await notifyAllAdmins({
+            title: 'حجز رحلة جديد',
+            message: `تم حجز رحلة للمستخدم ${request.visitor_name}`,
+            type: 'info',
+            relatedType: 'trip',
+            relatedId: request.id,
+          })
+        } catch (notifyError) {
+          console.error('Error sending admin notification:', notifyError)
+        }
       }
     } catch (e: any) {
       console.error('Error booking trip:', e)
@@ -231,19 +270,113 @@ export default function RequestFollow({ requestId, userId }: { requestId: string
     }
   }
 
+  const handleRemainingPaymentUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error('الصورة أكبر من 5 ميجابايت')
+      return
+    }
+
+    setRemainingPaymentImage(file)
+    const reader = new FileReader()
+    reader.onloadend = () => {
+      setRemainingPaymentPreview(reader.result as string)
+    }
+    reader.readAsDataURL(file)
+    e.currentTarget.value = ''
+  }
+
+  const removeRemainingPaymentImage = () => {
+    setRemainingPaymentImage(null)
+    setRemainingPaymentPreview(null)
+  }
+
+  const uploadRemainingPayment = async () => {
+    if (!remainingPaymentImage || !request) {
+      toast.error('يرجى اختيار صورة الدفع')
+      return
+    }
+
+    setUploadingRemainingPayment(true)
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) {
+        toast.error('يجب تسجيل الدخول')
+        return
+      }
+
+      // رفع الصورة
+      const fileExt = remainingPaymentImage.name.split('.').pop()
+      const fileName = `${user.id}/remaining_payment_${Date.now()}.${fileExt}`
+      const { data: uploadData, error: uploadError } = await supabase.storage
+        .from('passports')
+        .upload(fileName, remainingPaymentImage)
+
+      if (uploadError) throw uploadError
+
+      // إنشاء signed URL للصورة (لأن bucket passports خاص)
+      const { data: signedUrlData, error: signedUrlError } = await supabase.storage
+        .from('passports')
+        .createSignedUrl(fileName, 60 * 60 * 24 * 7) // 7 أيام
+
+      if (signedUrlError) throw signedUrlError
+
+      const imageUrl = signedUrlData?.signedUrl || fileName
+
+      // تحديث admin_notes
+      const currentNotes = (request.admin_notes || '') as string
+      const updatedNotes = currentNotes + `\nصورة الدفع المتبقي: ${imageUrl}\nتم رفع صورة الدفع المتبقي بتاريخ: ${new Date().toLocaleDateString('ar-SA')}`
+
+      const { error: updateError } = await supabase
+        .from('visit_requests')
+        .update({
+          admin_notes: updatedNotes,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', request.id)
+
+      if (updateError) throw updateError
+
+      toast.success('تم رفع صورة الدفع بنجاح. سيتم مراجعتها من الإدارة.')
+      setRemainingPaymentImage(null)
+      setRemainingPaymentPreview(null)
+      load()
+
+      // إشعار للإدمن
+      try {
+        const { notifyAllAdmins } = await import('@/lib/notifications')
+        await notifyAllAdmins({
+          title: 'صورة دفع متبقي جديدة',
+          message: `تم رفع صورة الدفع المتبقي للمستخدم ${request.visitor_name}`,
+          type: 'info',
+          relatedType: 'request',
+          relatedId: request.id,
+        })
+      } catch (notifyError) {
+        console.error('Error sending admin notification:', notifyError)
+      }
+    } catch (e: any) {
+      console.error('Error uploading remaining payment:', e)
+      toast.error(e.message || 'حدث خطأ أثناء رفع الصورة')
+    } finally {
+      setUploadingRemainingPayment(false)
+    }
+  }
+
   const steps = useMemo(() => {
     const notes = (request?.admin_notes || '') as string
     const isDraft = notes.startsWith('[DRAFT]')
     const isApproved = request?.status === 'approved' || request?.status === 'completed'
-    const hasDecision = request?.status === 'approved' || request?.status === 'rejected' || request?.status === 'completed'
-    const postApprovalSubmitted = notes.includes(POST_APPROVAL_SUBMITTED_MARK)
     const paymentVerified = Boolean(request?.payment_verified)
     const hasArrival = Boolean(request?.arrival_date)
+    const hasRemainingPaymentImage = notes.includes('صورة الدفع المتبقي:')
 
     return [
       {
         id: 1,
-        title: 'دفع رسوم الطلب',
+        title: 'تم استلام و رفع الطلب',
         done: Boolean(request) && !isDraft,
         help: isDraft
           ? 'يرجى دفع رسوم الطلب لإرسال الطلب للإدارة.'
@@ -251,36 +384,40 @@ export default function RequestFollow({ requestId, userId }: { requestId: string
       },
       {
         id: 2,
-        title: 'استكمال بعد الموافقة',
-        done: (Boolean(postApprovalSubmitted) || paymentVerified) && Boolean(isApproved),
-        help: !hasDecision
-          ? 'بانتظار موافقة الإدارة على الطلب.'
-          : request?.status === 'rejected'
-          ? 'تم رفض الطلب. يمكنك مراجعة سبب الرفض من التفاصيل.'
-          : 'بعد الموافقة: اختر الكفالة وطريقة الدفع ثم احفظ وأرسل الاستكمال.',
+        title: 'بانتظار الموافقة',
+        done: isApproved,
+        help: '',
       },
       {
         id: 3,
-        title: 'تأكيد الدفع',
-        done: paymentVerified,
-        help: 'بانتظار تأكيد الإدارة للدفع لفتح الحجز.',
-      },
-      {
-        id: 4,
-        title: 'حجز موعد القدوم',
-        done: hasArrival,
-        help: 'حدد موعد القدوم بعد فتح الحجز.',
+        title: 'دفع المبلغ المتبقي و حجز الرحلة',
+        done: hasArrival || Boolean(request?.trip_id),
+        help: 'بعد الموافقة: ادفع المبلغ المتبقي (25 دينار) وارفع صورة الدفع، ثم احجز الرحلة.',
       },
     ]
   }, [request])
 
   useEffect(() => {
-    const firstIncomplete = steps.find((s) => !s.done)?.id || 5
-    setActiveStep(firstIncomplete)
-  }, [steps])
+    if (!request) return
+    
+    const notes = (request?.admin_notes || '') as string
+    const isDraft = notes.startsWith('[DRAFT]')
+    const isApproved = request?.status === 'approved' || request?.status === 'completed'
+    
+    // تحديد الخطوة النشطة بناءً على الحالة
+    if (isDraft) {
+      setActiveStep(1)
+    } else if (isApproved) {
+      // بعد الموافقة - الخطوة 3 نشطة مباشرة
+      setActiveStep(3)
+    } else {
+      // بانتظار الموافقة
+      setActiveStep(2)
+    }
+  }, [request])
 
   const current = steps.find((s) => s.id === activeStep)
-  const canGoNext = activeStep < 4 && Boolean(steps.find((s) => s.id === activeStep)?.done)
+  const canGoNext = activeStep < 3 && Boolean(steps.find((s) => s.id === activeStep)?.done)
 
   if (loading) {
     return (
@@ -297,11 +434,10 @@ export default function RequestFollow({ requestId, userId }: { requestId: string
   if (!request) return null
 
   const remaining = request.remaining_amount ?? 20
-  const postApprovalHref = `/dashboard/request/${request.id}#post-approval`
   const isDraft = ((request.admin_notes || '') as string).startsWith('[DRAFT]')
   const feesPaymentHref =
     (request.visit_type || '') === 'visit' ? `/services/jordan-visit/payment/${request.id}` : `/dashboard/request/${request.id}`
-  const trackingHref = `/`
+  const trackingHref = `/#map`
 
   return (
     <div className="page">
@@ -425,111 +561,263 @@ export default function RequestFollow({ requestId, userId }: { requestId: string
                   </>
                 )}
                 {activeStep === 2 && (
-                  !Boolean(request.status === 'approved' || request.status === 'completed') ? (
-                    <div className="text-sm text-gray-700">
-                      بانتظار موافقة الإدارة على الطلب. سيتم إشعارك عند القبول.
-                    </div>
-                  ) : (
-                    <div className="flex flex-col sm:flex-row gap-2">
-                      <Link
-                        href={postApprovalHref}
-                        className="px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm font-semibold text-center"
-                      >
-                        استكمال الإجراءات
-                      </Link>
-                      <div className="px-4 py-2.5 bg-white border border-gray-200 rounded-lg text-sm text-gray-700">
-                        المتبقي: <span className="font-bold text-blue-700">{remaining} دينار</span>
-                      </div>
-                    </div>
-                  )
-                )}
-
-                {activeStep === 3 && (
                   <div className="text-sm text-gray-700">
-                    تم إرسال الاستكمال. بانتظار تأكيد الدفع من الإدارة لفتح الحجز.
+                    بانتظار الموافقة على الطلب تحتاج ل عمل من 7 ايام ل 14 يوم. بعد الموافقة تفتح لك حجز الرحلة ل تتبع الرحلة.
                   </div>
                 )}
 
-                {activeStep === 4 && (
-                  <div className="space-y-3">
-                    {/* عرض الرحلة المحجوزة */}
-                    {request.trip_id && bookedTrip ? (
-                      <div className="bg-green-50 border-2 border-green-200 rounded-lg p-4">
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="flex-1">
-                            <div className="flex items-center gap-2 mb-2">
-                              <Bus className="w-5 h-5 text-green-600" />
-                              <h4 className="font-bold text-green-800">رحلة محجوزة</h4>
-                            </div>
-                            <div className="space-y-2 text-sm">
-                              <div className="flex items-center gap-2">
-                                <Calendar className="w-4 h-4 text-blue-600" />
-                                <span className="text-gray-700">التاريخ:</span>
-                                <span className="font-bold text-gray-900">{formatDate(bookedTrip.trip_date)}</span>
-                              </div>
-                              {bookedTrip.meeting_time && (
-                                <div className="flex items-center gap-2">
-                                  <Clock className="w-4 h-4 text-blue-600" />
-                                  <span className="text-gray-700">وقت التجمع:</span>
-                                  <span className="font-bold text-gray-900">{bookedTrip.meeting_time}</span>
+                {activeStep === 3 && (
+                  <div className="space-y-4">
+                    {/* دفع المبلغ المتبقي */}
+                    {request.status === 'approved' && !request.payment_verified && (
+                      <div className="bg-blue-50 border-2 border-blue-200 rounded-lg p-4 space-y-4">
+                        <div className="flex items-center gap-2 mb-2">
+                          <DollarSign className="w-5 h-5 text-blue-600" />
+                          <h4 className="font-bold text-blue-800">دفع المبلغ المتبقي</h4>
+                        </div>
+                        <div className="bg-white rounded-lg p-3 mb-3">
+                          <p className="text-sm font-semibold text-gray-800 mb-2">
+                            المبلغ المتبقي: <span className="text-blue-700 text-lg">25 دينار</span>
+                          </p>
+                          <p className="text-xs text-gray-600 leading-relaxed">
+                            يشمل: الحجز + الموافقة + الإجراءات + توقيع الكفالة + تصوير الكفالة + رفعها على الموقع
+                          </p>
+                        </div>
+
+                        {/* رفع صورة الدفع */}
+                        {!remainingPaymentPreview ? (
+                          <div className="border-2 border-dashed border-blue-300 rounded-lg p-4 text-center">
+                            <input
+                              type="file"
+                              accept="image/*"
+                              onChange={handleRemainingPaymentUpload}
+                              className="hidden"
+                              id="remaining-payment-upload"
+                            />
+                            <label
+                              htmlFor="remaining-payment-upload"
+                              className="cursor-pointer flex flex-col items-center"
+                            >
+                              <Upload className="w-8 h-8 text-blue-400 mb-2" />
+                              <span className="text-sm text-gray-700 mb-1">اضغط لرفع صورة الدفع</span>
+                              <span className="text-xs text-gray-500">الحجم الأقصى: 5 ميجابايت</span>
+                            </label>
+                          </div>
+                        ) : (
+                          <div className="relative">
+                            <img
+                              src={remainingPaymentPreview}
+                              alt="صورة الدفع المتبقي"
+                              className="w-full h-48 object-cover rounded-lg border border-gray-300"
+                            />
+                            <button
+                              type="button"
+                              onClick={removeRemainingPaymentImage}
+                              className="absolute top-2 left-2 bg-red-600 text-white rounded-full p-1.5 hover:bg-red-700 transition"
+                            >
+                              <X className="w-4 h-4" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={uploadRemainingPayment}
+                              disabled={uploadingRemainingPayment}
+                              className="mt-3 w-full px-4 py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition text-sm font-semibold disabled:opacity-50"
+                            >
+                              {uploadingRemainingPayment ? 'جاري الرفع...' : 'رفع صورة الدفع'}
+                            </button>
+                          </div>
+                        )}
+
+                        <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
+                          <p className="text-xs text-amber-800">
+                            بعد رفع صورة الدفع، سيتم مراجعتها من الإدارة. بعد التأكيد سيتم فتح الحجز.
+                          </p>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* حجز الرحلة - متاح فقط بعد payment_verified */}
+                    {request.payment_verified ? (
+                      <>
+                        {request.trip_id && bookedTrip ? (
+                          <div className="space-y-4">
+                            {/* التحقق من تأكيد الحجز من الإدمن */}
+                            {(() => {
+                              const notes = (request.admin_notes || '') as string
+                              const isBookingConfirmed = notes.includes('تم تأكيد الحجز')
+                              
+                              if (isBookingConfirmed) {
+                                return (
+                                  <div className="bg-gradient-to-r from-green-500 to-green-600 border-2 border-green-400 rounded-xl p-4 sm:p-5 shadow-lg">
+                                    <div className="flex items-center gap-2 sm:gap-3 mb-3 sm:mb-4">
+                                      <CheckCircle className="w-6 h-6 sm:w-8 sm:h-8 text-white flex-shrink-0" />
+                                      <h4 className="text-lg sm:text-xl font-extrabold text-white">تم تأكيد الحجز</h4>
+                                    </div>
+                                    <div className="bg-white/95 rounded-lg p-3 sm:p-4 space-y-2 sm:space-y-3">
+                                      <p className="text-sm sm:text-base font-bold text-gray-900 leading-relaxed">
+                                        ✅ تم تأكيد حجز رحلتك بنجاح
+                                      </p>
+                                      <p className="text-xs sm:text-sm text-gray-700 leading-relaxed">
+                                        سيتم تتبع رحلتك عند الانطلاق. يمكنك معرفة المسار وترقب الوصول من خلال متابعة الرحلة على الخريطة.
+                                      </p>
+                                    </div>
+                                  </div>
+                                )
+                              }
+                              
+                              return null
+                            })()}
+                            
+                            <div className="bg-green-50 border-2 border-green-200 rounded-lg p-4">
+                              <div className="flex items-start justify-between gap-3">
+                                <div className="flex-1">
+                                  <div className="flex items-center gap-2 mb-2">
+                                    <Bus className="w-5 h-5 text-green-600" />
+                                    <h4 className="font-bold text-green-800">رحلة محجوزة</h4>
+                                  </div>
+                                  <div className="space-y-2 text-sm">
+                                    <div className="flex items-center gap-2">
+                                      <Calendar className="w-4 h-4 text-blue-600" />
+                                      <span className="text-gray-700">التاريخ:</span>
+                                      <span className="font-bold text-gray-900">{formatDate(bookedTrip.trip_date)}</span>
+                                    </div>
+                                    {bookedTrip.meeting_time && (
+                                      <div className="flex items-center gap-2">
+                                        <Clock className="w-4 h-4 text-blue-600" />
+                                        <span className="text-gray-700">وقت التجمع:</span>
+                                        <span className="font-bold text-gray-900">{bookedTrip.meeting_time}</span>
+                                      </div>
+                                    )}
+                                    {bookedTrip.departure_time && (
+                                      <div className="flex items-center gap-2">
+                                        <Navigation className="w-4 h-4 text-blue-600" />
+                                        <span className="text-gray-700">وقت الانطلاق:</span>
+                                        <span className="font-bold text-gray-900">{bookedTrip.departure_time}</span>
+                                      </div>
+                                    )}
+                                    <div className="flex items-center gap-2">
+                                      <MapPin className="w-4 h-4 text-orange-600" />
+                                      <span className="text-gray-700">المسار:</span>
+                                      <span className="font-bold text-gray-900">
+                                        {bookedTrip.start_location_name} → {bookedTrip.end_location_name}
+                                      </span>
+                                    </div>
+                                  </div>
                                 </div>
-                              )}
-                              {bookedTrip.departure_time && (
-                                <div className="flex items-center gap-2">
-                                  <Navigation className="w-4 h-4 text-blue-600" />
-                                  <span className="text-gray-700">وقت الانطلاق:</span>
-                                  <span className="font-bold text-gray-900">{bookedTrip.departure_time}</span>
-                                </div>
-                              )}
-                              <div className="flex items-center gap-2">
-                                <MapPin className="w-4 h-4 text-orange-600" />
-                                <span className="text-gray-700">المسار:</span>
-                                <span className="font-bold text-gray-900">
-                                  {bookedTrip.start_location_name} → {bookedTrip.end_location_name}
-                                </span>
+                                {(() => {
+                                  const notes = (request.admin_notes || '') as string
+                                  const isBookingConfirmed = notes.includes('تم تأكيد الحجز')
+                                  
+                                  // بعد تأكيد الحجز: إظهار زر تعديل الحجز
+                                  if (isBookingConfirmed) {
+                                    return (
+                                      <button
+                                        onClick={handleChangeBooking}
+                                        className="px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm font-semibold whitespace-nowrap"
+                                      >
+                                        تعديل الحجز
+                                      </button>
+                                    )
+                                  }
+                                  
+                                  // قبل تأكيد الحجز: إظهار زر تغيير الحجز
+                                  return (
+                                    <button
+                                      onClick={handleChangeBooking}
+                                      className="px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm font-semibold whitespace-nowrap"
+                                    >
+                                      تغيير الحجز
+                                    </button>
+                                  )
+                                })()}
                               </div>
                             </div>
                           </div>
-                          <button
-                            onClick={handleChangeBooking}
-                            className="px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm font-semibold whitespace-nowrap"
-                          >
-                            تغيير الحجز
-                          </button>
-                        </div>
-                      </div>
+                        ) : (
+                          <div className="bg-green-50 border-2 border-green-200 rounded-lg p-4">
+                            {(() => {
+                              const notes = (request.admin_notes || '') as string
+                              const isBookingConfirmed = notes.includes('تم تأكيد الحجز')
+                              
+                              // إخفاء الأزرار بعد تأكيد الحجز
+                              if (isBookingConfirmed) {
+                                return (
+                                  <div className="bg-gradient-to-r from-green-500 to-green-600 border-2 border-green-400 rounded-xl p-4 sm:p-5 shadow-lg">
+                                    <div className="flex items-center gap-2 sm:gap-3 mb-3 sm:mb-4">
+                                      <CheckCircle className="w-6 h-6 sm:w-8 sm:h-8 text-white flex-shrink-0" />
+                                      <h4 className="text-lg sm:text-xl font-extrabold text-white">تم تأكيد الحجز</h4>
+                                    </div>
+                                    <div className="bg-white/95 rounded-lg p-3 sm:p-4 space-y-2 sm:space-y-3">
+                                      <p className="text-sm sm:text-base font-bold text-gray-900 leading-relaxed">
+                                        ✅ تم تأكيد حجز رحلتك بنجاح
+                                      </p>
+                                      <p className="text-xs sm:text-sm text-gray-700 leading-relaxed">
+                                        سيتم تتبع رحلتك عند الانطلاق. يمكنك معرفة المسار وترقب الوصول من خلال متابعة الرحلة على الخريطة.
+                                      </p>
+                                    </div>
+                                  </div>
+                                )
+                              }
+                              
+                              return (
+                                <>
+                                  <p className="text-sm text-green-800 mb-3">
+                                    تم فتح الحجز. يمكنك الآن حجز رحلة من الرحلات المتاحة أو تحديد موعد قدوم مخصص.
+                                  </p>
+                                  <div className="flex flex-col sm:flex-row gap-2">
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setShowAvailableTrips(true)
+                                        loadAvailableTrips()
+                                      }}
+                                      disabled={(() => {
+                                        const notes = (request?.admin_notes || '') as string
+                                        return notes.includes('تم تأكيد الحجز')
+                                      })()}
+                                      className={`px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm font-semibold inline-flex items-center justify-center gap-2 ${
+                                        (() => {
+                                          const notes = (request?.admin_notes || '') as string
+                                          return notes.includes('تم تأكيد الحجز')
+                                        })()
+                                          ? 'opacity-50 cursor-not-allowed'
+                                          : ''
+                                      }`}
+                                    >
+                                      <Bus className="w-4 h-4" />
+                                      عرض الرحلات المتاحة
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => setShowSchedule(true)}
+                                      disabled={(() => {
+                                        const notes = (request?.admin_notes || '') as string
+                                        return notes.includes('تم تأكيد الحجز')
+                                      })()}
+                                      className={`px-4 py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition text-sm font-semibold inline-flex items-center justify-center gap-2 ${
+                                        (() => {
+                                          const notes = (request?.admin_notes || '') as string
+                                          return notes.includes('تم تأكيد الحجز')
+                                        })()
+                                          ? 'opacity-50 cursor-not-allowed'
+                                          : ''
+                                      }`}
+                                    >
+                                      <Calendar className="w-4 h-4" />
+                                      حجز موعد مخصص
+                                    </button>
+                                  </div>
+                                </>
+                              )
+                            })()}
+                          </div>
+                        )}
+                      </>
                     ) : (
-                      <div className="bg-blue-50 border-2 border-blue-200 rounded-lg p-4">
-                        <p className="text-sm text-blue-800 mb-3">
-                          لم يتم حجز رحلة بعد. يمكنك حجز رحلة من الرحلات المتاحة أو تحديد موعد قدوم مخصص.
+                      <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+                        <p className="text-sm text-gray-600">
+                          بانتظار تأكيد الدفع من الإدارة لفتح الحجز.
                         </p>
-                        <div className="flex flex-col sm:flex-row gap-2">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setShowAvailableTrips(true)
-                              loadAvailableTrips()
-                            }}
-                            className="px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm font-semibold inline-flex items-center justify-center gap-2"
-                          >
-                            <Bus className="w-4 h-4" />
-                            عرض الرحلات المتاحة
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setShowSchedule(true)}
-                            disabled={!Boolean(request.payment_verified)}
-                            className={`px-4 py-2.5 rounded-lg transition text-sm font-semibold inline-flex items-center justify-center gap-2 ${
-                              Boolean(request.payment_verified)
-                                ? 'bg-green-600 text-white hover:bg-green-700'
-                                : 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                            }`}
-                            title={!Boolean(request.payment_verified) ? 'بانتظار فتح الحجز من الإدارة' : 'حجز موعد مخصص'}
-                          >
-                            <Calendar className="w-4 h-4" />
-                            حجز موعد مخصص
-                          </button>
-                        </div>
                       </div>
                     )}
                     
@@ -705,7 +993,18 @@ export default function RequestFollow({ requestId, userId }: { requestId: string
                         </div>
                         <button
                           onClick={() => handleBookTrip(trip.id)}
-                          className="w-full sm:w-auto px-4 py-2.5 sm:py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm font-semibold whitespace-nowrap"
+                          disabled={(() => {
+                            const notes = (request?.admin_notes || '') as string
+                            return notes.includes('تم تأكيد الحجز')
+                          })()}
+                          className={`w-full sm:w-auto px-4 py-2.5 sm:py-2 rounded-lg transition text-sm font-semibold whitespace-nowrap ${
+                            (() => {
+                              const notes = (request?.admin_notes || '') as string
+                              return notes.includes('تم تأكيد الحجز')
+                            })()
+                              ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                              : 'bg-blue-600 text-white hover:bg-blue-700'
+                          }`}
                         >
                           حجز هذه الرحلة
                         </button>

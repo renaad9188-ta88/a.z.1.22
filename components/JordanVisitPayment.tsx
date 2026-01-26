@@ -52,6 +52,8 @@ export default function JordanVisitPayment({ requestId, userId }: { requestId: s
 
   useEffect(() => {
     loadRequest()
+    // تمرير الصفحة إلى الأعلى عند التحميل
+    window.scrollTo({ top: 0, behavior: 'smooth' })
   }, [requestId])
 
   // تحويل روابط صور الدفعات المحفوظة إلى signed URLs (لأن bucket passports خاص)
@@ -78,6 +80,9 @@ export default function JordanVisitPayment({ requestId, userId }: { requestId: s
 
   const loadRequest = async () => {
     try {
+      // تمرير الصفحة إلى الأعلى فوراً
+      window.scrollTo(0, 0)
+      
       const { data, error } = await supabase
         .from('visit_requests')
         .select('*')
@@ -112,6 +117,11 @@ export default function JordanVisitPayment({ requestId, userId }: { requestId: s
         list.push(...data.companions_data)
       }
       setPersons(list)
+      
+      // تمرير الصفحة إلى الأعلى مرة أخرى بعد تحميل البيانات
+      setTimeout(() => {
+        window.scrollTo(0, 0)
+      }, 100)
     } catch (error: any) {
       toast.error('حدث خطأ أثناء تحميل البيانات')
       router.push('/dashboard')

@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
 import toast from 'react-hot-toast'
 import { createSupabaseBrowserClient } from '@/lib/supabase'
-import { ArrowRight, Bus, Calendar, Clock, MapPin, Navigation, Users } from 'lucide-react'
+import { ArrowRight, Bus, Calendar, Clock, MapPin, Navigation, Users, Phone } from 'lucide-react'
 import { formatDate } from '@/lib/date-utils'
 
 type TripRow = {
@@ -472,33 +472,58 @@ export default function DriverTripDetailsPage() {
               ) : (
                 <div className="space-y-2">
                   {passengers.map((p) => (
-                    <div key={p.id} className="border border-gray-200 rounded-lg p-3">
+                    <div key={p.id} className="border-2 border-blue-200 rounded-lg p-4 bg-blue-50">
                       <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0">
-                          <div className="font-bold text-gray-900 truncate">{p.visitor_name}</div>
-                          <div className="text-xs sm:text-sm text-gray-600 mt-1 space-y-1">
-                            {p.profile?.full_name && <div>المستخدم: {p.profile.full_name}</div>}
-                            {p.profile?.phone && <div>الهاتف: {p.profile.phone}</div>}
-                            <div>عدد الأشخاص: {1 + (p.companions_count || 0)}</div>
-                            {p.arrival_date && <div>تاريخ القدوم: {formatDate(p.arrival_date)}</div>}
-                            {p.request_dropoff_points?.[0]?.name && (
-                              <div>نقطة النزول: {p.request_dropoff_points[0].name}</div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-2">
+                            <div className="w-10 h-10 bg-blue-600 text-white rounded-full flex items-center justify-center font-bold text-lg flex-shrink-0">
+                              {p.visitor_name.charAt(0)}
+                            </div>
+                            <div>
+                              <div className="text-lg sm:text-xl font-extrabold text-gray-900 truncate">
+                                {p.visitor_name}
+                              </div>
+                              {p.profile?.full_name && (
+                                <div className="text-xs sm:text-sm text-gray-600 mt-0.5">
+                                  المستخدم: {p.profile.full_name}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                          <div className="text-xs sm:text-sm text-gray-700 mt-2 space-y-1 bg-white rounded-lg p-2">
+                            {p.profile?.phone && (
+                              <div className="flex items-center gap-2">
+                                <Phone className="w-4 h-4 text-blue-600" />
+                                <span>الهاتف: {p.profile.phone}</span>
+                              </div>
+                            )}
+                            <div className="flex items-center gap-2">
+                              <Users className="w-4 h-4 text-green-600" />
+                              <span>عدد الأشخاص: <strong>{1 + (p.companions_count || 0)}</strong></span>
+                            </div>
+                            {p.arrival_date && (
+                              <div className="flex items-center gap-2">
+                                <Calendar className="w-4 h-4 text-purple-600" />
+                                <span>تاريخ القدوم: {formatDate(p.arrival_date)}</span>
+                              </div>
                             )}
                             {trip?.trip_type === 'arrival' && p.selectedDropoffStop && (
-                              <div className="text-blue-700 font-semibold">
-                                نقطة النزول المختارة: {p.selectedDropoffStop.name}
+                              <div className="flex items-center gap-2 text-blue-700 font-semibold">
+                                <MapPin className="w-4 h-4" />
+                                <span>نقطة النزول المختارة: {p.selectedDropoffStop.name}</span>
                               </div>
                             )}
                             {trip?.trip_type === 'departure' && p.selectedPickupStop && (
-                              <div className="text-blue-700 font-semibold">
-                                نقطة التحميل المختارة: {p.selectedPickupStop.name}
+                              <div className="flex items-center gap-2 text-blue-700 font-semibold">
+                                <MapPin className="w-4 h-4" />
+                                <span>نقطة التحميل المختارة: {p.selectedPickupStop.name}</span>
                               </div>
                             )}
                           </div>
                         </div>
                         <Link
                           href={`/driver/passenger/${p.id}`}
-                          className="px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-xs sm:text-sm font-semibold whitespace-nowrap"
+                          className="px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-xs sm:text-sm font-semibold whitespace-nowrap self-start"
                         >
                           تفاصيل الراكب
                         </Link>

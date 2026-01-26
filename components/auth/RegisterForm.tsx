@@ -116,7 +116,7 @@ export default function RegisterForm() {
         }
 
         toast.success('تم التسجيل بنجاح!')
-        router.push('/dashboard')
+        router.push('/') // توجيه إلى الصفحة الرئيسية
         router.refresh()
       }
     } catch (error: any) {
@@ -171,7 +171,7 @@ export default function RegisterForm() {
             toast.success('تم تسجيل الدخول بنجاح')
             if (role === 'admin') router.push('/admin')
             else if (role === 'driver') router.push('/driver')
-            else router.push('/dashboard')
+            else router.push('/') // توجيه إلى الصفحة الرئيسية
             router.refresh()
             return
           }
