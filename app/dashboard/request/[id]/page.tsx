@@ -10,7 +10,7 @@ export default async function RequestDetailPage({ params }: { params: Promise<{ 
     redirect('/auth/login')
   }
 
-  const resolvedParams = await Promise.resolve(params)
+  const resolvedParams = params instanceof Promise ? await params : params
   return <RequestDetails requestId={resolvedParams.id} userId={user.id} />
 }
 

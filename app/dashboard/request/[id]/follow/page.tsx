@@ -10,7 +10,7 @@ export default async function RequestFollowPage({ params }: { params: Promise<{ 
 
   if (!user) redirect('/auth/login')
 
-  const resolvedParams = await Promise.resolve(params)
+  const resolvedParams = params instanceof Promise ? await params : params
   return <RequestFollow requestId={resolvedParams.id} userId={user.id} />
 }
 

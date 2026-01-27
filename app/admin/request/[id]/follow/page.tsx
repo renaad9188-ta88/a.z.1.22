@@ -22,7 +22,7 @@ export default async function AdminRequestFollowPage({ params }: { params: Promi
   const role = ((profile?.role || '') as string).toLowerCase()
   if (role !== 'admin' && role !== 'supervisor') redirect('/dashboard')
 
-  const resolvedParams = await Promise.resolve(params)
+  const resolvedParams = params instanceof Promise ? await params : params
   return <AdminRequestFollow requestId={resolvedParams.id} adminUserId={user.id} role={role as any} />
 }
 

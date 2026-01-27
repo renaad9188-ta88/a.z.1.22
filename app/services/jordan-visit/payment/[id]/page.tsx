@@ -10,7 +10,7 @@ export default async function JordanVisitPaymentPage({ params }: { params: Promi
     redirect('/auth/login')
   }
 
-  const resolvedParams = await Promise.resolve(params)
+  const resolvedParams = params instanceof Promise ? await params : params
   return <PaymentPage requestId={resolvedParams.id} userId={user.id} />
 }
 
