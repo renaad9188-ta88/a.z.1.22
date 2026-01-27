@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import toast from 'react-hot-toast'
-import { ArrowRight, CheckCircle, Clock, Save, MessageCircle, Phone, Bus, Calendar, MapPin, DollarSign } from 'lucide-react'
+import { ArrowRight, CheckCircle, Clock, Save, MessageCircle, Phone, Bus, Calendar, MapPin, DollarSign, Navigation } from 'lucide-react'
 import { createSupabaseBrowserClient } from '@/lib/supabase'
 import TripSchedulingModal from '@/components/admin/TripSchedulingModal'
 import { formatDate } from '@/lib/date-utils'
@@ -23,6 +23,7 @@ type ReqRow = {
   payment_verified: boolean | null
   remaining_amount: number | null
   arrival_date: string | null
+  departure_date: string | null
   trip_status: string | null
   trip_id?: string | null
   assigned_to: string | null
@@ -135,6 +136,7 @@ export default function AdminRequestFollow({
   const [selectedDropoffStop, setSelectedDropoffStop] = useState<{ id: string; name: string } | null>(null)
   const [selectedPickupStop, setSelectedPickupStop] = useState<{ id: string; name: string } | null>(null)
   const [remainingPaymentImageUrl, setRemainingPaymentImageUrl] = useState<string | null>(null)
+  const [depositPaymentImageUrls, setDepositPaymentImageUrls] = useState<string[]>([])
 
   const load = async () => {
     try {
@@ -142,7 +144,7 @@ export default function AdminRequestFollow({
       const { data, error } = await supabase
         .from('visit_requests')
         .select(
-          'id,user_id,visitor_name,status,admin_notes,rejection_reason,payment_verified,remaining_amount,arrival_date,trip_status,trip_id,assigned_to,selected_dropoff_stop_id,selected_pickup_stop_id,deposit_paid,created_at,updated_at'
+          'id,user_id,visitor_name,status,admin_notes,rejection_reason,payment_verified,remaining_amount,arrival_date,departure_date,trip_status,trip_id,assigned_to,selected_dropoff_stop_id,selected_pickup_stop_id,deposit_paid,created_at,updated_at'
         )
         .eq('id', requestId)
         .single()
@@ -344,6 +346,35 @@ export default function AdminRequestFollow({
     
     loadPaymentImageUrl()
   }, [request, supabase])
+
+  // تحميل signed URLs لصور الدفعة الأولية
+  useEffect(() => {
+    const loadDepositPaymentImages = async () => {
+      if (!request || !adminInfo?.paymentImages || adminInfo.paymentImages.length === 0) {
+        setDepositPaymentImageUrls([])
+        return
+      }
+
+      try {
+        const signedUrls = await Promise.all(
+          adminInfo.paymentImages.map(async (url: string) => {
+            try {
+              return await getSignedImageUrl(url, supabase)
+            } catch (error) {
+              console.warn('Error loading payment image signed URL:', error)
+              return url
+            }
+          })
+        )
+        setDepositPaymentImageUrls(signedUrls.filter(Boolean))
+      } catch (error) {
+        console.error('Error loading deposit payment images:', error)
+        setDepositPaymentImageUrls(adminInfo.paymentImages || [])
+      }
+    }
+
+    loadDepositPaymentImages()
+  }, [request, adminInfo?.paymentImages, supabase])
 
   const current = steps.find((s) => s.id === activeStep)
   const canGoNext = activeStep < 4 && Boolean(current?.done)
@@ -586,12 +617,13 @@ export default function AdminRequestFollow({
                   const notes = (request?.admin_notes || '') as string
                   const isDraft = notes.startsWith('[DRAFT]')
                   const isPending = request?.status === 'pending'
+                  const depositPaid = Boolean(request?.deposit_paid)
                   
-                  // التحقق من أن الطلب تم إرساله فعلياً
-                  // يجب أن يكون: status === 'pending' وليس draft
-                  const canReceive = isPending && !isDraft
+                  // التحقق من أن الطلب تم إرساله فعلياً وتم دفع الرسوم
+                  // يجب أن يكون: status === 'pending' وليس draft و deposit_paid === true
+                  const canReceive = isPending && !isDraft && depositPaid
                   
-                  // إذا لم يتم إرسال الطلب بعد (status !== 'pending' أو draft)
+                  // إذا لم يتم إرسال الطلب بعد أو لم يتم دفع الرسوم
                   if (!canReceive) {
                     return (
                       <div className="bg-amber-50 border-2 border-amber-200 rounded-lg p-4 space-y-3">
@@ -600,6 +632,8 @@ export default function AdminRequestFollow({
                           <p className="font-extrabold text-amber-900 text-sm">
                             {isDraft
                               ? 'المستخدم رفع الجواز - بانتظار دفع الرسوم وإرسال الطلب'
+                              : !depositPaid
+                              ? 'المستخدم رفع الجواز - بانتظار دفع الرسوم'
                               : 'بانتظار إرسال الطلب من المستخدم'
                             }
                           </p>
@@ -607,19 +641,21 @@ export default function AdminRequestFollow({
                         <p className="text-sm text-amber-800">
                           {isDraft
                             ? 'المستخدم قام برفع الجواز لكن لم يدفع الرسوم ولم يرسل الطلب بعد. سيتم تفعيل زر "استلام الطلب" بعد دفع الرسوم وإرسال الطلب.'
+                            : !depositPaid
+                            ? 'المستخدم قام برفع الجواز لكن لم يدفع الرسوم بعد. سيتم تفعيل زر "استلام الطلب" بعد دفع الرسوم وإرسال الطلب.'
                             : 'المستخدم لم يرسل الطلب بعد. سيتم تفعيل زر "استلام الطلب" بعد إرسال الطلب.'
                           }
                         </p>
                         <div className="bg-white border border-amber-200 rounded-lg p-3">
                           <p className="text-xs text-gray-700">
-                            <strong>ملاحظة:</strong> لا يمكنك استلام الطلب أو الموافقة عليه قبل أن يرسل المستخدم الطلب.
+                            <strong>ملاحظة:</strong> لا يمكنك استلام الطلب أو الموافقة عليه قبل أن يدفع المستخدم الرسوم ويرسل الطلب.
                           </p>
                         </div>
                       </div>
                     )
                   }
                   
-                  // إذا تم إرسال الطلب (status === 'pending' و !isDraft) - يظهر زر استلام الطلب
+                  // إذا تم إرسال الطلب ودفع الرسوم (status === 'pending' و !isDraft و deposit_paid === true) - يظهر زر استلام الطلب
                   return (
                     <div className="bg-white border border-gray-200 rounded-lg p-3 space-y-3">
                       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
@@ -652,6 +688,44 @@ export default function AdminRequestFollow({
                           )}
                         </div>
                       </div>
+
+                      {/* عرض صور الدفعة الأولية */}
+                      {depositPaymentImageUrls.length > 0 && (
+                        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 space-y-3">
+                          <div className="flex items-center gap-2">
+                            <DollarSign className="w-5 h-5 text-blue-600" />
+                            <p className="font-bold text-blue-900 text-sm">صور الدفعة الأولية ({depositPaymentImageUrls.length})</p>
+                          </div>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            {depositPaymentImageUrls.map((url, index) => (
+                              <a
+                                key={index}
+                                href={url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="block"
+                              >
+                                <img
+                                  src={url}
+                                  alt={`صورة الدفعة ${index + 1}`}
+                                  className="w-full h-48 object-cover rounded-lg border border-gray-300 hover:opacity-90 transition"
+                                  onError={(e) => {
+                                    console.error('Error loading payment image:', e)
+                                    // في حالة فشل تحميل الصورة، حاول استخدام الرابط الأصلي
+                                    const originalUrl = adminInfo?.paymentImages?.[index]
+                                    if (originalUrl && originalUrl !== url) {
+                                      (e.target as HTMLImageElement).src = originalUrl
+                                    }
+                                  }}
+                                />
+                              </a>
+                            ))}
+                          </div>
+                          <p className="text-xs text-blue-800">
+                            يرجى التحقق من صحة الدفعة قبل الضغط على &quot;تم استلام الطلب&quot;
+                          </p>
+                        </div>
+                      )}
 
                       <div className="flex flex-col sm:flex-row gap-2">
                         <button
@@ -893,7 +967,48 @@ export default function AdminRequestFollow({
                           <p className="text-xs text-amber-800 mt-1">تحقق من صلاحيات RLS لجدول route_trips/route_trip_stop_points.</p>
                         </div>
                       )
-                    ) : (
+                    ) : null}
+                    
+                    {/* عرض رحلة القدوم إذا كانت موجودة */}
+                    {request?.arrival_date && bookedTrip?.trip_type === 'departure' && (
+                      <div className="bg-blue-50 border-2 border-blue-200 rounded-xl p-3 sm:p-4">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <p className="font-extrabold text-blue-900 flex items-center gap-2">
+                              <Bus className="w-4 h-4" />
+                              رحلة القدوم المحجوزة
+                            </p>
+                            <p className="text-xs text-blue-800 mt-1">
+                              تاريخ القدوم: <span className="font-bold">{formatDate(request.arrival_date)}</span>
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                    
+                    {/* عرض موعد المغادرة إذا كان موجوداً */}
+                    {request?.departure_date && (
+                      <div className="bg-purple-50 border-2 border-purple-200 rounded-xl p-3 sm:p-4">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <p className="font-extrabold text-purple-900 flex items-center gap-2">
+                              <Navigation className="w-4 h-4 rotate-180" />
+                              موعد المغادرة
+                            </p>
+                            <p className="text-xs text-purple-800 mt-1">
+                              تاريخ المغادرة: <span className="font-bold">{formatDate(request.departure_date)}</span>
+                            </p>
+                            {bookedTrip?.trip_type === 'departure' && bookedTrip.departure_time && (
+                              <p className="text-xs text-purple-800 mt-1">
+                                وقت الانطلاق: <span className="font-bold">{bookedTrip.departure_time}</span>
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                    
+                    {!request?.trip_id && (
                       <div className="bg-gray-50 border border-gray-200 rounded-xl p-3 sm:p-4">
                         <p className="font-extrabold text-gray-800">لا يوجد حجز رحلة حتى الآن.</p>
                         <p className="text-xs text-gray-600 mt-1">سيظهر هنا تلقائياً عندما يحجز المستخدم رحلة.</p>

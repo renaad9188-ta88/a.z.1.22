@@ -15,11 +15,14 @@ type ReqRow = {
   visit_type?: string | null
   status: 'pending' | 'under_review' | 'approved' | 'rejected' | 'completed'
   arrival_date: string | null
+  departure_date: string | null
   payment_verified: boolean | null
   remaining_amount: number | null
   trip_status: string | null
   admin_notes: string | null
   trip_id: string | null
+  selected_dropoff_stop_id?: string | null
+  selected_pickup_stop_id?: string | null
   created_at: string
   updated_at: string
 }
@@ -43,13 +46,18 @@ export default function RequestFollow({ requestId, userId }: { requestId: string
   const [remainingPaymentImage, setRemainingPaymentImage] = useState<File | null>(null)
   const [remainingPaymentPreview, setRemainingPaymentPreview] = useState<string | null>(null)
   const [uploadingRemainingPayment, setUploadingRemainingPayment] = useState(false)
+  const [uploadedRemainingPaymentUrl, setUploadedRemainingPaymentUrl] = useState<string | null>(null)
+  const [bookingStep, setBookingStep] = useState<'arrival' | 'departure'>('arrival')
+  const [selectedArrivalTripId, setSelectedArrivalTripId] = useState<string | null>(null)
+  const [calculatedDepartureDate, setCalculatedDepartureDate] = useState<string | null>(null)
+  const [departureTrip, setDepartureTrip] = useState<any | null>(null)
 
   const load = async () => {
     try {
       const { data, error } = await supabase
         .from('visit_requests')
         .select(
-          'id,user_id,visitor_name,visit_type,status,arrival_date,payment_verified,remaining_amount,trip_status,admin_notes,trip_id,created_at,updated_at'
+          'id,user_id,visitor_name,visit_type,status,arrival_date,departure_date,payment_verified,remaining_amount,trip_status,admin_notes,trip_id,selected_dropoff_stop_id,selected_pickup_stop_id,created_at,updated_at'
         )
         .eq('id', requestId)
         .eq('user_id', userId)
@@ -107,12 +115,12 @@ export default function RequestFollow({ requestId, userId }: { requestId: string
     }
   }
 
-  const loadAvailableTrips = async () => {
+  const loadAvailableTrips = async (tripType?: 'arrival' | 'departure') => {
     try {
       setLoadingTrips(true)
       const today = new Date().toISOString().split('T')[0]
       
-      const { data, error } = await supabase
+      let query = supabase
         .from('route_trips')
         .select('id,trip_date,meeting_time,departure_time,start_location_name,end_location_name,route_id,trip_type')
         .eq('is_active', true)
@@ -120,6 +128,27 @@ export default function RequestFollow({ requestId, userId }: { requestId: string
         .order('trip_date', { ascending: true })
         .order('departure_time', { ascending: true })
         .limit(50)
+      
+      // إذا كان visit_type === 'visit'، فلتر حسب نوع الرحلة
+      if (request?.visit_type === 'visit') {
+        const filterType = tripType || bookingStep
+        query = query.eq('trip_type', filterType)
+        
+        // إذا كنا نبحث عن رحلات المغادرة، فلتر حسب التاريخ المحسوب
+        if (filterType === 'departure' && calculatedDepartureDate) {
+          const departureDate = new Date(calculatedDepartureDate)
+          const weekBefore = new Date(departureDate)
+          weekBefore.setDate(weekBefore.getDate() - 7)
+          const weekAfter = new Date(departureDate)
+          weekAfter.setDate(weekAfter.getDate() + 7)
+          
+          query = query
+            .gte('trip_date', weekBefore.toISOString().split('T')[0])
+            .lte('trip_date', weekAfter.toISOString().split('T')[0])
+        }
+      }
+      
+      const { data, error } = await query
       
       if (error) throw error
       setAvailableTrips(data || [])
@@ -163,6 +192,74 @@ export default function RequestFollow({ requestId, userId }: { requestId: string
       const tripType = trip?.trip_type || 'arrival'
       const selectedStopId = selectedStopByTrip[tripId] || null
       
+      // إذا كان visit_type === 'visit' وتم حجز رحلة قدوم
+      if (request.visit_type === 'visit' && tripType === 'arrival' && bookingStep === 'arrival') {
+        // حساب موعد المغادرة (شهر من تاريخ القدوم)
+        const arrivalDate = new Date(trip.trip_date)
+        const departureDate = new Date(arrivalDate)
+        departureDate.setMonth(departureDate.getMonth() + 1)
+        
+        // حفظ رحلة القدوم
+        const updateData: any = {
+          trip_id: tripId,
+          arrival_date: trip.trip_date,
+          selected_dropoff_stop_id: selectedStopId || null,
+          updated_at: new Date().toISOString(),
+        }
+        
+        const { error } = await supabase
+          .from('visit_requests')
+          .update(updateData)
+          .eq('id', request.id)
+        
+        if (error) throw error
+        
+        // الانتقال إلى خطوة حجز المغادرة
+        setSelectedArrivalTripId(tripId)
+        setCalculatedDepartureDate(departureDate.toISOString().split('T')[0])
+        setBookingStep('departure')
+        setShowAvailableTrips(false)
+        setSelectedStopByTrip({})
+        
+        // إعادة تحميل رحلات المغادرة
+        setTimeout(() => {
+          setShowAvailableTrips(true)
+          loadAvailableTrips('departure')
+        }, 100)
+        
+        toast.success(`تم حجز رحلة القدوم. موعد المغادرة المتوقع: ${formatDate(departureDate.toISOString().split('T')[0])}. يرجى اختيار رحلة المغادرة.`)
+        return
+      }
+      
+      // إذا كان حجز رحلة المغادرة
+      if (tripType === 'departure' && bookingStep === 'departure') {
+        const updateData: any = {
+          trip_id: tripId,
+          departure_date: trip.trip_date,
+          selected_pickup_stop_id: selectedStopId || null,
+          updated_at: new Date().toISOString(),
+        }
+        
+        const { error } = await supabase
+          .from('visit_requests')
+          .update(updateData)
+          .eq('id', request.id)
+        
+        if (error) throw error
+        
+        // تحميل رحلة المغادرة
+        await loadBookedTrip(tripId)
+        setDepartureTrip(availableTrips.find((t) => t.id === tripId))
+        
+        toast.success('تم حجز رحلة المغادرة بنجاح')
+        setShowAvailableTrips(false)
+        setBookingStep('arrival')
+        setSelectedStopByTrip({})
+        load()
+        return
+      }
+      
+      // الكود الأصلي للأنواع الأخرى
       const updateData: any = {
         trip_id: tripId,
         updated_at: new Date().toISOString(),
@@ -258,8 +355,25 @@ export default function RequestFollow({ requestId, userId }: { requestId: string
   }
 
   const handleChangeBooking = () => {
-    setShowAvailableTrips(true)
-    loadAvailableTrips()
+    // إذا كان visit_type === 'visit' وليس لدينا رحلة قدوم محجوزة، ابدأ بحجز القدوم
+    if (request?.visit_type === 'visit' && !request.arrival_date) {
+      setBookingStep('arrival')
+      setShowAvailableTrips(true)
+      loadAvailableTrips('arrival')
+    } else if (request?.visit_type === 'visit' && request.arrival_date && !request.departure_date) {
+      // إذا كان لدينا رحلة قدوم لكن لا رحلة مغادرة، ابدأ بحجز المغادرة
+      const arrivalDate = new Date(request.arrival_date)
+      const departureDate = new Date(arrivalDate)
+      departureDate.setMonth(departureDate.getMonth() + 1)
+      setCalculatedDepartureDate(departureDate.toISOString().split('T')[0])
+      setBookingStep('departure')
+      setShowAvailableTrips(true)
+      loadAvailableTrips('departure')
+    } else {
+      setBookingStep('arrival')
+      setShowAvailableTrips(true)
+      loadAvailableTrips()
+    }
   }
 
   const toggleTripStops = async (tripId: string) => {
@@ -416,6 +530,44 @@ export default function RequestFollow({ requestId, userId }: { requestId: string
     }
   }, [request])
 
+  // تحميل signed URL لصورة الدفع المتبقي المرفوعة
+  useEffect(() => {
+    const loadUploadedRemainingPaymentImage = async () => {
+      if (!request) {
+        setUploadedRemainingPaymentUrl(null)
+        return
+      }
+      
+      const notes = (request.admin_notes || '') as string
+      const match = notes.match(/صورة الدفع المتبقي:\s*([^\n]+)/)
+      const rawUrl = match?.[1]?.trim()
+      
+      if (!rawUrl) {
+        setUploadedRemainingPaymentUrl(null)
+        return
+      }
+      
+      // إذا كان الرابط يحتوي على token (signed URL)، استخدمه مباشرة
+      if (rawUrl.includes('?token=') || rawUrl.includes('&token=')) {
+        setUploadedRemainingPaymentUrl(rawUrl)
+        return
+      }
+      
+      // إذا لم يكن signed URL، قم بإنشاء signed URL جديد
+      try {
+        const { getSignedImageUrl } = await import('@/components/request-details/utils')
+        const signedUrl = await getSignedImageUrl(rawUrl, supabase)
+        setUploadedRemainingPaymentUrl(signedUrl)
+      } catch (error) {
+        console.error('Error loading remaining payment image signed URL:', error)
+        // في حالة الخطأ، استخدم الرابط الأصلي
+        setUploadedRemainingPaymentUrl(rawUrl)
+      }
+    }
+    
+    loadUploadedRemainingPaymentImage()
+  }, [request, supabase])
+
   const current = steps.find((s) => s.id === activeStep)
   const canGoNext = activeStep < 3 && Boolean(steps.find((s) => s.id === activeStep)?.done)
 
@@ -542,16 +694,20 @@ export default function RequestFollow({ requestId, userId }: { requestId: string
                 {activeStep === 1 && (
                   <>
                     {isDraft ? (
-                      <div className="flex flex-col sm:flex-row gap-2">
+                      <div className="bg-amber-50 border-2 border-amber-200 rounded-lg p-4">
+                        <div className="flex items-center gap-2 mb-2">
+                          <Clock className="w-5 h-5 text-amber-600" />
+                          <p className="font-bold text-amber-900 text-sm">الطلب معلق - بحاجة لاستكمال الطلب ودفع الرسوم</p>
+                        </div>
+                        <p className="text-sm text-amber-800 mb-3">
+                          تم رفع الجواز بنجاح. يرجى دفع الرسوم لإرسال الطلب للإدارة.
+                        </p>
                         <Link
                           href={feesPaymentHref}
-                          className="px-4 py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition text-sm font-semibold text-center"
+                          className="inline-block px-4 py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition text-sm font-semibold text-center"
                         >
-                          دفع رسوم الطلب
+                          دفع الرسوم وإرسال الطلب
                         </Link>
-                        <div className="px-4 py-2.5 bg-white border border-gray-200 rounded-lg text-sm text-gray-700">
-                          بعد الدفع سيتم إرسال طلبك للإدارة مباشرة.
-                        </div>
                       </div>
                     ) : (
                       <div className="text-sm text-gray-700">
@@ -584,48 +740,84 @@ export default function RequestFollow({ requestId, userId }: { requestId: string
                           </p>
                         </div>
 
-                        {/* رفع صورة الدفع */}
-                        {!remainingPaymentPreview ? (
-                          <div className="border-2 border-dashed border-blue-300 rounded-lg p-4 text-center">
-                            <input
-                              type="file"
-                              accept="image/*"
-                              onChange={handleRemainingPaymentUpload}
-                              className="hidden"
-                              id="remaining-payment-upload"
-                            />
-                            <label
-                              htmlFor="remaining-payment-upload"
-                              className="cursor-pointer flex flex-col items-center"
+                        {/* عرض الصورة المرفوعة إذا كانت موجودة */}
+                        {uploadedRemainingPaymentUrl ? (
+                          <div className="bg-green-50 border-2 border-green-200 rounded-lg p-4 space-y-3">
+                            <div className="flex items-center gap-2">
+                              <CheckCircle className="w-5 h-5 text-green-600" />
+                              <p className="font-bold text-green-800 text-sm">تم رفع صورة الدفع المتبقي</p>
+                            </div>
+                            <a
+                              href={uploadedRemainingPaymentUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="block"
                             >
-                              <Upload className="w-8 h-8 text-blue-400 mb-2" />
-                              <span className="text-sm text-gray-700 mb-1">اضغط لرفع صورة الدفع</span>
-                              <span className="text-xs text-gray-500">الحجم الأقصى: 5 ميجابايت</span>
-                            </label>
+                              <img
+                                src={uploadedRemainingPaymentUrl}
+                                alt="صورة الدفع المتبقي المرفوعة"
+                                className="w-full h-48 object-cover rounded-lg border border-gray-300 hover:opacity-90 transition"
+                                onError={(e) => {
+                                  console.error('Error loading payment image:', e)
+                                  const notes = (request.admin_notes || '') as string
+                                  const match = notes.match(/صورة الدفع المتبقي:\s*([^\n]+)/)
+                                  const rawUrl = match?.[1]?.trim()
+                                  if (rawUrl && rawUrl !== uploadedRemainingPaymentUrl) {
+                                    (e.target as HTMLImageElement).src = rawUrl
+                                  }
+                                }}
+                              />
+                            </a>
+                            <p className="text-xs text-green-800">
+                              تم رفع صورة الدفع. بانتظار مراجعة الإدارة وتأكيد الدفع لفتح الحجز.
+                            </p>
                           </div>
                         ) : (
-                          <div className="relative">
-                            <img
-                              src={remainingPaymentPreview}
-                              alt="صورة الدفع المتبقي"
-                              className="w-full h-48 object-cover rounded-lg border border-gray-300"
-                            />
-                            <button
-                              type="button"
-                              onClick={removeRemainingPaymentImage}
-                              className="absolute top-2 left-2 bg-red-600 text-white rounded-full p-1.5 hover:bg-red-700 transition"
-                            >
-                              <X className="w-4 h-4" />
-                            </button>
-                            <button
-                              type="button"
-                              onClick={uploadRemainingPayment}
-                              disabled={uploadingRemainingPayment}
-                              className="mt-3 w-full px-4 py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition text-sm font-semibold disabled:opacity-50"
-                            >
-                              {uploadingRemainingPayment ? 'جاري الرفع...' : 'رفع صورة الدفع'}
-                            </button>
-                          </div>
+                          /* رفع صورة الدفع */
+                          <>
+                            {!remainingPaymentPreview ? (
+                              <div className="border-2 border-dashed border-blue-300 rounded-lg p-4 text-center">
+                                <input
+                                  type="file"
+                                  accept="image/*"
+                                  onChange={handleRemainingPaymentUpload}
+                                  className="hidden"
+                                  id="remaining-payment-upload"
+                                />
+                                <label
+                                  htmlFor="remaining-payment-upload"
+                                  className="cursor-pointer flex flex-col items-center"
+                                >
+                                  <Upload className="w-8 h-8 text-blue-400 mb-2" />
+                                  <span className="text-sm text-gray-700 mb-1">اضغط لرفع صورة الدفع</span>
+                                  <span className="text-xs text-gray-500">الحجم الأقصى: 5 ميجابايت</span>
+                                </label>
+                              </div>
+                            ) : (
+                              <div className="relative">
+                                <img
+                                  src={remainingPaymentPreview}
+                                  alt="صورة الدفع المتبقي"
+                                  className="w-full h-48 object-cover rounded-lg border border-gray-300"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={removeRemainingPaymentImage}
+                                  className="absolute top-2 left-2 bg-red-600 text-white rounded-full p-1.5 hover:bg-red-700 transition"
+                                >
+                                  <X className="w-4 h-4" />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={uploadRemainingPayment}
+                                  disabled={uploadingRemainingPayment}
+                                  className="mt-3 w-full px-4 py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition text-sm font-semibold disabled:opacity-50"
+                                >
+                                  {uploadingRemainingPayment ? 'جاري الرفع...' : 'رفع صورة الدفع'}
+                                </button>
+                              </div>
+                            )}
+                          </>
                         )}
 
                         <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
@@ -768,8 +960,25 @@ export default function RequestFollow({ requestId, userId }: { requestId: string
                                     <button
                                       type="button"
                                       onClick={() => {
-                                        setShowAvailableTrips(true)
-                                        loadAvailableTrips()
+                                        // إذا كان visit_type === 'visit' وليس لدينا رحلة قدوم محجوزة، ابدأ بحجز القدوم
+                                        if (request?.visit_type === 'visit' && !request.arrival_date) {
+                                          setBookingStep('arrival')
+                                          setShowAvailableTrips(true)
+                                          loadAvailableTrips('arrival')
+                                        } else if (request?.visit_type === 'visit' && request.arrival_date && !request.departure_date) {
+                                          // إذا كان لدينا رحلة قدوم لكن لا رحلة مغادرة، ابدأ بحجز المغادرة
+                                          const arrivalDate = new Date(request.arrival_date)
+                                          const departureDate = new Date(arrivalDate)
+                                          departureDate.setMonth(departureDate.getMonth() + 1)
+                                          setCalculatedDepartureDate(departureDate.toISOString().split('T')[0])
+                                          setBookingStep('departure')
+                                          setShowAvailableTrips(true)
+                                          loadAvailableTrips('departure')
+                                        } else {
+                                          setBookingStep('arrival')
+                                          setShowAvailableTrips(true)
+                                          loadAvailableTrips()
+                                        }
                                       }}
                                       disabled={(() => {
                                         const notes = (request?.admin_notes || '') as string
@@ -865,8 +1074,18 @@ export default function RequestFollow({ requestId, userId }: { requestId: string
                   <Bus className="w-5 h-5 sm:w-6 sm:h-6 text-blue-600" />
                 </div>
                 <div>
-                  <h2 className="text-xl sm:text-2xl font-bold text-gray-800">الرحلات المتاحة</h2>
-                  <p className="text-sm text-gray-600 mt-1">اختر رحلة من القائمة</p>
+                  <h2 className="text-xl sm:text-2xl font-bold text-gray-800">
+                    {request?.visit_type === 'visit' && bookingStep === 'arrival' 
+                      ? 'رحلات القدوم المتاحة'
+                      : request?.visit_type === 'visit' && bookingStep === 'departure'
+                      ? 'رحلات المغادرة المتاحة'
+                      : 'الرحلات المتاحة'}
+                  </h2>
+                  <p className="text-sm text-gray-600 mt-1">
+                    {request?.visit_type === 'visit' && bookingStep === 'departure' && calculatedDepartureDate
+                      ? `موعد المغادرة المتوقع: ${formatDate(calculatedDepartureDate)}`
+                      : 'اختر رحلة من القائمة'}
+                  </p>
                 </div>
               </div>
               <button
@@ -876,6 +1095,28 @@ export default function RequestFollow({ requestId, userId }: { requestId: string
                 <ArrowRight className="w-5 h-5 sm:w-6 sm:h-6" />
               </button>
             </div>
+
+            {/* إضافة رسالة عند حجز المغادرة */}
+            {request?.visit_type === 'visit' && bookingStep === 'departure' && calculatedDepartureDate && (
+              <div className="p-4 sm:p-6 bg-blue-50 border-b border-blue-200">
+                <div className="flex items-start gap-3">
+                  <Calendar className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
+                  <div className="flex-1">
+                    <p className="font-bold text-blue-900 text-sm mb-1">
+                      موعد المغادرة المتوقع: {formatDate(calculatedDepartureDate)}
+                    </p>
+                    <p className="text-xs text-blue-800 mb-2">
+                      يمكنك اختيار رحلة مغادرة قبل هذا الموعد إذا رغبت. يرجى التواصل مع أرقام المنصة لتغيير الموعد.
+                    </p>
+                    <div className="bg-white rounded-lg p-2 border border-blue-200">
+                      <p className="text-xs text-gray-700">
+                        <strong>للتواصل:</strong> يمكنك التواصل مع إدارة المنصة عبر الأرقام المتاحة في صفحة التواصل
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
 
             <div className="p-4 sm:p-6">
               {loadingTrips ? (

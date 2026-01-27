@@ -238,7 +238,7 @@ export default function DashboardContent({ userId }: { userId: string }) {
     }
   }
 
-  const getStatusBadge = (status: string, tripStatus: string | null, isDraft: boolean) => {
+  const getStatusBadge = (status: string, tripStatus: string | null, isDraft: boolean, depositPaid?: boolean) => {
     if (isDraft) {
       return (
         <span className="inline-flex items-center gap-1 px-2 sm:px-3 py-0.5 sm:py-1 rounded-full text-xs sm:text-sm font-medium bg-amber-100 text-amber-900 border border-amber-200">
@@ -257,14 +257,34 @@ export default function DashboardContent({ userId }: { userId: string }) {
       )
     }
 
+    // إذا كان pending لكن لم يدفع الرسوم بعد
+    if (status === 'pending' && !depositPaid) {
+      return (
+        <span className="inline-flex items-center gap-1 px-2 sm:px-3 py-0.5 sm:py-1 rounded-full text-xs sm:text-sm font-medium bg-amber-100 text-amber-900 border border-amber-200">
+          <Clock className="w-3 h-3 sm:w-4 sm:h-4" />
+          <span>معلق - بحاجة لدفع الرسوم</span>
+        </span>
+      )
+    }
+
+    // إذا كان pending ودفع الرسوم لكن الإدمن لم يستلم بعد
+    if (status === 'pending' && depositPaid) {
+      return (
+        <span className="inline-flex items-center gap-1 px-2 sm:px-3 py-0.5 sm:py-1 rounded-full text-xs sm:text-sm font-medium bg-blue-100 text-blue-900 border border-blue-200">
+          <Clock className="w-3 h-3 sm:w-4 sm:h-4" />
+          <span>تم الإرسال - في انتظار الاستلام</span>
+        </span>
+      )
+    }
+
     const statusMap: Record<string, { text: string; color: string; icon: any }> = {
-      pending: { text: 'تم الاستلام', color: 'bg-amber-100 text-amber-900', icon: Clock },
-      under_review: { text: 'قيد المراجعة', color: 'bg-purple-100 text-purple-900', icon: Clock },
+      // pending لا يجب أن يظهر هنا بعد الآن (تم التعامل معه أعلاه)
+      under_review: { text: 'تم الاستلام - قيد المراجعة', color: 'bg-purple-100 text-purple-900', icon: Clock },
       approved: { text: 'مقبول', color: 'bg-green-100 text-green-800', icon: CheckCircle },
       rejected: { text: 'مرفوض', color: 'bg-red-100 text-red-800', icon: XCircle },
     }
 
-    const statusInfo = statusMap[status] || statusMap.pending
+    const statusInfo = statusMap[status] || { text: 'في الانتظار', color: 'bg-gray-100 text-gray-900', icon: Clock }
     const Icon = statusInfo.icon
 
     return (
@@ -566,7 +586,8 @@ export default function DashboardContent({ userId }: { userId: string }) {
                           {getStatusBadge(
                             request.status,
                             request.trip_status,
-                            ((request.admin_notes || '') as string).startsWith('[DRAFT]')
+                            ((request.admin_notes || '') as string).startsWith('[DRAFT]'),
+                            Boolean(request.deposit_paid)
                           )}
                         </div>
                       </div>
@@ -615,6 +636,25 @@ export default function DashboardContent({ userId }: { userId: string }) {
                           <span className="break-words">تاريخ الطلب: {formatDate(request.created_at)}</span>
                         </div>
                       </div>
+                      {(isDraft || (request.status === 'pending' && !request.deposit_paid)) && (
+                        <div className="mt-3 bg-amber-50 border-2 border-amber-200 rounded-lg p-3">
+                          <div className="flex items-center gap-2 mb-2">
+                            <Clock className="w-4 h-4 text-amber-600" />
+                            <p className="font-bold text-amber-900 text-sm">الطلب معلق - بحاجة لاستكمال الطلب ودفع الرسوم</p>
+                          </div>
+                          <p className="text-xs text-amber-800 mb-2">
+                            {isDraft
+                              ? 'تم رفع الجواز بنجاح. يرجى دفع الرسوم لإرسال الطلب للإدارة.'
+                              : 'تم رفع الجواز لكن لم يتم دفع الرسوم بعد. يرجى دفع الرسوم لإرسال الطلب للإدارة.'}
+                          </p>
+                          <Link
+                            href={request.visit_type === 'visit' ? `/services/jordan-visit/payment/${request.id}` : `/dashboard/request/${request.id}`}
+                            className="inline-block px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition text-xs font-semibold"
+                          >
+                            دفع الرسوم وإرسال الطلب
+                          </Link>
+                        </div>
+                      )}
                     </div>
                     <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
                       <Link
