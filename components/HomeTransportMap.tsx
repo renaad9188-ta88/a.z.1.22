@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { createSupabaseBrowserClient } from '@/lib/supabase'
 import Link from 'next/link'
-import { Bus, Calendar, Clock, MapPin, Plane, Route } from 'lucide-react'
+import { Bus, Calendar, Clock, MapPin, Plane, Route, ChevronLeft, Users } from 'lucide-react'
 import { formatDate } from '@/lib/date-utils'
 
 const BORDER_CENTER = { lat: 32.5456, lng: 35.825 } // معبر جابر تقريباً
@@ -66,6 +66,16 @@ type UserHint = {
   departure_time?: string | null
 }
 
+type PassengerInfo = {
+  id: string
+  visitor_name: string
+  selected_dropoff_stop_id?: string | null
+  selected_pickup_stop_id?: string | null
+  dropoff_stop_name?: string | null
+  pickup_stop_name?: string | null
+  eta?: { durationText: string; distanceText?: string } | null
+}
+
 export default function HomeTransportMap() {
   const supabase = createSupabaseBrowserClient()
   const mapElRef = useRef<HTMLDivElement | null>(null)
@@ -86,6 +96,13 @@ export default function HomeTransportMap() {
   const [loadingUserHint, setLoadingUserHint] = useState(false)
   const [driverLocation, setDriverLocation] = useState<{ lat: number; lng: number } | null>(null)
   const [driverLocationLoading, setDriverLocationLoading] = useState(false)
+  const [showPassengerList, setShowPassengerList] = useState(false)
+  const [passengers, setPassengers] = useState<PassengerInfo[]>([])
+  const [loadingPassengers, setLoadingPassengers] = useState(false)
+  const [tripType, setTripType] = useState<'arrival' | 'departure' | null>(null)
+  const directionsServiceForEtaRef = useRef<google.maps.DirectionsService | null>(null)
+  const [driverInfo, setDriverInfo] = useState<{ name: string; phone: string; company_phone?: string | null } | null>(null)
+  const [showDriverInfo, setShowDriverInfo] = useState(false)
 
   const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || ''
 
@@ -202,78 +219,109 @@ export default function HomeTransportMap() {
       setLoadingTrip(true)
       
       // إذا كان المستخدم لديه رحلة محجوزة، حمّل رحلته بدلاً من الرحلة العامة
-      if (userHint?.trip_id) {
-        const { data: tripData, error: tripError } = await supabase
-          .from('route_trips')
-          .select(`
-            id,
-            route_id,
-            trip_type,
-            trip_date,
-            meeting_time,
-            departure_time,
-            start_location_name,
-            start_lat,
-            start_lng,
-            end_location_name,
-            end_lat,
-            end_lng,
-            is_active
-          `)
-          .eq('id', userHint.trip_id)
-          .eq('is_active', true)
-          .maybeSingle()
+      // لكن فقط إذا كانت الرحلة اليوم أو قريبة (خلال 7 أيام)
+      if (userHint?.trip_id && userHint?.trip_date) {
+        const today = new Date().toISOString().split('T')[0]
+        const tripDateStr = new Date(userHint.trip_date + 'T00:00:00').toISOString().split('T')[0]
+        const tripDate = new Date(userHint.trip_date + 'T00:00:00')
+        const todayDate = new Date()
+        todayDate.setHours(0, 0, 0, 0)
+        const daysDiff = Math.ceil((tripDate.getTime() - todayDate.getTime()) / (1000 * 60 * 60 * 24))
         
-        if (!tripError && tripData) {
-          // Load route info
-          const { data: routeData } = await supabase
-            .from('routes')
-            .select('id, name, start_location_name, start_lat, start_lng, end_location_name, end_lat, end_lng')
-            .eq('id', tripData.route_id)
+        // عرض رحلة المستخدم فقط إذا كانت اليوم أو خلال 7 أيام قادمة
+        const isTripActive = tripDateStr === today || (daysDiff >= 0 && daysDiff <= 7)
+        
+        if (isTripActive) {
+          const { data: tripData, error: tripError } = await supabase
+            .from('route_trips')
+            .select(`
+              id,
+              route_id,
+              trip_type,
+              trip_date,
+              meeting_time,
+              departure_time,
+              start_location_name,
+              start_lat,
+              start_lng,
+              end_location_name,
+              end_lat,
+              end_lng,
+              is_active
+            `)
+            .eq('id', userHint.trip_id)
+            .eq('is_active', true)
             .maybeSingle()
           
-          // Load trip stop points
-          const { data: stopsData } = await supabase
-            .from('route_trip_stop_points')
-            .select('id, trip_id, name, lat, lng, order_index')
-            .eq('trip_id', userHint.trip_id)
-            .order('order_index', { ascending: true })
-          
-          const stops = (stopsData || []).map((s: any) => ({
-            name: s.name,
-            lat: s.lat,
-            lng: s.lng,
-            order_index: s.order_index || 0,
-          }))
-          
-          // Create trip row format
-          const userTripRow: PublicTripMapRow = {
-            id: tripData.id,
-            route_id: tripData.route_id,
-            trip_id: tripData.id,
-            trip_type: tripData.trip_type,
-            trip_date: tripData.trip_date,
-            meeting_time: tripData.meeting_time,
-            departure_time: tripData.departure_time,
-            start_location_name: tripData.start_location_name || routeData?.start_location_name || '',
-            start_lat: tripData.start_lat || routeData?.start_lat || 0,
-            start_lng: tripData.start_lng || routeData?.start_lng || 0,
-            end_location_name: tripData.end_location_name || routeData?.end_location_name || '',
-            end_lat: tripData.end_lat || routeData?.end_lat || 0,
-            end_lng: tripData.end_lng || routeData?.end_lng || 0,
-            stops: stops,
-            is_demo: false,
+          if (!tripError && tripData) {
+            // Load route info
+            const { data: routeData } = await supabase
+              .from('routes')
+              .select('id, name, start_location_name, start_lat, start_lng, end_location_name, end_lat, end_lng')
+              .eq('id', tripData.route_id)
+              .maybeSingle()
+            
+            // Load trip stop points
+            const { data: stopsData } = await supabase
+              .from('route_trip_stop_points')
+              .select('id, trip_id, name, lat, lng, order_index')
+              .eq('trip_id', userHint.trip_id)
+              .order('order_index', { ascending: true })
+            
+            const stops = (stopsData || []).map((s: any) => ({
+              name: s.name,
+              lat: s.lat,
+              lng: s.lng,
+              order_index: s.order_index || 0,
+            }))
+            
+            // Create trip row format
+            const userTripRow: PublicTripMapRow = {
+              id: tripData.id,
+              route_id: tripData.route_id,
+              trip_id: tripData.id,
+              trip_type: tripData.trip_type,
+              trip_date: tripData.trip_date,
+              meeting_time: tripData.meeting_time,
+              departure_time: tripData.departure_time,
+              start_location_name: tripData.start_location_name || routeData?.start_location_name || '',
+              start_lat: tripData.start_lat || routeData?.start_lat || 0,
+              start_lng: tripData.start_lng || routeData?.start_lng || 0,
+              end_location_name: tripData.end_location_name || routeData?.end_location_name || '',
+              end_lat: tripData.end_lat || routeData?.end_lat || 0,
+              end_lng: tripData.end_lng || routeData?.end_lng || 0,
+              stops: stops,
+              is_demo: false,
+            }
+            
+            setTripRow(userTripRow)
+            return
           }
-          
-          setTripRow(userTripRow)
+        }
+      }
+      
+      // Fallback to public trip map (للغير مسجلين أو إذا لم تكن رحلة المستخدم نشطة)
+      const { data, error } = await supabase.rpc('get_public_trip_map', { p_kind: kind })
+      if (error) throw error
+      const row = (Array.isArray(data) ? data[0] : data) as PublicTripMapRow | null
+      
+      // التحقق من أن الرحلة ليست بتاريخ قديم (يجب أن تكون اليوم أو في المستقبل)
+      if (row && row.trip_date) {
+        const today = new Date().toISOString().split('T')[0]
+        const tripDateStr = new Date(row.trip_date + 'T00:00:00').toISOString().split('T')[0]
+        const tripDate = new Date(row.trip_date + 'T00:00:00')
+        const todayDate = new Date()
+        todayDate.setHours(0, 0, 0, 0)
+        const daysDiff = Math.ceil((tripDate.getTime() - todayDate.getTime()) / (1000 * 60 * 60 * 24))
+        
+        // عرض الرحلة فقط إذا كانت اليوم أو في المستقبل (وليس في الماضي)
+        if (daysDiff < 0) {
+          // الرحلة قديمة، لا نعرضها
+          setTripRow(null)
           return
         }
       }
       
-      // Fallback to public trip map
-      const { data, error } = await supabase.rpc('get_public_trip_map', { p_kind: kind })
-      if (error) throw error
-      const row = (Array.isArray(data) ? data[0] : data) as PublicTripMapRow | null
       setTripRow(row || null)
     } catch (e: any) {
       console.error('HomeTransportMap load trip map error:', e)
@@ -342,6 +390,105 @@ export default function HomeTransportMap() {
       zIndex: 50,
     })
     markersRef.current.push(busMarker)
+    
+    // Add click listener to bus marker to show driver info
+    busMarker.addListener('click', async () => {
+      setShowDriverInfo(true)
+      
+      // Load driver info if not already loaded
+      if (!driverInfo) {
+        try {
+          let assignedDriverId: string | null = null
+          let routeId: string | null = null
+
+          // Try to get driver from visit_requests (assigned_driver_id)
+          if (userHint?.request_id) {
+            const { data: requestData } = await supabase
+              .from('visit_requests')
+              .select('assigned_driver_id, route_id')
+              .eq('id', userHint.request_id)
+              .maybeSingle()
+            
+            assignedDriverId = (requestData as any)?.assigned_driver_id || null
+            routeId = (requestData as any)?.route_id || null
+          }
+
+          // If no assigned driver from visit_requests, try route_trip_drivers
+          if (!assignedDriverId && userHint?.trip_id) {
+            const { data: tripDriverData } = await supabase
+              .from('route_trip_drivers')
+              .select('driver_id')
+              .eq('trip_id', userHint.trip_id)
+              .eq('is_active', true)
+              .limit(1)
+              .maybeSingle()
+            
+            if (tripDriverData) {
+              assignedDriverId = (tripDriverData as any)?.driver_id || null
+            }
+
+            // Get route_id from trip
+            if (!routeId) {
+              const { data: tripData } = await supabase
+                .from('route_trips')
+                .select('route_id')
+                .eq('id', userHint.trip_id)
+                .maybeSingle()
+              
+              routeId = (tripData as any)?.route_id || null
+            }
+          }
+
+          // Load driver info
+          if (assignedDriverId) {
+            const { data: driverData } = await supabase
+              .from('drivers')
+              .select('id, name, phone')
+              .eq('id', assignedDriverId)
+              .maybeSingle()
+
+            // Load route info for company phone (if exists)
+            let companyPhone: string | null = null
+            if (routeId) {
+              const { data: routeData } = await supabase
+                .from('routes')
+                .select('company_phone, contact_phone')
+                .eq('id', routeId)
+                .maybeSingle()
+              
+              companyPhone = (routeData as any)?.company_phone || (routeData as any)?.contact_phone || null
+            }
+
+            if (driverData) {
+              setDriverInfo({
+                name: driverData.name || 'السائق',
+                phone: driverData.phone || '',
+                company_phone: companyPhone,
+              })
+            } else {
+              setDriverInfo({
+                name: 'غير محدد',
+                phone: 'غير متاح',
+                company_phone: null,
+              })
+            }
+          } else {
+            setDriverInfo({
+              name: 'غير محدد',
+              phone: 'غير متاح',
+              company_phone: null,
+            })
+          }
+        } catch (e) {
+          console.error('Error loading driver info:', e)
+          setDriverInfo({
+            name: 'خطأ في التحميل',
+            phone: 'غير متاح',
+            company_phone: null,
+          })
+        }
+      }
+    })
     
     // If driver location exists, extend bounds to include it
     if (driverLocation) {
@@ -423,15 +570,6 @@ export default function HomeTransportMap() {
           pixelOffset: new googleMaps.Size(0, -50),
         })
         
-        // Add click listener to marker to open info window
-        busMarker.addListener('click', () => {
-          infoWindow.open({ map, anchor: busMarker })
-        })
-        
-        // Auto-open info window if driver location is available (trip is active)
-        if (driverLocation) {
-          infoWindow.open({ map, anchor: busMarker, shouldFocus: false })
-        }
         // Store reference to prevent garbage collection
         ;(busMarker as any).infoWindow = infoWindow
       }
@@ -601,14 +739,42 @@ export default function HomeTransportMap() {
       // Get assigned driver from visit_requests
       const { data: requestData } = await supabase
         .from('visit_requests')
-        .select('assigned_driver_id')
+        .select('assigned_driver_id, route_id')
         .eq('id', requestId)
         .maybeSingle()
       
       const assignedDriverId = (requestData as any)?.assigned_driver_id
       if (!assignedDriverId) {
         setDriverLocation(null)
+        setDriverInfo(null)
         return
+      }
+
+      // Load driver info
+      const { data: driverData } = await supabase
+        .from('drivers')
+        .select('id, name, phone')
+        .eq('id', assignedDriverId)
+        .maybeSingle()
+
+      // Load route info for company phone (if exists)
+      let companyPhone: string | null = null
+      if ((requestData as any)?.route_id) {
+        const { data: routeData } = await supabase
+          .from('routes')
+          .select('company_phone, contact_phone')
+          .eq('id', (requestData as any).route_id)
+          .maybeSingle()
+        
+        companyPhone = (routeData as any)?.company_phone || (routeData as any)?.contact_phone || null
+      }
+
+      if (driverData) {
+        setDriverInfo({
+          name: driverData.name || 'السائق',
+          phone: driverData.phone || '',
+          company_phone: companyPhone,
+        })
       }
       
       // Try to get driver location from driver_live_status (live tracking)
@@ -665,6 +831,168 @@ export default function HomeTransportMap() {
       setDriverLocation(null)
     } finally {
       setDriverLocationLoading(false)
+    }
+  }
+
+  const loadPassengersForTrip = async (tripId: string) => {
+    try {
+      setLoadingPassengers(true)
+      
+      // Load trip type
+      const { data: tripData } = await supabase
+        .from('route_trips')
+        .select('trip_type')
+        .eq('id', tripId)
+        .maybeSingle()
+      
+      const type = (tripData?.trip_type === 'departure' || tripData?.trip_type === 'departures') 
+        ? 'departure' 
+        : 'arrival'
+      setTripType(type)
+
+      // Load passengers
+      const { data: passengersData, error } = await supabase
+        .from('visit_requests')
+        .select(`
+          id,
+          visitor_name,
+          selected_dropoff_stop_id,
+          selected_pickup_stop_id
+        `)
+        .eq('trip_id', tripId)
+        .neq('status', 'rejected')
+        .order('created_at', { ascending: true })
+
+      if (error) throw error
+
+      // Load stop point names
+      const stopIds = (passengersData || [])
+        .map((p: any) => type === 'arrival' ? p.selected_dropoff_stop_id : p.selected_pickup_stop_id)
+        .filter(Boolean) as string[]
+
+      let stopsMap: Record<string, { name: string; lat: number; lng: number }> = {}
+      if (stopIds.length > 0) {
+        const { data: stopsData } = await supabase
+          .from('route_trip_stop_points')
+          .select('id, name, lat, lng')
+          .in('id', stopIds)
+        
+        if (stopsData) {
+          stopsData.forEach((s: any) => {
+            stopsMap[s.id] = { name: s.name, lat: s.lat, lng: s.lng }
+          })
+        }
+      }
+
+      // Map passengers with stop names
+      const passengersList: PassengerInfo[] = (passengersData || []).map((p: any) => {
+        const stopId = type === 'arrival' ? p.selected_dropoff_stop_id : p.selected_pickup_stop_id
+        const stopInfo = stopId ? stopsMap[stopId] : null
+        
+        return {
+          id: p.id,
+          visitor_name: p.visitor_name,
+          selected_dropoff_stop_id: p.selected_dropoff_stop_id,
+          selected_pickup_stop_id: p.selected_pickup_stop_id,
+          dropoff_stop_name: type === 'arrival' ? stopInfo?.name || null : null,
+          pickup_stop_name: type === 'departure' ? stopInfo?.name || null : null,
+          eta: null,
+        }
+      })
+
+      setPassengers(passengersList)
+
+      // Calculate ETAs if driver location is available
+      if (driverLocation && (window as any).google?.maps) {
+        await calculatePassengerETAs(passengersList, stopsMap, type)
+      }
+    } catch (e) {
+      console.error('Error loading passengers:', e)
+      setPassengers([])
+    } finally {
+      setLoadingPassengers(false)
+    }
+  }
+
+  const calculatePassengerETAs = async (
+    passengersList: PassengerInfo[],
+    stopsMap: Record<string, { name: string; lat: number; lng: number }>,
+    type: 'arrival' | 'departure'
+  ) => {
+    if (!driverLocation || !(window as any).google?.maps) return
+
+    const googleMaps = (window as any).google.maps as typeof google.maps
+    if (!directionsServiceForEtaRef.current) {
+      directionsServiceForEtaRef.current = new googleMaps.DirectionsService()
+    }
+
+    const updatedPassengers = await Promise.all(
+      passengersList.map(async (passenger) => {
+        const stopId = type === 'arrival' 
+          ? passenger.selected_dropoff_stop_id 
+          : passenger.selected_pickup_stop_id
+        
+        if (!stopId || !stopsMap[stopId]) {
+          return { ...passenger, eta: null }
+        }
+
+        const stopLocation = stopsMap[stopId]
+        const destination = { lat: stopLocation.lat, lng: stopLocation.lng }
+
+        try {
+          const result = await directionsServiceForEtaRef.current!.route({
+            origin: driverLocation,
+            destination,
+            travelMode: googleMaps.TravelMode.DRIVING,
+          })
+
+          const legs = result.routes?.[0]?.legs || []
+          const durationSec = legs.reduce((sum, l) => sum + (l.duration?.value || 0), 0)
+          const distanceM = legs.reduce((sum, l) => sum + (l.distance?.value || 0), 0)
+
+          const durationText =
+            legs.length === 1 && legs[0].duration?.text
+              ? legs[0].duration.text
+              : durationSec > 0
+                ? `${Math.round(durationSec / 60)} دقيقة`
+                : 'غير متاح'
+
+          const distanceText =
+            legs.length === 1 && legs[0].distance?.text
+              ? legs[0].distance.text
+              : distanceM > 0
+                ? `${(distanceM / 1000).toFixed(1)} كم`
+                : undefined
+
+          return {
+            ...passenger,
+            eta: { durationText, distanceText },
+          }
+        } catch (e) {
+          console.warn('ETA calculation failed for passenger:', passenger.id, e)
+          return { ...passenger, eta: null }
+        }
+      })
+    )
+
+    setPassengers(updatedPassengers)
+  }
+
+  const handleCardClick = async () => {
+    // إذا كانت القائمة مفتوحة، أغلقها
+    if (showPassengerList) {
+      setShowPassengerList(false)
+      return
+    }
+
+    if (userHint?.trip_id) {
+      await loadPassengersForTrip(userHint.trip_id)
+      setShowPassengerList(true)
+    } else {
+      // إذا لم يكن هناك trip_id، نعرض رسالة
+      setShowPassengerList(true)
+      setPassengers([])
+      setTripType(null)
     }
   }
 
@@ -727,6 +1055,32 @@ export default function HomeTransportMap() {
     renderTrip()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready, JSON.stringify(tripRow), userHint, driverLocation])
+
+  // Update ETAs when driver location changes and passenger list is open
+  useEffect(() => {
+    if (showPassengerList && driverLocation && passengers.length > 0 && tripType) {
+      const stopIds = passengers
+        .map((p) => tripType === 'arrival' ? p.selected_dropoff_stop_id : p.selected_pickup_stop_id)
+        .filter(Boolean) as string[]
+
+      if (stopIds.length > 0) {
+        // Load stop locations
+        supabase
+          .from('route_trip_stop_points')
+          .select('id, name, lat, lng')
+          .in('id', stopIds)
+          .then(({ data: stopsData }) => {
+            if (stopsData) {
+              const stopsMap: Record<string, { name: string; lat: number; lng: number }> = {}
+              stopsData.forEach((s: any) => {
+                stopsMap[s.id] = { name: s.name, lat: s.lat, lng: s.lng }
+              })
+              calculatePassengerETAs(passengers, stopsMap, tripType)
+            }
+          })
+      }
+    }
+  }, [driverLocation, showPassengerList])
 
   // Handle hash navigation and load user trip when navigating to map
   useEffect(() => {
@@ -934,20 +1288,222 @@ export default function HomeTransportMap() {
                   const isTripToday = tripDateStr === today
 
                   return (
-                    <div className="pointer-events-none absolute bottom-3 left-3">
-                      <div className="pointer-events-auto bg-white/85 backdrop-blur-md rounded-lg shadow-md border border-gray-200 px-2.5 py-2 sm:px-3 sm:py-2.5 w-[min(16rem,calc(100vw-1.5rem))]">
-                        <div className="text-[11px] sm:text-xs font-extrabold text-gray-900 break-words leading-tight">
-                          {userHint.visitor_name}
-                        </div>
-                        <div className="text-[10px] text-gray-700 mt-1 leading-relaxed line-clamp-2">
-                          {userHint.trip_id && isTripToday
-                            ? 'يتم تتبع رحلتك الآن'
-                            : userHint.trip_id
-                            ? 'سيتم تتبع رحلتك عند انطلاق حجزك بالرحلة المحددة من قبلك'
-                            : 'سيتوفر لك تتبّع الرحلة عند بداية رحلة الراكب.'}
+                    <>
+                      <div className="pointer-events-none absolute bottom-3 left-3">
+                        <div 
+                          className="pointer-events-auto bg-white/85 backdrop-blur-md rounded-lg shadow-md border border-gray-200 px-2.5 py-2 sm:px-3 sm:py-2.5 w-[min(16rem,calc(100vw-1.5rem))] cursor-pointer hover:bg-white/95 transition-colors active:scale-[0.98]"
+                          onClick={handleCardClick}
+                        >
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="flex-1 min-w-0">
+                              <div className="text-[11px] sm:text-xs font-extrabold text-gray-900 break-words leading-tight">
+                                {userHint.visitor_name}
+                              </div>
+                              <div className="text-[10px] text-gray-700 mt-1 leading-relaxed line-clamp-2">
+                                {userHint.trip_id && isTripToday
+                                  ? 'يتم تتبع رحلتك الآن'
+                                  : userHint.trip_id
+                                  ? 'سيتم تتبع رحلتك عند انطلاق حجزك بالرحلة المحددة من قبلك'
+                                  : 'سيتوفر لك تتبّع الرحلة عند بداية رحلة الراكب.'}
+                              </div>
+                            </div>
+                            <ChevronLeft 
+                              className="w-5 h-5 flex-shrink-0 rotate-180 text-blue-600 hover:text-blue-700 transition-colors" 
+                            />
+                          </div>
                         </div>
                       </div>
-                    </div>
+
+                      {/* Driver Info Modal - معلومات السائق */}
+                      {showDriverInfo && (
+                        <>
+                          {/* Backdrop شفاف لإغلاق القائمة عند النقر خارجها */}
+                          <div 
+                            className="pointer-events-auto absolute inset-0 z-30"
+                            onClick={() => setShowDriverInfo(false)}
+                          />
+                          <div className="pointer-events-none absolute bottom-3 right-3 w-[min(18rem,calc(100vw-2rem))] z-40">
+                            <div className="pointer-events-auto bg-white/90 backdrop-blur-lg rounded-xl shadow-xl border border-gray-200/50 p-4">
+                              <div className="flex items-center justify-between mb-3">
+                                <h3 className="text-sm font-bold text-gray-900">معلومات السائق</h3>
+                                <button
+                                  onClick={() => setShowDriverInfo(false)}
+                                  className="p-1 hover:bg-gray-100/50 rounded-lg transition-colors"
+                                  aria-label="إغلاق"
+                                >
+                                  <ChevronLeft className="w-4 h-4 text-gray-500 rotate-90" />
+                                </button>
+                              </div>
+                              
+                              {driverInfo ? (
+                                <div className="space-y-3">
+                                  <div>
+                                    <div className="text-xs text-gray-500 mb-1">اسم السائق</div>
+                                    <div className="text-sm font-semibold text-gray-900">{driverInfo.name}</div>
+                                  </div>
+                                  
+                                  <div>
+                                    <div className="text-xs text-gray-500 mb-1">رقم السائق</div>
+                                    <div className="flex items-center gap-2">
+                                      <a 
+                                        href={`tel:${driverInfo.phone}`}
+                                        className="text-sm font-semibold text-blue-600 hover:text-blue-700"
+                                      >
+                                        {driverInfo.phone}
+                                      </a>
+                                      <button
+                                        onClick={async () => {
+                                          try {
+                                            await navigator.clipboard.writeText(driverInfo.phone)
+                                            // يمكن إضافة toast هنا لاحقاً
+                                          } catch (e) {
+                                            console.error('Failed to copy:', e)
+                                          }
+                                        }}
+                                        className="text-xs text-gray-500 hover:text-gray-700 px-2 py-1 bg-gray-100 rounded transition-colors"
+                                        title="نسخ"
+                                      >
+                                        نسخ
+                                      </button>
+                                    </div>
+                                  </div>
+
+                                  {driverInfo.company_phone && (
+                                    <div>
+                                      <div className="text-xs text-gray-500 mb-1">رقم الشركة</div>
+                                      <div className="flex items-center gap-2">
+                                        <a 
+                                          href={`tel:${driverInfo.company_phone}`}
+                                          className="text-sm font-semibold text-blue-600 hover:text-blue-700"
+                                        >
+                                          {driverInfo.company_phone}
+                                        </a>
+                                        <button
+                                          onClick={async () => {
+                                            try {
+                                              await navigator.clipboard.writeText(driverInfo.company_phone!)
+                                              // يمكن إضافة toast هنا لاحقاً
+                                            } catch (e) {
+                                              console.error('Failed to copy:', e)
+                                            }
+                                          }}
+                                          className="text-xs text-gray-500 hover:text-gray-700 px-2 py-1 bg-gray-100 rounded transition-colors"
+                                          title="نسخ"
+                                        >
+                                          نسخ
+                                        </button>
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                              ) : (
+                                <div className="text-center py-4 text-gray-500 text-xs">
+                                  جاري تحميل معلومات السائق...
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </>
+                      )}
+
+                      {/* Passenger List - داخل الخريطة بشكل أنعم */}
+                      {showPassengerList && (
+                        <>
+                          {/* Backdrop شفاف لإغلاق القائمة عند النقر خارجها */}
+                          <div 
+                            className="pointer-events-auto absolute inset-0 z-30"
+                            onClick={() => setShowPassengerList(false)}
+                          />
+                          <div className="pointer-events-none absolute bottom-3 right-3 w-[min(20rem,calc(100vw-2rem))] max-h-[60vh] z-40">
+                            <div className="pointer-events-auto bg-white/90 backdrop-blur-lg rounded-xl shadow-xl border border-gray-200/50 flex flex-col overflow-hidden">
+                            {/* Header */}
+                            <div className="flex items-center justify-between p-3 border-b border-gray-200/50 bg-white/50">
+                              <div className="flex items-center gap-2">
+                                <Users className="w-4 h-4 text-blue-600" />
+                                <h3 className="text-sm font-bold text-gray-900">
+                                  {tripType === 'arrival' ? 'القادمون' : tripType === 'departure' ? 'المغادرون' : 'الركاب'}
+                                </h3>
+                                {userHint?.trip_id && (
+                                  <span className="text-[10px] text-gray-500 bg-gray-100/80 px-1.5 py-0.5 rounded-full">
+                                    {passengers.length}
+                                  </span>
+                                )}
+                              </div>
+                              <button
+                                onClick={() => setShowPassengerList(false)}
+                                className="p-1 hover:bg-gray-100/50 rounded-lg transition-colors"
+                                aria-label="إغلاق"
+                              >
+                                <ChevronLeft className="w-4 h-4 text-gray-500 rotate-90" />
+                              </button>
+                            </div>
+
+                            {/* Passengers List */}
+                            <div className="flex-1 overflow-y-auto p-3 space-y-2 max-h-[calc(60vh-3.5rem)]">
+                              {!userHint?.trip_id ? (
+                                <div className="text-center py-6">
+                                  <div className="text-gray-500 text-xs mb-1.5">
+                                    لم يتم ربط رحلة بعد
+                                  </div>
+                                  <div className="text-[10px] text-gray-400">
+                                    سيتوفر لك تتبّع الرحلة عند بداية رحلة الراكب
+                                  </div>
+                                </div>
+                              ) : loadingPassengers ? (
+                                <div className="text-center py-6 text-gray-500 text-xs">
+                                  جاري التحميل...
+                                </div>
+                              ) : passengers.length === 0 ? (
+                                <div className="text-center py-6 text-gray-500 text-xs">
+                                  لا يوجد ركاب في هذه الرحلة
+                                </div>
+                              ) : (
+                                passengers.map((passenger) => (
+                                  <div
+                                    key={passenger.id}
+                                    className="bg-gray-50/80 backdrop-blur-sm rounded-lg p-2.5 border border-gray-200/50 hover:bg-gray-100/80 transition-colors"
+                                  >
+                                    <div className="flex items-start justify-between gap-2">
+                                      <div className="flex-1 min-w-0">
+                                        <div className="text-xs font-bold text-gray-900 mb-1">
+                                          {passenger.visitor_name}
+                                        </div>
+                                        {(passenger.dropoff_stop_name || passenger.pickup_stop_name) && (
+                                          <div className="flex items-start gap-1.5 text-[10px] text-gray-600 mb-1.5">
+                                            <MapPin className="w-3 h-3 text-blue-500 mt-0.5 flex-shrink-0" />
+                                            <span className="break-words leading-relaxed">
+                                              {tripType === 'arrival' 
+                                                ? `نقطة النزول: ${passenger.dropoff_stop_name || 'غير محدد'}`
+                                                : `نقطة الصعود: ${passenger.pickup_stop_name || 'غير محدد'}`}
+                                            </span>
+                                          </div>
+                                        )}
+                                        {/* Show ETA if trip is active, or message if trip is upcoming */}
+                                        {driverLocation && passenger.eta ? (
+                                          <div className="flex items-center gap-1.5 text-[10px] text-green-600 font-semibold mt-1.5 pt-1.5 border-t border-gray-200/50">
+                                            <Clock className="w-3 h-3 flex-shrink-0" />
+                                            <span>الوقت المتبقي: {passenger.eta.durationText}</span>
+                                            {passenger.eta.distanceText && (
+                                              <span className="text-gray-500">({passenger.eta.distanceText})</span>
+                                            )}
+                                          </div>
+                                        ) : !driverLocation && userHint?.trip_id ? (
+                                          <div className="flex items-center gap-1.5 text-[10px] text-amber-600 font-semibold mt-1.5 pt-1.5 border-t border-gray-200/50">
+                                            <Clock className="w-3 h-3 flex-shrink-0" />
+                                            <span>عندما تبدأ الرحلة</span>
+                                          </div>
+                                        ) : null}
+                                      </div>
+                                    </div>
+                                  </div>
+                                ))
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                        </>
+                      )}
+                    </>
                   )
                 })()}
               </div>
