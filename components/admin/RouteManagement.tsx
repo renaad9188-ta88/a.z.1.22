@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { createSupabaseBrowserClient } from '@/lib/supabase'
-import { MapPin, Plus, Trash2, Edit, Bus, Users, Phone, Navigation, Copy } from 'lucide-react'
+import { MapPin, Plus, Trash2, Edit, Bus, Users, Phone, Navigation, Copy, Calendar, Clock, X } from 'lucide-react'
 import toast from 'react-hot-toast'
 import TripSchedulingModal from './TripSchedulingModal'
 import CreateTripModal from './CreateTripModal'
@@ -103,6 +103,14 @@ export default function RouteManagement() {
   const [routeTrips, setRouteTrips] = useState<Record<string, RouteTripLite[]>>({})
   const [routeTripsLoading, setRouteTripsLoading] = useState<Record<string, boolean>>({})
   const [tripAssignedDrivers, setTripAssignedDrivers] = useState<Record<string, Driver[]>>({})
+  const [tripPassengers, setTripPassengers] = useState<Record<string, Array<{
+    id: string
+    visitor_name: string
+    companions_count: number
+    phone: string | null
+    full_name: string | null
+  }>>>({})
+  const [showPassengersModal, setShowPassengersModal] = useState<{ tripId: string; passengers: any[] } | null>(null)
   const [schedulingRequest, setSchedulingRequest] = useState<VisitRequest | null>(null)
   const [driverForm, setDriverForm] = useState({
     user_id: '',
@@ -358,9 +366,10 @@ export default function RouteManagement() {
       
       setRouteTrips((p) => ({ ...p, [routeId]: formattedTrips as any[] }))
       
-      // Load assigned drivers for each trip
+      // Load assigned drivers and passengers for each trip
       const tripIds = formattedTrips.map((t: any) => t.id)
       if (tripIds.length > 0) {
+        // Load assigned drivers
         const { data: assignments, error: assignErr } = await supabase
           .from('route_trip_drivers')
           .select('trip_id, driver_id, drivers(id, name, vehicle_type, phone)')
@@ -376,6 +385,45 @@ export default function RouteManagement() {
             }
           })
           setTripAssignedDrivers((p) => ({ ...p, ...driversByTrip }))
+        }
+        
+        // Load passengers for each trip
+        const { data: passengersData, error: passengersErr } = await supabase
+          .from('visit_requests')
+          .select('id, visitor_name, companions_count, user_id, trip_id')
+          .in('trip_id', tripIds)
+          .neq('trip_status', 'rejected')
+        
+        if (!passengersErr && passengersData) {
+          const userIds = Array.from(new Set(passengersData.map((p: any) => p.user_id).filter(Boolean)))
+          let profilesMap: Record<string, { phone: string | null; full_name: string | null }> = {}
+          
+          if (userIds.length > 0) {
+            const { data: profiles, error: profErr } = await supabase
+              .from('profiles')
+              .select('user_id, phone, full_name')
+              .in('user_id', userIds)
+            
+            if (!profErr && profiles) {
+              profiles.forEach((p: any) => {
+                profilesMap[p.user_id] = { phone: p.phone, full_name: p.full_name }
+              })
+            }
+          }
+          
+          const passengersByTrip: Record<string, any[]> = {}
+          passengersData.forEach((p: any) => {
+            if (!passengersByTrip[p.trip_id]) passengersByTrip[p.trip_id] = []
+            passengersByTrip[p.trip_id].push({
+              id: p.id,
+              visitor_name: p.visitor_name,
+              companions_count: p.companions_count || 0,
+              phone: profilesMap[p.user_id]?.phone || null,
+              full_name: profilesMap[p.user_id]?.full_name || null,
+            })
+          })
+          
+          setTripPassengers((prev) => ({ ...prev, ...passengersByTrip }))
         }
       }
     } catch (e: any) {
@@ -582,17 +630,21 @@ export default function RouteManagement() {
         )
       if (error) throw error
       
-      // Reload assigned drivers for this trip
-      const { data: driverData } = await supabase
-        .from('drivers')
-        .select('id, name, vehicle_type, phone')
-        .eq('id', driverId)
-        .single()
+      // إعادة تحميل السائقين من قاعدة البيانات للحصول على البيانات الصحيحة
+      const { data: assignments, error: assignErr } = await supabase
+        .from('route_trip_drivers')
+        .select('trip_id, driver_id, drivers(id, name, vehicle_type, phone)')
+        .eq('trip_id', tripId)
+        .eq('is_active', true)
       
-      if (driverData) {
+      if (!assignErr && assignments) {
+        const drivers = assignments
+          .filter((a: any) => a.drivers)
+          .map((a: any) => a.drivers as Driver)
+        
         setTripAssignedDrivers((p) => ({
           ...p,
-          [tripId]: [...(p[tripId] || []), driverData as Driver],
+          [tripId]: drivers,
         }))
       }
       
@@ -601,6 +653,46 @@ export default function RouteManagement() {
       console.error('Assign driver to trip error:', e)
       toast.error(e?.message || 'تعذر ربط السائق بالرحلة')
     }
+  }
+
+  const handleUnassignDriverFromTrip = async (tripId: string, driverId: string, routeId: string) => {
+    try {
+      const { error } = await supabase
+        .from('route_trip_drivers')
+        .update({ is_active: false })
+        .eq('trip_id', tripId)
+        .eq('driver_id', driverId)
+      
+      if (error) throw error
+      
+      // إعادة تحميل السائقين من قاعدة البيانات
+      const { data: assignments, error: assignErr } = await supabase
+        .from('route_trip_drivers')
+        .select('trip_id, driver_id, drivers(id, name, vehicle_type, phone)')
+        .eq('trip_id', tripId)
+        .eq('is_active', true)
+      
+      if (!assignErr && assignments) {
+        const drivers = assignments
+          .filter((a: any) => a.drivers)
+          .map((a: any) => a.drivers as Driver)
+        
+        setTripAssignedDrivers((p) => ({
+          ...p,
+          [tripId]: drivers,
+        }))
+      }
+      
+      toast.success('تم إزالة السائق من الرحلة')
+    } catch (e: any) {
+      console.error('Unassign driver from trip error:', e)
+      toast.error(e?.message || 'تعذر إزالة السائق من الرحلة')
+    }
+  }
+
+  const handleShowPassengers = (tripId: string) => {
+    const passengers = tripPassengers[tripId] || []
+    setShowPassengersModal({ tripId, passengers })
   }
 
   const handleAssignDriver = async (routeId: string, driverId: string) => {
@@ -748,163 +840,419 @@ export default function RouteManagement() {
                 </div>
 
                 {/* Trips for this route */}
-                <div className="mt-4 border-t border-gray-100 pt-4">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                    <h4 className="text-xs sm:text-sm font-extrabold text-gray-900 flex items-center gap-2">
-                      <Navigation className="w-4 h-4 text-blue-600" />
-                      رحلات هذا الخط (مواعيد + كشف أسماء)
-                    </h4>
-                    <div className="flex gap-2">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setSelectedRouteForTrip(route)
-                          setCreateTripType('arrival')
-                          setShowCreateTrip(true)
-                        }}
-                        className="px-3 py-2 rounded-lg bg-green-600 text-white hover:bg-green-700 transition text-xs sm:text-sm font-bold"
-                        title="إنشاء رحلة القادمين"
-                      >
-                        + القادمين
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setSelectedRouteForTrip(route)
-                          setCreateTripType('departure')
-                          setShowCreateTrip(true)
-                        }}
-                        className="px-3 py-2 rounded-lg bg-purple-600 text-white hover:bg-purple-700 transition text-xs sm:text-sm font-bold"
-                        title="إنشاء رحلة المغادرين"
-                      >
-                        + المغادرين
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setExpandedRouteTrips((p) => ({ ...p, [route.id]: !p[route.id] }))
-                          // lazy-load when opening
-                          const willOpen = !expandedRouteTrips[route.id]
-                          if (willOpen) loadTripsForRoute(route.id)
-                        }}
-                        className="px-3 py-2 rounded-lg bg-blue-50 text-blue-700 hover:bg-blue-100 transition text-xs sm:text-sm font-bold"
-                      >
-                        {expandedRouteTrips[route.id] ? 'إخفاء' : 'عرض'}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => loadTripsForRoute(route.id)}
-                        disabled={Boolean(routeTripsLoading[route.id])}
-                        className="px-3 py-2 rounded-lg bg-gray-100 text-gray-800 hover:bg-gray-200 transition text-xs sm:text-sm font-bold disabled:opacity-50"
-                      >
-                        {routeTripsLoading[route.id] ? 'جارٍ التحديث...' : 'تحديث'}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={async () => {
-                          const list = routeTrips[route.id] || []
-                          if (list.length === 0) {
-                            toast('لا يوجد كشف للنسخ. افتح "عرض" ثم حدّث.')
-                            return
-                          }
-                          const lines = list
-                            .map((r, idx) => {
-                              const people = 1 + (Number(r.companions_count || 0) || 0)
-                              const date = r.arrival_date || '-'
-                              const status = r.trip_status || '-'
-                              return `${idx + 1}) ${r.visitor_name} — ${people} أشخاص — ${r.city} — ${date} — ${status}`
-                            })
-                            .join('\n')
-                          try {
-                            await navigator.clipboard.writeText(lines)
-                            toast.success('تم نسخ كشف الأسماء')
-                          } catch {
-                            toast.error('تعذر نسخ الكشف')
-                          }
-                        }}
-                        className="px-3 py-2 rounded-lg bg-green-50 text-green-800 hover:bg-green-100 transition text-xs sm:text-sm font-bold"
-                        title="نسخ كشف الركاب لهذه الرحلات"
-                      >
-                        نسخ الكشف
-                      </button>
+                <div className="mt-4 border-t border-gray-200 pt-4">
+                  <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-3 sm:p-4 border-2 border-blue-200 shadow-md">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 sm:w-12 sm:h-12 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-lg flex items-center justify-center shadow-lg">
+                          <Navigation className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
+                        </div>
+                        <div>
+                          <h4 className="text-sm sm:text-base md:text-lg font-extrabold text-gray-900 flex items-center gap-2">
+                            رحلات هذا الخط
+                          </h4>
+                          <p className="text-[10px] sm:text-xs text-gray-600 mt-0.5">
+                            عرض وإدارة جميع الرحلات المجدولة
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setExpandedRouteTrips((p) => ({ ...p, [route.id]: !p[route.id] }))
+                            // lazy-load when opening
+                            const willOpen = !expandedRouteTrips[route.id]
+                            if (willOpen) loadTripsForRoute(route.id)
+                          }}
+                          className="px-3 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition text-xs sm:text-sm font-bold flex items-center gap-1.5 shadow-md"
+                        >
+                          {expandedRouteTrips[route.id] ? (
+                            <>
+                              <X className="w-3 h-3 sm:w-4 sm:h-4" />
+                              إخفاء
+                            </>
+                          ) : (
+                            <>
+                              <Navigation className="w-3 h-3 sm:w-4 sm:h-4" />
+                              عرض الرحلات
+                            </>
+                          )}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => loadTripsForRoute(route.id)}
+                          disabled={Boolean(routeTripsLoading[route.id])}
+                          className="px-3 py-2 rounded-lg bg-white text-gray-800 hover:bg-gray-50 border-2 border-gray-300 transition text-xs sm:text-sm font-bold disabled:opacity-50 flex items-center gap-1.5 shadow-sm"
+                        >
+                          {routeTripsLoading[route.id] ? (
+                            <>
+                              <span className="animate-spin">⟳</span>
+                              جارٍ التحديث...
+                            </>
+                          ) : (
+                            <>
+                              <Navigation className="w-3 h-3 sm:w-4 sm:h-4" />
+                              تحديث
+                            </>
+                          )}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            const trips = routeTrips[route.id] || []
+                            if (trips.length === 0) {
+                              toast('لا يوجد رحلات للنسخ. افتح "عرض" ثم حدّث.')
+                              return
+                            }
+                            
+                            try {
+                              // جمع معلومات كل رحلة مع الحاجزين
+                              const lines: string[] = []
+                              
+                              for (const trip of trips) {
+                                // معلومات الرحلة
+                                const tripDate = new Date(trip.arrival_date || '')
+                                const dateStr = tripDate && !isNaN(tripDate.getTime())
+                                  ? `${tripDate.toLocaleDateString('ar-JO', { weekday: 'long' })}, ${String(tripDate.getDate()).padStart(2, '0')}/${String(tripDate.getMonth() + 1).padStart(2, '0')}/${tripDate.getFullYear()}`
+                                  : 'تاريخ غير محدد'
+                                
+                                lines.push(`\n${'='.repeat(50)}`)
+                                lines.push(`رحلة: ${trip.start_location_name || 'غير محدد'} → ${trip.end_location_name || 'غير محدد'}`)
+                                lines.push(`التاريخ: ${dateStr}`)
+                                if (trip.departure_time) lines.push(`وقت الانطلاق: ${trip.departure_time}`)
+                                if (trip.meeting_time) lines.push(`وقت التجمع: ${trip.meeting_time}`)
+                                lines.push(`النوع: ${(trip.trip_type || 'arrival') === 'arrival' ? 'القادمون' : 'المغادرون'}`)
+                                
+                                // الحاجزين في هذه الرحلة
+                                const passengers = tripPassengers[trip.id] || []
+                                if (passengers.length > 0) {
+                                  lines.push(`\nالحاجزين (${passengers.length}):`)
+                                  passengers.forEach((passenger: any, idx: number) => {
+                                    const totalPeople = 1 + (passenger.companions_count || 0)
+                                    lines.push(`  ${idx + 1}. ${passenger.visitor_name}${passenger.full_name && passenger.full_name !== passenger.visitor_name ? ` (${passenger.full_name})` : ''}`)
+                                    lines.push(`     عدد الأشخاص: ${totalPeople}`)
+                                    if (passenger.phone) {
+                                      lines.push(`     الهاتف: ${passenger.phone}`)
+                                    } else {
+                                      lines.push(`     الهاتف: غير متوفر`)
+                                    }
+                                  })
+                                } else {
+                                  lines.push(`\nلا يوجد حاجزين في هذه الرحلة`)
+                                }
+                                lines.push('')
+                              }
+                              
+                              const text = lines.join('\n')
+                              await navigator.clipboard.writeText(text)
+                              const totalPassengers = trips.reduce((sum, t) => sum + (tripPassengers[t.id]?.length || 0), 0)
+                              toast.success(`تم نسخ ${trips.length} رحلة مع ${totalPassengers} حاجز`)
+                            } catch {
+                              toast.error('تعذر نسخ الكشف')
+                            }
+                          }}
+                          className="px-3 py-2 rounded-lg bg-green-600 text-white hover:bg-green-700 transition text-xs sm:text-sm font-bold flex items-center gap-1.5 shadow-md"
+                          title="نسخ جميع الرحلات مع الحاجزين وأرقام الهواتف"
+                        >
+                          <Copy className="w-3 h-3 sm:w-4 sm:h-4" />
+                          نسخ الكشف
+                        </button>
+                      </div>
                     </div>
                   </div>
 
                   {expandedRouteTrips[route.id] && (
-                    <div className="mt-3">
-                      <div className="flex flex-wrap gap-2 mb-2">
+                    <div className="mt-6">
+                      {/* Statistics Cards */}
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 mb-6">
+                        <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-xl p-3 sm:p-4 border-2 border-green-200 shadow-lg">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <p className="text-xs font-semibold text-green-700 mb-1">إجمالي الرحلات</p>
+                              <p className="text-xl sm:text-2xl font-extrabold text-green-900">
+                                {(routeTrips[route.id] || []).length}
+                              </p>
+                            </div>
+                            <Bus className="w-8 h-8 sm:w-10 sm:h-10 text-green-600 opacity-50 flex-shrink-0" />
+                          </div>
+                        </div>
+                        
+                        <button
+                          onClick={() => {
+                            if (!expandedRouteTrips[route.id]) {
+                              setExpandedRouteTrips((p) => ({ ...p, [route.id]: true }))
+                              loadTripsForRoute(route.id)
+                            }
+                            setExpandedRouteTrips((p) => ({ ...p, [`${route.id}__tab`]: true }))
+                          }}
+                          className="bg-gradient-to-br from-emerald-50 to-emerald-100 rounded-xl p-3 sm:p-4 border-2 border-emerald-200 shadow-lg hover:shadow-xl transition-all cursor-pointer text-right"
+                        >
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <p className="text-xs font-semibold text-emerald-700 mb-1">القادمون</p>
+                              <p className="text-xl sm:text-2xl font-extrabold text-emerald-900">
+                                {(routeTrips[route.id] || []).filter(t => (t.trip_type || 'arrival') === 'arrival').length}
+                              </p>
+                            </div>
+                            <MapPin className="w-8 h-8 sm:w-10 sm:h-10 text-emerald-600 opacity-50 flex-shrink-0" />
+                          </div>
+                        </button>
+                        
+                        <button
+                          onClick={() => {
+                            if (!expandedRouteTrips[route.id]) {
+                              setExpandedRouteTrips((p) => ({ ...p, [route.id]: true }))
+                              loadTripsForRoute(route.id)
+                            }
+                            setExpandedRouteTrips((p) => ({ ...p, [`${route.id}__tab`]: false }))
+                          }}
+                          className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-xl p-3 sm:p-4 border-2 border-purple-200 shadow-lg hover:shadow-xl transition-all cursor-pointer text-right"
+                        >
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <p className="text-xs font-semibold text-purple-700 mb-1">المغادرون</p>
+                              <p className="text-xl sm:text-2xl font-extrabold text-purple-900">
+                                {(routeTrips[route.id] || []).filter(t => (t.trip_type || 'arrival') === 'departure').length}
+                              </p>
+                            </div>
+                            <Navigation className="w-8 h-8 sm:w-10 sm:h-10 text-purple-600 opacity-50 flex-shrink-0" />
+                          </div>
+                        </button>
+                      </div>
+
+                      {/* Tabs */}
+                      <div className="flex flex-wrap gap-2 mb-4">
                         <button
                           type="button"
                           onClick={() => setExpandedRouteTrips((p) => ({ ...p, [`${route.id}__tab`]: true }))}
-                          className="px-3 py-1.5 rounded-lg bg-green-50 text-green-800 border border-green-200 text-xs font-bold"
+                          className={`px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl font-bold text-xs sm:text-sm transition-all ${
+                            (expandedRouteTrips as any)[`${route.id}__tab`] !== false
+                              ? 'bg-gradient-to-r from-green-500 to-emerald-600 text-white shadow-lg scale-105'
+                              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                          }`}
                         >
-                          القادمون
+                          <span className="flex items-center gap-2">
+                            <MapPin className="w-3 h-3 sm:w-4 sm:h-4" />
+                            القادمون
+                          </span>
                         </button>
                         <button
                           type="button"
                           onClick={() => setExpandedRouteTrips((p) => ({ ...p, [`${route.id}__tab`]: false }))}
-                          className="px-3 py-1.5 rounded-lg bg-purple-50 text-purple-800 border border-purple-200 text-xs font-bold"
+                          className={`px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl font-bold text-xs sm:text-sm transition-all ${
+                            (expandedRouteTrips as any)[`${route.id}__tab`] === false
+                              ? 'bg-gradient-to-r from-purple-500 to-purple-600 text-white shadow-lg scale-105'
+                              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                          }`}
                         >
-                          المغادرون
+                          <span className="flex items-center gap-2">
+                            <Navigation className="w-3 h-3 sm:w-4 sm:h-4" />
+                            المغادرون
+                          </span>
                         </button>
                       </div>
 
+                      {/* Trips Grid */}
                       {(routeTrips[route.id] || []).length === 0 ? (
-                        <div className="text-sm text-gray-600 bg-gray-50 border border-gray-200 rounded-lg p-3">
-                          لا توجد رحلات مجدولة لهذا الخط بعد. استخدم زر &quot;تحديد موعد&quot; داخل طلب الزيارة أو من القائمة أدناه بعد ظهورها.
+                        <div className="text-center py-8 sm:py-12 bg-gradient-to-br from-gray-50 to-gray-100 rounded-xl border-2 border-dashed border-gray-300">
+                          <Bus className="w-12 h-12 sm:w-16 sm:h-16 text-gray-400 mx-auto mb-4" />
+                          <p className="text-sm sm:text-base text-gray-600 font-semibold">لا توجد رحلات مجدولة</p>
+                          <p className="text-xs sm:text-sm text-gray-500 mt-2">استخدم الأزرار أعلاه لإنشاء رحلة جديدة</p>
                         </div>
                       ) : (
-                        <div className="space-y-2">
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
                           {(routeTrips[route.id] || [])
                             .filter((t) => {
                               const tabIsArrival = Boolean((expandedRouteTrips as any)[`${route.id}__tab`] ?? true)
-                              return tabIsArrival ? (t.trip_type || 'arrival') === 'arrival' : (t.trip_type || 'arrival') === 'departure'
+                              return tabIsArrival 
+                                ? (t.trip_type || 'arrival') === 'arrival' 
+                                : (t.trip_type || 'arrival') === 'departure'
                             })
                             .map((t) => {
-                            return (
-                              <div key={t.id} className="relative">
-                                <TripCardWithMap
-                                  trip={{
-                                    id: t.id,
-                                    trip_date: t.arrival_date || '',
-                                    meeting_time: t.meeting_time || null,
-                                    departure_time: t.departure_time || null,
-                                    start_location_name: t.start_location_name || '',
-                                    start_lat: t.start_lat || 0,
-                                    start_lng: t.start_lng || 0,
-                                    end_location_name: t.end_location_name || '',
-                                    end_lat: t.end_lat || 0,
-                                    end_lng: t.end_lng || 0,
-                                    trip_type: (t.trip_type as any) || 'arrival',
-                                  }}
-                                  onUpdate={() => loadTripsForRoute(route.id)}
-                                  onEditTrip={() => setSelectedTripId(t.id)}
-                                  assignedDrivers={tripAssignedDrivers[t.id]}
-                                  allDrivers={drivers}
-                                  onAssignDriver={(tripId, driverId) => handleAssignDriverToTrip(tripId, driverId, route.id)}
-                                />
-                                {/* Edit and Copy buttons */}
-                                <div className="absolute top-2 left-2 flex gap-2 z-10">
-                                  <button
-                                    onClick={() => handleEditTrip(t.id, route.id)}
-                                    className="px-2 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-xs font-semibold shadow-md"
-                                    title="تعديل الرحلة"
-                                  >
-                                    <Edit className="w-3 h-3 inline mr-1" />
-                                    تعديل
-                                  </button>
-                                  <button
-                                    onClick={() => handleCopyTrip(t.id, route.id)}
-                                    className="px-2 py-1.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition text-xs font-semibold shadow-md"
-                                    title="نسخ الرحلة"
-                                  >
-                                    <Copy className="w-3 h-3 inline mr-1" />
-                                    نسخ
-                                  </button>
+                              const isArrival = (t.trip_type || 'arrival') === 'arrival'
+                              const tripDate = new Date(t.arrival_date || '')
+                              return (
+                                <div
+                                  key={t.id}
+                                  className={`group relative bg-white rounded-xl border-2 overflow-hidden shadow-md hover:shadow-2xl transition-all duration-300 hover:-translate-y-1 ${
+                                    isArrival
+                                      ? 'border-green-200 hover:border-green-400'
+                                      : 'border-purple-200 hover:border-purple-400'
+                                  }`}
+                                >
+                                  {/* Gradient Header */}
+                                  <div
+                                    className={`h-2 ${
+                                      isArrival
+                                        ? 'bg-gradient-to-r from-green-500 via-emerald-500 to-green-600'
+                                        : 'bg-gradient-to-r from-purple-500 via-purple-600 to-purple-700'
+                                    }`}
+                                  />
+                                  
+                                  <div className="p-4 sm:p-5">
+                                    {/* Trip Type Badge & Quick Actions */}
+                                    <div className="flex items-center justify-between mb-3">
+                                      <span
+                                        className={`px-2 sm:px-3 py-1 rounded-full text-[10px] sm:text-xs font-bold ${
+                                          isArrival
+                                            ? 'bg-green-100 text-green-800 border border-green-300'
+                                            : 'bg-purple-100 text-purple-800 border border-purple-300'
+                                        }`}
+                                      >
+                                        {isArrival ? '🟢 القادمون' : '🟣 المغادرون'}
+                                      </span>
+                                      
+                                      {/* Quick Actions */}
+                                      <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                        <button
+                                          onClick={() => handleEditTrip(t.id, route.id)}
+                                          className="px-2 sm:px-2.5 py-1.5 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition flex items-center gap-1.5 text-[10px] sm:text-xs font-semibold"
+                                          title="تعديل"
+                                        >
+                                          <Edit className="w-3 h-3 sm:w-4 sm:h-4" />
+                                          <span>تعديل</span>
+                                        </button>
+                                      </div>
+                                    </div>
+
+                                    {/* Route Info */}
+                                    <div className="mb-3 sm:mb-4">
+                                      <div className="flex items-start gap-2 mb-2">
+                                        <MapPin className={`w-4 h-4 sm:w-5 sm:h-5 mt-0.5 flex-shrink-0 ${
+                                          isArrival ? 'text-green-600' : 'text-purple-600'
+                                        }`} />
+                                        <div className="flex-1 min-w-0">
+                                          <p className="font-extrabold text-gray-900 text-xs sm:text-sm leading-tight truncate">
+                                            {t.start_location_name}
+                                          </p>
+                                          <div className="flex items-center gap-1 my-1">
+                                            <div className={`flex-1 h-0.5 ${
+                                              isArrival ? 'bg-green-200' : 'bg-purple-200'
+                                            }`} />
+                                            <Navigation className={`w-3 h-3 sm:w-4 sm:h-4 ${
+                                              isArrival ? 'text-green-500' : 'text-purple-500'
+                                            }`} />
+                                            <div className={`flex-1 h-0.5 ${
+                                              isArrival ? 'bg-green-200' : 'bg-purple-200'
+                                            }`} />
+                                          </div>
+                                          <p className="font-extrabold text-gray-900 text-xs sm:text-sm leading-tight truncate">
+                                            {t.end_location_name}
+                                          </p>
+                                        </div>
+                                      </div>
+                                    </div>
+
+                                    {/* Date & Time */}
+                                    <div className="space-y-1.5 sm:space-y-2 mb-3 sm:mb-4">
+                                      <div className="flex items-center gap-2 text-[10px] sm:text-xs">
+                                        <Calendar className="w-3 h-3 sm:w-4 sm:h-4 text-gray-500 flex-shrink-0" />
+                                        <span className="font-semibold text-gray-700 truncate">
+                                          {tripDate.toLocaleDateString('ar-JO', {
+                                            weekday: 'long'
+                                          })}, <span lang="en" dir="ltr">{String(tripDate.getDate()).padStart(2, '0')}/{String(tripDate.getMonth() + 1).padStart(2, '0')}/{tripDate.getFullYear()}</span>
+                                        </span>
+                                      </div>
+                                      {t.meeting_time && (
+                                        <div className="flex items-center gap-2 text-[10px] sm:text-xs">
+                                          <Clock className="w-3 h-3 sm:w-4 sm:h-4 text-gray-500 flex-shrink-0" />
+                                          <span className="text-gray-600">
+                                            تجمع: <span className="font-semibold">{t.meeting_time}</span>
+                                          </span>
+                                        </div>
+                                      )}
+                                      {t.departure_time && (
+                                        <div className="flex items-center gap-2 text-[10px] sm:text-xs">
+                                          <Clock className="w-3 h-3 sm:w-4 sm:h-4 text-gray-500 flex-shrink-0" />
+                                          <span className="text-gray-600">
+                                            انطلاق: <span className="font-semibold">{t.departure_time}</span>
+                                          </span>
+                                        </div>
+                                      )}
+                                    </div>
+
+                                    {/* Passengers Count */}
+                                    <div className="mb-3 sm:mb-4 pt-2 sm:pt-3 border-t border-gray-100">
+                                      <button
+                                        onClick={() => handleShowPassengers(t.id)}
+                                        className="flex items-center gap-2 text-[10px] sm:text-xs font-semibold text-gray-700 hover:text-blue-600 transition cursor-pointer w-full text-right"
+                                        disabled={!tripPassengers[t.id] || tripPassengers[t.id].length === 0}
+                                      >
+                                        <Users className="w-3 h-3 sm:w-4 sm:h-4" />
+                                        <span>
+                                          عدد الحاجزين: <span className={`font-bold ${(tripPassengers[t.id]?.length || 0) > 0 ? 'text-blue-600' : 'text-gray-400'}`}>
+                                            {tripPassengers[t.id]?.length || 0}
+                                          </span>
+                                        </span>
+                                      </button>
+                                    </div>
+
+                                    {/* Assigned Drivers */}
+                                    {tripAssignedDrivers[t.id] && tripAssignedDrivers[t.id].length > 0 && (
+                                      <div className="mb-3 sm:mb-4 pt-2 sm:pt-3 border-t border-gray-100">
+                                        <p className="text-[10px] sm:text-xs font-semibold text-gray-600 mb-1.5 sm:mb-2">السائقون المعيّنون:</p>
+                                        <div className="flex flex-wrap gap-1 sm:gap-1.5 mb-2">
+                                          {tripAssignedDrivers[t.id].map((driver) => (
+                                            <span
+                                              key={driver.id}
+                                              className="inline-flex items-center gap-1 px-1.5 sm:px-2 py-0.5 sm:py-1 bg-gray-50 text-gray-700 rounded-lg text-[10px] sm:text-xs font-medium border border-gray-200 group/driver"
+                                            >
+                                              <Bus className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
+                                              <span className="truncate max-w-[80px] sm:max-w-none">{driver.name}</span>
+                                              <button
+                                                onClick={() => handleUnassignDriverFromTrip(t.id, driver.id, route.id)}
+                                                className="ml-1 p-0.5 text-red-600 hover:bg-red-100 rounded transition opacity-0 group-hover/driver:opacity-100"
+                                                title="إزالة السائق"
+                                              >
+                                                <X className="w-3 h-3" />
+                                              </button>
+                                            </span>
+                                          ))}
+                                        </div>
+                                      </div>
+                                    )}
+
+                                    {/* Assign Driver Dropdown */}
+                                    <div className="mb-3 sm:mb-4 pt-2 sm:pt-3 border-t border-gray-100">
+                                      <label className="block text-[10px] sm:text-xs font-semibold text-gray-700 mb-1.5 sm:mb-2">
+                                        {tripAssignedDrivers[t.id] && tripAssignedDrivers[t.id].length > 0 
+                                          ? 'إضافة سائق آخر:' 
+                                          : 'ربط سائق بالرحلة:'}
+                                      </label>
+                                      <select
+                                        onChange={(e) => {
+                                          if (e.target.value) {
+                                            handleAssignDriverToTrip(t.id, e.target.value, route.id)
+                                            e.target.value = ''
+                                          }
+                                        }}
+                                        className="w-full px-2 sm:px-3 py-1.5 sm:py-2 border border-gray-300 rounded-lg text-[10px] sm:text-xs focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
+                                      >
+                                        <option value="">اختر سائق...</option>
+                                        {drivers
+                                          .filter(d => d.is_active !== false && !tripAssignedDrivers[t.id]?.find(ad => ad.id === d.id))
+                                          .map(driver => (
+                                            <option key={driver.id} value={driver.id}>
+                                              {driver.name} - {driver.vehicle_type}
+                                            </option>
+                                          ))}
+                                      </select>
+                                    </div>
+
+                                    {/* Action Buttons */}
+                                    <div className="flex gap-2 pt-2 sm:pt-3 border-t border-gray-100">
+                                      <button
+                                        onClick={() => setSelectedTripId(t.id)}
+                                        className="flex-1 px-2 sm:px-3 py-1.5 sm:py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-[10px] sm:text-xs font-semibold"
+                                      >
+                                        عرض التفاصيل
+                                      </button>
+                                    </div>
+                                  </div>
                                 </div>
-                              </div>
-                            )
-                          })}
+                              )
+                            })}
                         </div>
                       )}
                     </div>
@@ -1387,6 +1735,96 @@ export default function RouteManagement() {
                   </button>
                 </div>
               </form>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Passengers Modal */}
+      {showPassengersModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-3 sm:p-4 overflow-y-auto">
+          <div className="bg-white rounded-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto shadow-2xl">
+            <div className="sticky top-0 bg-white border-b border-gray-200 p-4 sm:p-6 flex items-center justify-between z-10">
+              <h3 className="text-lg sm:text-xl font-bold text-gray-800 flex items-center gap-2">
+                <Users className="w-5 h-5 text-blue-600" />
+                قائمة الحاجزين ({showPassengersModal.passengers.length})
+              </h3>
+              <button
+                onClick={() => setShowPassengersModal(null)}
+                className="p-2 hover:bg-gray-100 rounded-lg transition"
+              >
+                <X className="w-5 h-5 text-gray-600" />
+              </button>
+            </div>
+            
+            <div className="p-4 sm:p-6 space-y-3">
+              {showPassengersModal.passengers.map((passenger: any, idx: number) => {
+                const totalPeople = 1 + (passenger.companions_count || 0)
+                const whatsappPhone = normalizePhoneForWhatsApp(passenger.phone)
+                const whatsappUrl = whatsappPhone 
+                  ? `https://wa.me/${whatsappPhone}` 
+                  : `https://wa.me/?text=${encodeURIComponent(`تواصل مع ${passenger.visitor_name}`)}`
+                
+                return (
+                  <div key={passenger.id} className="border border-gray-200 rounded-lg p-3 sm:p-4 hover:bg-gray-50 transition">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-2">
+                          <span className="w-6 h-6 bg-blue-600 text-white rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0">
+                            {idx + 1}
+                          </span>
+                          <h4 className="font-bold text-gray-900 text-sm sm:text-base">
+                            {passenger.visitor_name}
+                          </h4>
+                          {passenger.full_name && passenger.full_name !== passenger.visitor_name && (
+                            <span className="text-xs text-gray-500">({passenger.full_name})</span>
+                          )}
+                        </div>
+                        
+                        <div className="space-y-1.5 text-xs sm:text-sm text-gray-600">
+                          <div className="flex items-center gap-2">
+                            <Users className="w-3 h-3 sm:w-4 sm:h-4 text-gray-500" />
+                            <span>عدد الأشخاص: <span className="font-semibold">{totalPeople}</span></span>
+                          </div>
+                          {passenger.phone && (
+                            <div className="flex items-center gap-2">
+                              <Phone className="w-3 h-3 sm:w-4 sm:h-4 text-gray-500" />
+                              <span>{passenger.phone}</span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                      
+                      {passenger.phone && (
+                        <div className="flex gap-2 flex-shrink-0">
+                          <a
+                            href={whatsappUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="px-3 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition text-xs font-semibold flex items-center gap-1.5"
+                          >
+                            <Phone className="w-3 h-3 sm:w-4 sm:h-4" />
+                            واتساب
+                          </a>
+                          <a
+                            href={`tel:${passenger.phone.replace(/\D/g, '')}`}
+                            className="px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-xs font-semibold flex items-center gap-1.5"
+                          >
+                            <Phone className="w-3 h-3 sm:w-4 sm:h-4" />
+                            اتصال
+                          </a>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )
+              })}
+              
+              {showPassengersModal.passengers.length === 0 && (
+                <div className="text-center py-8 text-gray-500">
+                  لا يوجد حاجزين في هذه الرحلة
+                </div>
+              )}
             </div>
           </div>
         </div>
