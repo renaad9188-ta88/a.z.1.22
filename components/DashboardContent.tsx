@@ -27,6 +27,7 @@ import TripSchedulingModal from './admin/TripSchedulingModal'
 import toast from 'react-hot-toast'
 import { formatDate } from '@/lib/date-utils'
 import { getSignedImageUrl, parseAdminNotes } from './request-details/utils'
+import ProgressBar from './ProgressBar'
 
 interface VisitRequest {
   id: string
@@ -655,6 +656,11 @@ export default function DashboardContent({ userId }: { userId: string }) {
                           </Link>
                         </div>
                       )}
+                      
+                      {/* شريط التقدم */}
+                      <div className="mt-4 pt-4 border-t border-gray-200">
+                        <ProgressBar request={request} showLabels={true} />
+                      </div>
                     </div>
                     <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
                       <Link

@@ -309,6 +309,21 @@ export default function AdminDashboard() {
     return map[t] || t
   }
 
+  const getFilterTitle = () => {
+    const filterLabels: Record<string, string> = {
+      all: 'جميع الطلبات',
+      new: 'طلبات جديدة (24 ساعة)',
+      received: 'الطلبات المستلمة',
+      in_progress: 'الطلبات قيد الإجراء',
+      approved: 'الطلبات الموافق عليها',
+      rejected: 'الطلبات المرفوضة',
+      bookings: 'حجوزات الطلبات',
+      drafts: 'المسودات',
+      under_review: 'قيد المراجعة',
+    }
+    return filterLabels[statusFilter] || 'الطلبات'
+  }
+
   const typeOrder = ['visit', 'goethe', 'embassy', 'umrah', 'tourism']
   const groupedByType = (list: VisitRequest[]) => {
     const groups: Record<string, VisitRequest[]> = {}
@@ -494,7 +509,13 @@ export default function AdminDashboard() {
         ) : (
           <>
             {/* Stats */}
-            <AdminStats stats={stats} />
+            <AdminStats 
+              stats={stats} 
+              selectedFilter={statusFilter}
+              onStatClick={(filterType) => {
+                setStatusFilter(filterType)
+              }}
+            />
 
         {/* Filters */}
         <RequestFilters
@@ -531,7 +552,7 @@ export default function AdminDashboard() {
             <>
               <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 sm:gap-4 mb-3 sm:mb-4">
                 <h2 className="text-base sm:text-lg md:text-xl font-bold text-gray-800">
-                  جميع الطلبات ({filteredRequests.length})
+                  {getFilterTitle()} ({filteredRequests.length})
                 </h2>
                 <p className="text-xs sm:text-sm text-gray-600">
                   انقر على أي طلب لعرض التفاصيل والرد

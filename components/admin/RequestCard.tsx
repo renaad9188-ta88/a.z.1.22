@@ -6,6 +6,7 @@ import { Clock, CheckCircle, XCircle, Eye, Calendar, MapPin, Users, DollarSign, 
 import toast from 'react-hot-toast'
 import { parseAdminNotes } from '../request-details/utils'
 import Link from 'next/link'
+import ProgressBar from '../ProgressBar'
 
 interface RequestCardProps {
   request: VisitRequest
@@ -379,6 +380,11 @@ export default function RequestCard({ request, userProfile, onClick, onScheduleT
               </span>
             )}
           </div>
+        </div>
+
+        {/* شريط التقدم */}
+        <div className="mt-3 pt-3 border-t border-gray-200">
+          <ProgressBar request={request} compact={true} />
         </div>
 
         {/* الأزرار */}
