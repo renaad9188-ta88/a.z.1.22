@@ -13,6 +13,8 @@ html {
   color-scheme: light;
   /* ضمان أن الخلفية فاتحة دائماً */
   background-color: #ffffff;
+  /* تحديد حجم الخط الأساسي */
+  font-size: 16px;
 }
 
 /* إزالة dark mode detection - نحن نريد Light Mode دائماً */
@@ -37,6 +39,8 @@ body {
   -moz-osx-font-smoothing: grayscale;
   /* لون النص الطبيعي - رمادي داكن */
   color: #374151;
+  /* تحديد حجم الخط الأساسي */
+  font-size: 16px;
 }
 
 /* Responsive Typography */
