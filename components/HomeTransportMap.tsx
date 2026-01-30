@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { createSupabaseBrowserClient } from '@/lib/supabase'
 import Link from 'next/link'
-import { Bus, Calendar, Clock, MapPin, Plane, Route, ChevronLeft, Users } from 'lucide-react'
+import { Bus, Calendar, Clock, MapPin, Plane, Route, ChevronLeft, Users, Navigation, ChevronDown, ChevronUp, X, Map, Satellite, LocateFixed } from 'lucide-react'
 import { formatDate } from '@/lib/date-utils'
 
 const BORDER_CENTER = { lat: 32.5456, lng: 35.825 } // معبر جابر تقريباً
@@ -100,6 +100,10 @@ export default function HomeTransportMap() {
   const [passengers, setPassengers] = useState<PassengerInfo[]>([])
   const [loadingPassengers, setLoadingPassengers] = useState(false)
   const [tripType, setTripType] = useState<'arrival' | 'departure' | null>(null)
+  const [isPassengerListMinimized, setIsPassengerListMinimized] = useState(false)
+  const [isDriverInfoMinimized, setIsDriverInfoMinimized] = useState(false)
+  const [isTripMetaHidden, setIsTripMetaHidden] = useState(false)
+  const [mapType, setMapType] = useState<'roadmap' | 'satellite'>('roadmap')
   const directionsServiceForEtaRef = useRef<google.maps.DirectionsService | null>(null)
   const [driverInfo, setDriverInfo] = useState<{ name: string; phone: string; company_phone?: string | null } | null>(null)
   const [showDriverInfo, setShowDriverInfo] = useState(false)
@@ -150,10 +154,7 @@ export default function HomeTransportMap() {
         center: BORDER_CENTER,
         zoom: 10,
         mapTypeId: googleMaps.MapTypeId.ROADMAP,
-        mapTypeControl: true, // Satellite / Map
-        mapTypeControlOptions: {
-          position: googleMaps.ControlPosition.TOP_LEFT,
-        },
+        mapTypeControl: false, // تعطيل الأزرار الافتراضية - سنستخدم أزرار مخصصة
         zoomControl: true,
         zoomControlOptions: {
           position: googleMaps.ControlPosition.LEFT_CENTER,
@@ -657,6 +658,81 @@ export default function HomeTransportMap() {
         })
         polylineRef.current.setMap(map)
       })
+  }
+
+  // Reset map view to trip bounds
+  const resetMapToTrip = () => {
+    if (!mapRef.current || !(window as any).google?.maps) return
+    const googleMaps = (window as any).google.maps as typeof google.maps
+    const map = mapRef.current
+
+    // إذا لم تكن هناك رحلة، ارجع إلى المركز الافتراضي
+    if (!tripRow) {
+      map.setCenter(BORDER_CENTER)
+      map.setZoom(10)
+      return
+    }
+
+    const start: LatLng | null =
+      tripRow?.start_lat != null && tripRow?.start_lng != null
+        ? { lat: Number(tripRow.start_lat), lng: Number(tripRow.start_lng) }
+        : null
+
+    const end: LatLng | null =
+      tripRow?.end_lat != null && tripRow?.end_lng != null
+        ? { lat: Number(tripRow.end_lat), lng: Number(tripRow.end_lng) }
+        : null
+
+    if (!start || !end) {
+      // إذا لم تكن هناك نقاط بداية ونهاية، ارجع إلى المركز الافتراضي
+      map.setCenter(BORDER_CENTER)
+      map.setZoom(10)
+      return
+    }
+
+    const bounds = new googleMaps.LatLngBounds()
+    bounds.extend(start)
+    bounds.extend(end)
+
+    // Include driver location if available
+    if (driverLocation) {
+      bounds.extend(driverLocation)
+    }
+
+    // Include stop points
+    const baseStops = normalizeStops(tripRow?.stops)
+    baseStops.forEach((stop: any) => {
+      if (stop.lat && stop.lng) {
+        bounds.extend({ lat: Number(stop.lat), lng: Number(stop.lng) })
+      }
+    })
+
+    // تأكد من أن bounds صالحة قبل استخدام fitBounds
+    try {
+      map.fitBounds(bounds, 60)
+    } catch (e) {
+      console.error('Error fitting bounds:', e)
+      // Fallback to center and zoom
+      map.setCenter(start)
+      map.setZoom(10)
+    }
+  }
+
+  // Function to toggle map type
+  const toggleMapType = () => {
+    if (!mapRef.current || !(window as any).google?.maps) return
+    const googleMaps = (window as any).google.maps as typeof google.maps
+    
+    const newType = mapType === 'roadmap' ? 'satellite' : 'roadmap'
+    setMapType(newType)
+    
+    if (mapRef.current) {
+      mapRef.current.setMapTypeId(
+        newType === 'satellite' 
+          ? googleMaps.MapTypeId.SATELLITE 
+          : googleMaps.MapTypeId.ROADMAP
+      )
+    }
   }
 
   const loadUserHint = async () => {
@@ -1246,38 +1322,131 @@ export default function HomeTransportMap() {
             {/* Overlay: Trip meta */}
             {shouldLoad && (
               <div className="pointer-events-none absolute inset-0">
-                {/* Trip meta (top-right) */}
-                <div className="pointer-events-none absolute top-3 right-3">
-                  <div className="pointer-events-auto bg-white/85 backdrop-blur-md rounded-lg shadow-md border border-gray-200 px-2.5 py-2 sm:px-3 sm:py-2.5 min-w-0 w-[min(18rem,calc(100vw-1.5rem))] sm:w-[min(22rem,calc(100vw-1.5rem))]">
-                  <div className="flex items-center gap-2 min-w-0">
-                    <div className="w-8 h-8 rounded-lg bg-amber-50 flex items-center justify-center flex-shrink-0">
-                      <Bus className="w-4.5 h-4.5 text-amber-700" />
-                    </div>
-                    <div className="min-w-0">
-                      <div className="text-[11px] sm:text-xs font-extrabold text-gray-900 truncate">
-                        {tripLabel.badge} — {loadingTrip ? 'جاري التحميل...' : tripLabel.demo}
-                      </div>
-                      <div className="text-[10px] text-gray-600 truncate">
-                        {tripLabel.route || 'مسار افتراضي'}
-                      </div>
-                    </div>
-                  </div>
-                  <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-[10px] text-gray-700">
-                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-gray-50 border border-gray-200 whitespace-nowrap">
-                      <Calendar className="w-3.5 h-3.5 text-gray-600" />
-                      {dateText || '—'}
+                {/* Minimize/Restore button for Passenger List */}
+                {showPassengerList && (
+                  <button
+                    onClick={() => setIsPassengerListMinimized(!isPassengerListMinimized)}
+                    className="pointer-events-auto absolute bottom-3 left-3 z-50 bg-white hover:bg-gray-50 border border-gray-300 rounded-lg shadow-md p-2.5 transition-all hover:shadow-lg active:scale-95 flex items-center gap-2"
+                    title={isPassengerListMinimized ? "استرجاع قائمة الركاب" : "تصغير قائمة الركاب"}
+                    aria-label={isPassengerListMinimized ? "استرجاع" : "تصغير"}
+                  >
+                    {isPassengerListMinimized ? (
+                      <ChevronUp className="w-5 h-5 text-gray-700" />
+                    ) : (
+                      <ChevronDown className="w-5 h-5 text-gray-700" />
+                    )}
+                    <span className="text-xs font-medium text-gray-700 hidden sm:inline">
+                      {isPassengerListMinimized ? "استرجاع" : "تصغير"}
                     </span>
-                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-gray-50 border border-gray-200 whitespace-nowrap">
-                      <Clock className="w-3.5 h-3.5 text-gray-600" />
-                      {timeText || '—'}
+                  </button>
+                )}
+
+                {/* Minimize/Restore button for Driver Info */}
+                {showDriverInfo && (
+                  <button
+                    onClick={() => setIsDriverInfoMinimized(!isDriverInfoMinimized)}
+                    className="pointer-events-auto absolute bottom-3 left-3 z-50 bg-white hover:bg-gray-50 border border-gray-300 rounded-lg shadow-md p-2.5 transition-all hover:shadow-lg active:scale-95 flex items-center gap-2"
+                    title={isDriverInfoMinimized ? "استرجاع معلومات السائق" : "تصغير معلومات السائق"}
+                    aria-label={isDriverInfoMinimized ? "استرجاع" : "تصغير"}
+                  >
+                    {isDriverInfoMinimized ? (
+                      <ChevronUp className="w-5 h-5 text-gray-700" />
+                    ) : (
+                      <ChevronDown className="w-5 h-5 text-gray-700" />
+                    )}
+                    <span className="text-xs font-medium text-gray-700 hidden sm:inline">
+                      {isDriverInfoMinimized ? "استرجاع" : "تصغير"}
                     </span>
-                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-blue-50 border border-blue-100 text-blue-700 font-bold whitespace-nowrap">
-                      <Route className="w-3.5 h-3.5" />
-                      نقاط توقف: {stopsCountText}
-                    </span>
-                  </div>
+                  </button>
+                )}
+
+                {/* Reset to Trip Button - تم نقله إلى مجموعة الأزرار في أعلى اليمين */}
+
+                {/* Custom Map Type Toggle Button - أسفل البطاقة */}
+                <div className={`pointer-events-none absolute right-3 z-30 ${isTripMetaHidden ? 'top-14 md:top-3' : 'top-32 md:top-24'}`}>
+                  <div className="pointer-events-auto flex flex-col gap-2">
+                    {/* Show Trip Meta button - appears when hidden */}
+                    {isTripMetaHidden && (
+                      <button
+                        onClick={() => setIsTripMetaHidden(false)}
+                        className="bg-white hover:bg-gray-50 border border-gray-300 rounded-lg shadow-md p-2 md:p-2.5 transition-all hover:shadow-lg active:scale-95"
+                        title="إظهار معلومات الرحلة"
+                        aria-label="إظهار معلومات الرحلة"
+                      >
+                        <Bus className="w-5 h-5 md:w-6 md:h-6 text-gray-700" />
+                      </button>
+                    )}
+
+                    {/* Reset to Trip Button - يرجع لنطاق الرحلة */}
+                    <button
+                      onClick={resetMapToTrip}
+                      className="bg-white hover:bg-gray-50 border border-gray-300 rounded-lg shadow-md p-2 md:p-2.5 transition-all hover:shadow-lg active:scale-95"
+                      title={tripRow ? "العودة إلى نطاق الرحلة" : "العودة إلى نطاق الخريطة"}
+                      aria-label={tripRow ? "العودة إلى نطاق الرحلة" : "العودة إلى نطاق الخريطة"}
+                    >
+                      <LocateFixed className="w-5 h-5 md:w-6 md:h-6 text-gray-700" />
+                    </button>
+
+                    {/* Map Type Toggle Button - يظهر دائماً */}
+                    <button
+                      onClick={toggleMapType}
+                      className="bg-white hover:bg-gray-50 border border-gray-300 rounded-lg shadow-md p-2 md:p-2.5 transition-all hover:shadow-lg active:scale-95"
+                      title={mapType === 'roadmap' ? 'عرض القمر الصناعي' : 'عرض الخريطة'}
+                      aria-label={mapType === 'roadmap' ? 'قمر صناعي' : 'خريطة'}
+                    >
+                      {mapType === 'roadmap' ? (
+                        <Satellite className="w-5 h-5 md:w-6 md:h-6 text-gray-700" />
+                      ) : (
+                        <Map className="w-5 h-5 md:w-6 md:h-6 text-gray-700" />
+                      )}
+                    </button>
                   </div>
                 </div>
+
+                {/* Trip meta (top-right) - responsive positioning to avoid covering Google Maps controls */}
+                {!isTripMetaHidden && (
+                  <div className="pointer-events-none absolute top-14 md:top-3 right-3">
+                    <div className="pointer-events-auto bg-white/85 backdrop-blur-md rounded-lg shadow-md border border-gray-200 px-2.5 py-2 sm:px-3 sm:py-2.5 min-w-0 w-[min(18rem,calc(100vw-1.5rem))] sm:w-[min(22rem,calc(100vw-1.5rem))]">
+                      <div className="flex items-center justify-between gap-2 mb-1.5">
+                        <div className="flex items-center gap-2 min-w-0 flex-1">
+                          <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-lg bg-amber-50 flex items-center justify-center flex-shrink-0">
+                            <Bus className="w-4.5 h-4.5 sm:w-5 sm:h-5 text-amber-700" />
+                          </div>
+                          <div className="min-w-0">
+                            <div className="text-[11px] sm:text-xs font-extrabold text-gray-900 truncate">
+                              {tripLabel.badge} — {loadingTrip ? 'جاري التحميل...' : tripLabel.demo}
+                            </div>
+                            <div className="text-[10px] sm:text-[11px] text-gray-600 truncate">
+                              {tripLabel.route || 'مسار افتراضي'}
+                            </div>
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => setIsTripMetaHidden(true)}
+                          className="p-1.5 sm:p-2 hover:bg-gray-100/50 rounded-lg transition-colors flex-shrink-0 active:scale-95"
+                          title="إخفاء معلومات الرحلة"
+                          aria-label="إخفاء"
+                        >
+                          <X className="w-4 h-4 sm:w-5 sm:h-5 text-gray-500 hover:text-gray-700" />
+                        </button>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-1.5 text-[10px] sm:text-[11px] text-gray-700">
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-gray-50 border border-gray-200 whitespace-nowrap">
+                          <Calendar className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-gray-600" />
+                          {dateText || '—'}
+                        </span>
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-gray-50 border border-gray-200 whitespace-nowrap">
+                          <Clock className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-gray-600" />
+                          {timeText || '—'}
+                        </span>
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-blue-50 border border-blue-100 text-blue-700 font-bold whitespace-nowrap">
+                          <Route className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                          نقاط توقف: {stopsCountText}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 {/* Overlay: user hint */}
                 {userHint && (() => {
@@ -1322,7 +1491,7 @@ export default function HomeTransportMap() {
                             className="pointer-events-auto absolute inset-0 z-30"
                             onClick={() => setShowDriverInfo(false)}
                           />
-                          <div className="pointer-events-none absolute bottom-3 right-3 w-[min(18rem,calc(100vw-2rem))] z-40">
+                          <div className={`pointer-events-none absolute bottom-3 right-3 w-[min(18rem,calc(100vw-2rem))] z-40 transition-all duration-300 ${isDriverInfoMinimized ? 'opacity-0 pointer-events-none scale-95' : 'opacity-100'}`}>
                             <div className="pointer-events-auto bg-white/90 backdrop-blur-lg rounded-xl shadow-xl border border-gray-200/50 p-4">
                               <div className="flex items-center justify-between mb-3">
                                 <h3 className="text-sm font-bold text-gray-900">معلومات السائق</h3>
@@ -1414,7 +1583,7 @@ export default function HomeTransportMap() {
                             className="pointer-events-auto absolute inset-0 z-30"
                             onClick={() => setShowPassengerList(false)}
                           />
-                          <div className="pointer-events-none absolute bottom-3 right-3 w-[min(20rem,calc(100vw-2rem))] max-h-[60vh] z-40">
+                          <div className={`pointer-events-none absolute bottom-3 right-3 w-[min(20rem,calc(100vw-2rem))] max-h-[60vh] z-40 transition-all duration-300 ${isPassengerListMinimized ? 'opacity-0 pointer-events-none scale-95' : 'opacity-100'}`}>
                             <div className="pointer-events-auto bg-white/90 backdrop-blur-lg rounded-xl shadow-xl border border-gray-200/50 flex flex-col overflow-hidden">
                             {/* Header */}
                             <div className="flex items-center justify-between p-3 border-b border-gray-200/50 bg-white/50">
