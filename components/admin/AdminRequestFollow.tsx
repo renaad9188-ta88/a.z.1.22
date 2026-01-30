@@ -1120,7 +1120,35 @@ export default function AdminRequestFollow({
                             </button>
                             <button
                               type="button"
-                              onClick={() => appendAdminResponseAndNotify('تم تأكيد الحجز', false)}
+                              onClick={async () => {
+                                if (!request) return
+                                try {
+                                  setSaving(true)
+                                  const stamp = new Date().toISOString()
+                                  const section = `\n\n=== رد الإدارة ===\nتم تأكيد الحجز\nتاريخ الرد: ${stamp}`
+                                  const updatedNotes = ((request.admin_notes || '') as string) + section
+                                  
+                                  // تحديث admin_notes و trip_status
+                                  const { error } = await supabase
+                                    .from('visit_requests')
+                                    .update({ 
+                                      admin_notes: updatedNotes,
+                                      trip_status: 'pending_arrival', // تغيير الحالة من scheduled_pending_approval إلى pending_arrival
+                                      updated_at: new Date().toISOString() 
+                                    } as any)
+                                    .eq('id', request.id)
+                                  
+                                  if (error) throw error
+                                  await notifyCustomMessage(request.user_id, request.id, 'تم تأكيد الحجز')
+                                  toast.success('تم تأكيد الحجز')
+                                  await load()
+                                } catch (e: any) {
+                                  console.error('confirm booking error:', e)
+                                  toast.error(e?.message || 'تعذر تأكيد الحجز')
+                                } finally {
+                                  setSaving(false)
+                                }
+                              }}
                               disabled={saving}
                               className="px-4 py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition text-sm font-semibold disabled:opacity-50"
                               title="يرسل للمستخدم رسالة تأكيد الحجز"

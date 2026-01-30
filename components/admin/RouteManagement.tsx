@@ -91,6 +91,8 @@ export default function RouteManagement() {
   const [selectedRoute, setSelectedRoute] = useState<Route | null>(null)
   const [selectedRouteForTrip, setSelectedRouteForTrip] = useState<Route | null>(null)
   const [selectedTripId, setSelectedTripId] = useState<string | null>(null)
+  const [editTripData, setEditTripData] = useState<any>(null)
+  const [copyTripData, setCopyTripData] = useState<any>(null)
   const [driverSearch, setDriverSearch] = useState('')
   const [driverLocLoading, setDriverLocLoading] = useState<Record<string, boolean>>({})
   const [driverLastLoc, setDriverLastLoc] = useState<Record<string, DriverLocationLite | null>>({})
@@ -393,6 +395,59 @@ export default function RouteManagement() {
     } catch (e: any) {
       console.error('openTripScheduling error:', e)
       toast.error(e?.message || 'تعذر فتح نافذة تحديد موعد الرحلة')
+    }
+  }
+
+  const handleEditTrip = async (tripId: string, routeId: string) => {
+    try {
+      const { data: tripData, error } = await supabase
+        .from('route_trips')
+        .select('*')
+        .eq('id', tripId)
+        .single()
+      
+      if (error) throw error
+      
+      const route = routes.find(r => r.id === routeId)
+      if (!route) {
+        toast.error('لم يتم العثور على الخط')
+        return
+      }
+      
+      setEditTripData(tripData)
+      setSelectedRouteForTrip(route)
+      setCreateTripType((tripData.trip_type as any) || 'arrival')
+      setShowCreateTrip(true)
+    } catch (e: any) {
+      console.error('handleEditTrip error:', e)
+      toast.error(e?.message || 'تعذر تحميل بيانات الرحلة')
+    }
+  }
+
+  const handleCopyTrip = async (tripId: string, routeId: string) => {
+    try {
+      const { data: tripData, error } = await supabase
+        .from('route_trips')
+        .select('*')
+        .eq('id', tripId)
+        .single()
+      
+      if (error) throw error
+      
+      const route = routes.find(r => r.id === routeId)
+      if (!route) {
+        toast.error('لم يتم العثور على الخط')
+        return
+      }
+      
+      setCopyTripData(tripData)
+      setEditTripData(null) // Clear edit data
+      setSelectedRouteForTrip(route)
+      setCreateTripType((tripData.trip_type as any) || 'arrival')
+      setShowCreateTrip(true)
+    } catch (e: any) {
+      console.error('handleCopyTrip error:', e)
+      toast.error(e?.message || 'تعذر تحميل بيانات الرحلة')
     }
   }
 
@@ -807,27 +862,47 @@ export default function RouteManagement() {
                             })
                             .map((t) => {
                             return (
-                              <TripCardWithMap
-                                key={t.id}
-                                trip={{
-                                  id: t.id,
-                                  trip_date: t.arrival_date || '',
-                                  meeting_time: t.meeting_time || null,
-                                  departure_time: t.departure_time || null,
-                                  start_location_name: t.start_location_name || '',
-                                  start_lat: t.start_lat || 0,
-                                  start_lng: t.start_lng || 0,
-                                  end_location_name: t.end_location_name || '',
-                                  end_lat: t.end_lat || 0,
-                                  end_lng: t.end_lng || 0,
-                                  trip_type: (t.trip_type as any) || 'arrival',
-                                }}
-                                onUpdate={() => loadTripsForRoute(route.id)}
-                                onEditTrip={() => setSelectedTripId(t.id)}
-                                assignedDrivers={tripAssignedDrivers[t.id]}
-                                allDrivers={drivers}
-                                onAssignDriver={(tripId, driverId) => handleAssignDriverToTrip(tripId, driverId, route.id)}
-                              />
+                              <div key={t.id} className="relative">
+                                <TripCardWithMap
+                                  trip={{
+                                    id: t.id,
+                                    trip_date: t.arrival_date || '',
+                                    meeting_time: t.meeting_time || null,
+                                    departure_time: t.departure_time || null,
+                                    start_location_name: t.start_location_name || '',
+                                    start_lat: t.start_lat || 0,
+                                    start_lng: t.start_lng || 0,
+                                    end_location_name: t.end_location_name || '',
+                                    end_lat: t.end_lat || 0,
+                                    end_lng: t.end_lng || 0,
+                                    trip_type: (t.trip_type as any) || 'arrival',
+                                  }}
+                                  onUpdate={() => loadTripsForRoute(route.id)}
+                                  onEditTrip={() => setSelectedTripId(t.id)}
+                                  assignedDrivers={tripAssignedDrivers[t.id]}
+                                  allDrivers={drivers}
+                                  onAssignDriver={(tripId, driverId) => handleAssignDriverToTrip(tripId, driverId, route.id)}
+                                />
+                                {/* Edit and Copy buttons */}
+                                <div className="absolute top-2 left-2 flex gap-2 z-10">
+                                  <button
+                                    onClick={() => handleEditTrip(t.id, route.id)}
+                                    className="px-2 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-xs font-semibold shadow-md"
+                                    title="تعديل الرحلة"
+                                  >
+                                    <Edit className="w-3 h-3 inline mr-1" />
+                                    تعديل
+                                  </button>
+                                  <button
+                                    onClick={() => handleCopyTrip(t.id, route.id)}
+                                    className="px-2 py-1.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition text-xs font-semibold shadow-md"
+                                    title="نسخ الرحلة"
+                                  >
+                                    <Copy className="w-3 h-3 inline mr-1" />
+                                    نسخ
+                                  </button>
+                                </div>
+                              </div>
                             )
                           })}
                         </div>
@@ -888,11 +963,12 @@ export default function RouteManagement() {
                 lastLoc ? `https://www.google.com/maps?q=${lastLoc.lat},${lastLoc.lng}` : ''
 
               return (
-                <div key={d.id} className="border border-gray-200 rounded-xl p-3 sm:p-4">
-                  <div className="flex flex-col sm:flex-row justify-between items-start gap-3">
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2">
-                        <span className="font-extrabold text-gray-900">{d.name}</span>
+                <div key={d.id} className="border border-gray-200 rounded-xl p-3 sm:p-4 lg:p-5">
+                  <div className="flex flex-col lg:flex-row lg:justify-between lg:items-start gap-4">
+                    <div className="min-w-0 flex-1 space-y-2">
+                      {/* Name and badges */}
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="font-extrabold text-base sm:text-lg text-gray-900">{d.name}</span>
                         <span className={`text-[11px] px-2 py-0.5 rounded-full border ${d.is_active ? 'bg-green-50 text-green-700 border-green-200' : 'bg-gray-50 text-gray-700 border-gray-200'}`}>
                           {d.is_active ? 'نشط' : 'غير نشط'}
                         </span>
@@ -915,28 +991,34 @@ export default function RouteManagement() {
                           </span>
                         )}
                       </div>
-                      <div className="mt-1 text-xs sm:text-sm text-gray-700 flex flex-wrap gap-x-4 gap-y-1">
-                        <span className="inline-flex items-center gap-1">
-                          <Phone className="w-4 h-4 text-gray-500" />
-                          {d.phone}
-                        </span>
-                        <span className="inline-flex items-center gap-1">
-                          <Bus className="w-4 h-4 text-gray-500" />
-                          {d.vehicle_type} • {d.seats_count} مقعد
-                        </span>
-                        <span className="inline-flex items-center gap-1">
-                          <MapPin className="w-4 h-4 text-gray-500" />
-                          خطوط مربوطة: {routesCount}
-                        </span>
+                      
+                      {/* Driver info - grid layout for better organization */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 sm:gap-3 text-xs sm:text-sm text-gray-700">
+                        <div className="inline-flex items-center gap-1.5">
+                          <Phone className="w-4 h-4 text-gray-500 flex-shrink-0" />
+                          <span className="truncate">{d.phone}</span>
+                        </div>
+                        <div className="inline-flex items-center gap-1.5">
+                          <Bus className="w-4 h-4 text-gray-500 flex-shrink-0" />
+                          <span>{d.vehicle_type} • {d.seats_count} مقعد</span>
+                        </div>
+                        <div className="inline-flex items-center gap-1.5">
+                          <MapPin className="w-4 h-4 text-gray-500 flex-shrink-0" />
+                          <span>خطوط مربوطة: {routesCount}</span>
+                        </div>
                       </div>
+                      
+                      {/* Account info */}
                       {acc && (
-                        <div className="mt-1 text-[11px] sm:text-xs text-gray-600">
-                          حساب: {(acc.full_name || 'بدون اسم')} — {(acc.phone || 'بدون رقم')} — الدور الحالي: {(acc.role || 'user')}
+                        <div className="mt-2 text-[11px] sm:text-xs text-gray-600 bg-gray-50 rounded-lg p-2 border border-gray-200">
+                          <span className="font-semibold">حساب:</span> {acc.full_name || 'بدون اسم'} — {acc.phone || 'بدون رقم'} — <span className="font-semibold">الدور:</span> {acc.role || 'user'}
                         </div>
                       )}
+                      
+                      {/* Location info */}
                       {lastLoc && (
                         <div className="mt-2 text-[11px] sm:text-xs text-gray-600">
-                          آخر موقع: {new Date(lastLoc.updated_at).toLocaleString('ar-JO')} •{' '}
+                          <span className="font-semibold">آخر موقع:</span> {new Date(lastLoc.updated_at).toLocaleString('ar-JO')} •{' '}
                           <a href={mapHref} target="_blank" rel="noopener noreferrer" className="text-blue-700 font-bold hover:underline">
                             فتح على الخريطة
                           </a>
@@ -944,13 +1026,13 @@ export default function RouteManagement() {
                       )}
                       {live?.updated_at && (
                         <div className="mt-1 text-[11px] sm:text-xs text-gray-500">
-                          حالة متاح: آخر تحديث {new Date(live.updated_at).toLocaleString('ar-JO')}
+                          <span className="font-semibold">حالة متاح:</span> آخر تحديث {new Date(live.updated_at).toLocaleString('ar-JO')}
                         </div>
                       )}
                     </div>
 
-                    {/* Action buttons: grid on mobile to avoid overflow, wrap on larger screens */}
-                    <div className="grid grid-cols-2 gap-2 w-full sm:w-auto sm:flex sm:flex-wrap sm:gap-2">
+                    {/* Action buttons: grid on mobile, better layout on medium/large screens */}
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2 w-full">
                       <a
                         href={waHref}
                         target="_blank"
@@ -1103,23 +1185,50 @@ export default function RouteManagement() {
           routeName={selectedRouteForTrip.name}
           tripType={createTripType}
           defaultStart={
-            createTripType === 'departure'
-              ? { name: selectedRouteForTrip.end_location_name, lat: selectedRouteForTrip.end_lat, lng: selectedRouteForTrip.end_lng }
-              : { name: selectedRouteForTrip.start_location_name, lat: selectedRouteForTrip.start_lat, lng: selectedRouteForTrip.start_lng }
+            editTripData || copyTripData
+              ? (editTripData || copyTripData).start_location_name
+                ? { 
+                    name: (editTripData || copyTripData).start_location_name, 
+                    lat: (editTripData || copyTripData).start_lat, 
+                    lng: (editTripData || copyTripData).start_lng 
+                  }
+                : (createTripType === 'departure'
+                    ? { name: selectedRouteForTrip.end_location_name, lat: selectedRouteForTrip.end_lat, lng: selectedRouteForTrip.end_lng }
+                    : { name: selectedRouteForTrip.start_location_name, lat: selectedRouteForTrip.start_lat, lng: selectedRouteForTrip.start_lng })
+              : (createTripType === 'departure'
+                  ? { name: selectedRouteForTrip.end_location_name, lat: selectedRouteForTrip.end_lat, lng: selectedRouteForTrip.end_lng }
+                  : { name: selectedRouteForTrip.start_location_name, lat: selectedRouteForTrip.start_lat, lng: selectedRouteForTrip.start_lng })
           }
           defaultEnd={
-            createTripType === 'departure'
-              ? { name: selectedRouteForTrip.start_location_name, lat: selectedRouteForTrip.start_lat, lng: selectedRouteForTrip.start_lng }
-              : { name: selectedRouteForTrip.end_location_name, lat: selectedRouteForTrip.end_lat, lng: selectedRouteForTrip.end_lng }
+            editTripData || copyTripData
+              ? (editTripData || copyTripData).end_location_name
+                ? { 
+                    name: (editTripData || copyTripData).end_location_name, 
+                    lat: (editTripData || copyTripData).end_lat, 
+                    lng: (editTripData || copyTripData).end_lng 
+                  }
+                : (createTripType === 'departure'
+                    ? { name: selectedRouteForTrip.start_location_name, lat: selectedRouteForTrip.start_lat, lng: selectedRouteForTrip.start_lng }
+                    : { name: selectedRouteForTrip.end_location_name, lat: selectedRouteForTrip.end_lat, lng: selectedRouteForTrip.end_lng })
+              : (createTripType === 'departure'
+                  ? { name: selectedRouteForTrip.start_location_name, lat: selectedRouteForTrip.start_lat, lng: selectedRouteForTrip.start_lng }
+                  : { name: selectedRouteForTrip.end_location_name, lat: selectedRouteForTrip.end_lat, lng: selectedRouteForTrip.end_lng })
           }
+          editTripId={editTripData ? editTripData.id : null}
+          editTripData={editTripData || copyTripData}
           onClose={() => {
             setShowCreateTrip(false)
+            setEditTripData(null)
+            setCopyTripData(null)
             setSelectedRouteForTrip(null)
           }}
           onSuccess={() => {
             // Reload trips for this route
-            loadTripsForRoute(selectedRouteForTrip.id)
-            toast.success('تم إنشاء الرحلة بنجاح')
+            if (selectedRouteForTrip) {
+              loadTripsForRoute(selectedRouteForTrip.id)
+            }
+            setEditTripData(null)
+            setCopyTripData(null)
           }}
         />
       )}

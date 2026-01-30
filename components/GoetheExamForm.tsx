@@ -191,9 +191,9 @@ export default function GoetheExamForm() {
               </select>
             </div>
 
-            <div>
+            <div lang="en" dir="ltr">
               <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1.5 sm:mb-2">تاريخ الامتحان المفضل</label>
-              <input type="date" value={formData.examDate} onChange={(e) => setFormData({ ...formData, examDate: e.target.value })} className="w-full px-3 sm:px-4 py-2.5 sm:py-3 text-sm sm:text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500" />
+              <input type="date" value={formData.examDate} onChange={(e) => setFormData({ ...formData, examDate: e.target.value })} className="w-full px-3 sm:px-4 py-2.5 sm:py-3 text-sm sm:text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500" lang="en" />
             </div>
 
             <div>

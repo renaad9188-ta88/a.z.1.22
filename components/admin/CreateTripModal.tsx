@@ -27,6 +27,9 @@ export default function CreateTripModal({
   defaultEnd,
   onClose,
   onSuccess,
+  editTripId,
+  editTripData,
+  copyTripData,
 }: {
   routeId: string
   routeName: string
@@ -35,6 +38,9 @@ export default function CreateTripModal({
   defaultEnd?: { name: string; lat: number; lng: number } | null
   onClose: () => void
   onSuccess?: () => void
+  editTripId?: string | null
+  editTripData?: any
+  copyTripData?: any
 }) {
   const supabase = createSupabaseBrowserClient()
   const [saving, setSaving] = useState(false)
@@ -54,6 +60,11 @@ export default function CreateTripModal({
   const [showEndSelector, setShowEndSelector] = useState(false)
   const [showStopSelector, setShowStopSelector] = useState(false)
   const [editingStopIndex, setEditingStopIndex] = useState<number | null>(null)
+  
+  // Recurring trips
+  const [createRecurring, setCreateRecurring] = useState(false)
+  const [recurringDays, setRecurringDays] = useState(7)
+  const [recurringEndDate, setRecurringEndDate] = useState('')
 
   const buildPreviewPoints = (override?: { selection?: 'start' | 'stop' | 'end'; editingIdx?: number | null }) => {
     const pts: Array<{ lat: number; lng: number; kind: 'start' | 'stop' | 'end'; label?: string }> = []
@@ -70,14 +81,82 @@ export default function CreateTripModal({
     return pts
   }
 
-  // Set default date to today
+  // Set default date to today (only if not editing/copying)
+  const editTripDataId = editTripData?.id
+  const copyTripDataId = copyTripData?.id
+  
   useEffect(() => {
-    const today = new Date()
-    const yyyy = today.getFullYear()
-    const mm = String(today.getMonth() + 1).padStart(2, '0')
-    const dd = String(today.getDate()).padStart(2, '0')
-    setTripDate(`${yyyy}-${mm}-${dd}`)
-  }, [])
+    if (!editTripId && !editTripData && !copyTripData) {
+      const today = new Date()
+      const yyyy = today.getFullYear()
+      const mm = String(today.getMonth() + 1).padStart(2, '0')
+      const dd = String(today.getDate()).padStart(2, '0')
+      setTripDate(`${yyyy}-${mm}-${dd}`)
+    }
+  }, [editTripId, editTripDataId, copyTripDataId])
+  
+  // Load trip data for editing or copying
+  useEffect(() => {
+    if (editTripData || copyTripData) {
+      const tripData = editTripData || copyTripData
+      
+      // If copying, set date to today; if editing, use existing date
+      if (copyTripData) {
+        const today = new Date()
+        const yyyy = today.getFullYear()
+        const mm = String(today.getMonth() + 1).padStart(2, '0')
+        const dd = String(today.getDate()).padStart(2, '0')
+        setTripDate(`${yyyy}-${mm}-${dd}`)
+      } else if (editTripId) {
+        setTripDate(tripData.trip_date || '')
+      }
+      
+      setMeetingTime(tripData.meeting_time || '')
+      setDepartureTime(tripData.departure_time || '')
+      setStartLocation({
+        name: tripData.start_location_name,
+        lat: tripData.start_lat,
+        lng: tripData.start_lng,
+      })
+      setEndLocation({
+        name: tripData.end_location_name,
+        lat: tripData.end_lat,
+        lng: tripData.end_lng,
+      })
+      
+      // Load stop points
+      const loadStopPoints = async () => {
+        const tripIdToLoad = editTripId || (copyTripData ? copyTripData.id : null)
+        if (!tripIdToLoad) return
+        
+        const { data: stops, error } = await supabase
+          .from('route_trip_stop_points')
+          .select('name, lat, lng')
+          .eq('trip_id', tripIdToLoad)
+          .order('order_index', { ascending: true })
+        
+        if (!error && stops) {
+          setStopPoints(stops.map((s: any) => ({
+            name: s.name,
+            lat: s.lat,
+            lng: s.lng,
+          })))
+        }
+      }
+      
+      if (editTripId || copyTripData) {
+        loadStopPoints()
+      }
+    } else {
+      // Reset form when not editing/copying
+      setStopPoints([])
+      setMeetingTime('')
+      setDepartureTime('')
+      setCreateRecurring(false)
+      setRecurringDays(7)
+      setRecurringEndDate('')
+    }
+  }, [editTripId, editTripDataId, copyTripDataId, editTripData, copyTripData, supabase])
 
   const handleAddStop = (point: StopPoint) => {
     if (editingStopIndex !== null) {
@@ -125,47 +204,124 @@ export default function CreateTripModal({
       // Normalize trip type to DB canonical values (singular: 'arrival' or 'departure')
       const tripTypeDb = tripType === 'departure' ? 'departure' : 'arrival'
 
-      // 1) Create trip
-      const { data: trip, error: tripErr } = await supabase
-        .from('route_trips')
-        .insert({
-          route_id: routeId,
-          trip_type: tripTypeDb,
-          trip_date: tripDate,
-          meeting_time: meetingTime || null,
-          departure_time: departureTime,
-          start_location_name: startLocation.name,
-          start_lat: startLocation.lat,
-          start_lng: startLocation.lng,
-          end_location_name: endLocation.name,
-          end_lat: endLocation.lat,
-          end_lng: endLocation.lng,
-          is_active: true,
-        })
-        .select('id')
-        .single()
+      // If editing, update existing trip
+      if (editTripId) {
+        const { error: updateErr } = await supabase
+          .from('route_trips')
+          .update({
+            trip_date: tripDate,
+            meeting_time: meetingTime || null,
+            departure_time: departureTime,
+            start_location_name: startLocation.name,
+            start_lat: startLocation.lat,
+            start_lng: startLocation.lng,
+            end_location_name: endLocation.name,
+            end_lat: endLocation.lat,
+            end_lng: endLocation.lng,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', editTripId)
 
-      if (tripErr) throw tripErr
+        if (updateErr) throw updateErr
 
-      // 2) Create stop points
-      if (stopPoints.length > 0) {
-        const stopsData = stopPoints.map((stop, idx) => ({
-          trip_id: trip.id,
-          name: stop.name,
-          lat: stop.lat,
-          lng: stop.lng,
-          // Keep it 0-based (some existing data uses 0-based); map UIs handle both.
-          order_index: idx,
-        }))
-
-        const { error: stopsErr } = await supabase
+        // Update stop points: delete old and insert new
+        const { error: delErr } = await supabase
           .from('route_trip_stop_points')
-          .insert(stopsData)
+          .delete()
+          .eq('trip_id', editTripId)
 
-        if (stopsErr) throw stopsErr
+        if (delErr) throw delErr
+
+        if (stopPoints.length > 0) {
+          const stopsData = stopPoints.map((stop, idx) => ({
+            trip_id: editTripId,
+            name: stop.name,
+            lat: stop.lat,
+            lng: stop.lng,
+            order_index: idx,
+          }))
+
+          const { error: stopsErr } = await supabase
+            .from('route_trip_stop_points')
+            .insert(stopsData)
+
+          if (stopsErr) throw stopsErr
+        }
+
+        toast.success('تم تحديث الرحلة بنجاح')
+        onSuccess?.()
+        onClose()
+        return
       }
 
-      toast.success('تم إنشاء الرحلة بنجاح')
+      // Create new trip(s)
+      // Determine dates to create trips for
+      const datesToCreate: string[] = []
+
+      if (createRecurring) {
+        // Create recurring trips
+        const startDate = new Date(tripDate)
+        const endDate = recurringEndDate
+          ? new Date(recurringEndDate)
+          : new Date(startDate.getTime() + (recurringDays - 1) * 24 * 60 * 60 * 1000)
+
+        const currentDate = new Date(startDate)
+        while (currentDate <= endDate) {
+          const dateStr = currentDate.toISOString().split('T')[0]
+          datesToCreate.push(dateStr)
+          currentDate.setDate(currentDate.getDate() + 1)
+        }
+      } else {
+        // Single trip
+        datesToCreate.push(tripDate)
+      }
+
+      // Create trips
+      const createdTrips: string[] = []
+
+      for (const dateStr of datesToCreate) {
+        // 1) Create trip
+        const { data: trip, error: tripErr } = await supabase
+          .from('route_trips')
+          .insert({
+            route_id: routeId,
+            trip_type: tripTypeDb,
+            trip_date: dateStr,
+            meeting_time: meetingTime || null,
+            departure_time: departureTime,
+            start_location_name: startLocation.name,
+            start_lat: startLocation.lat,
+            start_lng: startLocation.lng,
+            end_location_name: endLocation.name,
+            end_lat: endLocation.lat,
+            end_lng: endLocation.lng,
+            is_active: true,
+          })
+          .select('id')
+          .single()
+
+        if (tripErr) throw tripErr
+        createdTrips.push(trip.id)
+
+        // 2) Create stop points
+        if (stopPoints.length > 0) {
+          const stopsData = stopPoints.map((stop, idx) => ({
+            trip_id: trip.id,
+            name: stop.name,
+            lat: stop.lat,
+            lng: stop.lng,
+            order_index: idx,
+          }))
+
+          const { error: stopsErr } = await supabase
+            .from('route_trip_stop_points')
+            .insert(stopsData)
+
+          if (stopsErr) throw stopsErr
+        }
+      }
+
+      toast.success(`تم إنشاء ${createdTrips.length} رحلة بنجاح`)
       onSuccess?.()
       onClose()
     } catch (e: any) {
@@ -182,7 +338,10 @@ export default function CreateTripModal({
         {/* Header */}
         <div className="sticky top-0 bg-white border-b border-gray-200 p-4 sm:p-6 flex items-center justify-between z-10">
           <h3 className="text-lg sm:text-xl font-bold text-gray-800">
-            {tripType === 'departure' ? 'إنشاء رحلة المغادرين' : 'إنشاء رحلة القادمين'} - {routeName}
+            {editTripId 
+              ? (tripType === 'departure' ? 'تعديل رحلة المغادرين' : 'تعديل رحلة القادمين')
+              : (tripType === 'departure' ? 'إنشاء رحلة المغادرين' : 'إنشاء رحلة القادمين')
+            } - {routeName}
           </h3>
           <button
             type="button"
@@ -197,13 +356,14 @@ export default function CreateTripModal({
         <div className="p-4 sm:p-6 space-y-4 sm:space-y-6">
           {/* Date & Time */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
-            <div>
+            <div lang="en" dir="ltr">
               <label className="block text-sm font-bold text-gray-800 mb-2">تاريخ الرحلة *</label>
               <input
                 type="date"
                 value={tripDate}
                 onChange={(e) => setTripDate(e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                lang="en"
                 required
               />
             </div>
@@ -227,6 +387,62 @@ export default function CreateTripModal({
               />
             </div>
           </div>
+
+          {/* Recurring Trips Option */}
+          {!editTripId && (
+            <div className="border-t border-gray-200 pt-4">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={createRecurring}
+                  onChange={(e) => setCreateRecurring(e.target.checked)}
+                  className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+                />
+                <span className="text-sm font-semibold text-gray-800">
+                  إنشاء رحلات متكررة يومياً
+                </span>
+              </label>
+              
+              {createRecurring && (
+                <div className="mt-3 space-y-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700 mb-1">
+                        عدد الأيام
+                      </label>
+                      <input
+                        type="number"
+                        min="1"
+                        max="365"
+                        value={recurringDays}
+                        onChange={(e) => setRecurringDays(parseInt(e.target.value) || 7)}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                      />
+                    </div>
+                    <div lang="en" dir="ltr">
+                      <label className="block text-xs font-medium text-gray-700 mb-1">
+                        أو تاريخ النهاية
+                      </label>
+                      <input
+                        type="date"
+                        value={recurringEndDate}
+                        onChange={(e) => setRecurringEndDate(e.target.value)}
+                        min={tripDate}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                        lang="en"
+                      />
+                    </div>
+                  </div>
+                  <p className="text-xs text-gray-600">
+                    سيتم إنشاء رحلات يومية بنفس المسار ونقاط التوقف من {tripDate} حتى{' '}
+                    {recurringEndDate || 
+                      new Date(new Date(tripDate).getTime() + (recurringDays - 1) * 24 * 60 * 60 * 1000)
+                        .toISOString().split('T')[0]}
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Start Location */}
           <div>
@@ -357,7 +573,11 @@ export default function CreateTripModal({
             disabled={saving || !tripDate || !departureTime || !startLocation || !endLocation}
             className="px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {saving ? 'جارٍ الحفظ...' : 'إنشاء الرحلة'}
+            {saving 
+              ? 'جارٍ الحفظ...' 
+              : editTripId 
+                ? 'حفظ التعديلات' 
+                : 'إنشاء الرحلة'}
           </button>
         </div>
 

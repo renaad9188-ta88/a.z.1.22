@@ -424,7 +424,7 @@ export default function AdminDashboard() {
         </div>
       </header>
 
-      <div className="container mx-auto px-2 sm:px-3 md:px-4 py-3 sm:py-4 md:py-6 max-w-full">
+      <div className="container mx-auto px-2 sm:px-3 md:px-4 lg:px-6 py-3 sm:py-4 md:py-6 max-w-7xl">
         {/* Route Management */}
         {showRouteManagement ? (
           <div className="mb-6">
