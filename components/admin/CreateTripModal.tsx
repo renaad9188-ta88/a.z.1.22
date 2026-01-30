@@ -206,6 +206,27 @@ export default function CreateTripModal({
 
       // If editing, update existing trip
       if (editTripId) {
+        // ✅ التحقق من وجود طلبات مرتبطة بالرحلة
+        const { data: linkedRequests, error: checkErr } = await supabase
+          .from('visit_requests')
+          .select('id, visitor_name')
+          .eq('trip_id', editTripId)
+          .limit(10)
+        
+        if (checkErr) throw checkErr
+        
+        if (linkedRequests && linkedRequests.length > 0) {
+          const count = linkedRequests.length
+          const names = linkedRequests.slice(0, 3).map((r: any) => r.visitor_name).join('، ')
+          const moreText = count > 3 ? ` و${count - 3} طلب آخر` : ''
+          const confirmMessage = `⚠️ تحذير: هذه الرحلة مرتبطة بـ ${count} طلب/طلبات (${names}${moreText}).\n\nتعديل الرحلة قد يؤثر على الحجوزات المرتبطة.\n\nهل أنت متأكد من المتابعة؟`
+          
+          if (!confirm(confirmMessage)) {
+            setSaving(false)
+            return
+          }
+        }
+        
         const { error: updateErr } = await supabase
           .from('route_trips')
           .update({
@@ -223,6 +244,21 @@ export default function CreateTripModal({
           .eq('id', editTripId)
 
         if (updateErr) throw updateErr
+
+        // ✅ Logging: تسجيل تحديث الرحلة
+        try {
+          const { logTripUpdated } = await import('@/lib/audit')
+          await logTripUpdated(editTripId, editTripData || {}, {
+            trip_date: tripDate,
+            meeting_time: meetingTime || null,
+            departure_time: departureTime,
+            start_location_name: startLocation.name,
+            end_location_name: endLocation.name,
+          })
+        } catch (logErr) {
+          console.error('Error logging trip update:', logErr)
+          // لا نوقف العملية إذا فشل الـ logging
+        }
 
         // Update stop points: delete old and insert new
         const { error: delErr } = await supabase
@@ -302,6 +338,21 @@ export default function CreateTripModal({
 
         if (tripErr) throw tripErr
         createdTrips.push(trip.id)
+
+        // ✅ Logging: تسجيل إنشاء رحلة جديدة
+        try {
+          const { logTripCreated } = await import('@/lib/audit')
+          await logTripCreated(trip.id, {
+            route_id: routeId,
+            trip_type: tripTypeDb,
+            trip_date: dateStr,
+            start_location_name: startLocation.name,
+            end_location_name: endLocation.name,
+          })
+        } catch (logErr) {
+          console.error('Error logging trip creation:', logErr)
+          // لا نوقف العملية إذا فشل الـ logging
+        }
 
         // 2) Create stop points
         if (stopPoints.length > 0) {

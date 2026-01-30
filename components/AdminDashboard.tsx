@@ -368,10 +368,10 @@ export default function AdminDashboard() {
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 sm:gap-3">
             <div className="flex items-center gap-1.5 sm:gap-2 md:gap-4 min-w-0 flex-1">
               <div className="flex flex-col min-w-0">
-                <h1 className="text-xs sm:text-sm md:text-base lg:text-lg xl:text-xl font-extrabold text-gray-900 leading-tight truncate">
+                <h1 className="text-base sm:text-lg md:text-xl lg:text-2xl xl:text-3xl font-extrabold text-gray-900 leading-tight truncate">
                   {currentRole === 'supervisor' ? 'لوحة المشرف' : 'لوحة تحكم الإدارة'}
                 </h1>
-                <p className="text-[10px] sm:text-xs md:text-sm text-gray-600 truncate">
+                <p className="text-xs sm:text-sm md:text-base lg:text-lg text-gray-600 truncate font-semibold">
                   إدارة الطلبات والخطوط
                 </p>
               </div>
@@ -380,7 +380,7 @@ export default function AdminDashboard() {
               {currentRole === 'admin' && (
                 <button
                   onClick={() => setShowRouteManagement(!showRouteManagement)}
-                  className="px-2 sm:px-3 md:px-4 py-1 sm:py-1.5 md:py-2 text-xs sm:text-sm md:text-base text-gray-700 hover:text-blue-600 transition"
+                  className="px-2 sm:px-3 md:px-4 py-1 sm:py-1.5 md:py-2 text-sm sm:text-base md:text-lg text-gray-700 hover:text-blue-600 transition font-semibold"
                 >
                   إدارة الخطوط
                 </button>
@@ -388,7 +388,7 @@ export default function AdminDashboard() {
               {currentRole === 'admin' && (
                 <button
                   onClick={() => setShowInvitesManagement(!showInvitesManagement)}
-                  className="px-2 sm:px-3 md:px-4 py-1 sm:py-1.5 md:py-2 text-xs sm:text-sm md:text-base text-gray-700 hover:text-blue-600 transition"
+                  className="px-2 sm:px-3 md:px-4 py-1 sm:py-1.5 md:py-2 text-sm sm:text-base md:text-lg text-gray-700 hover:text-blue-600 transition font-semibold"
                 >
                   الدعوات
                 </button>
@@ -415,7 +415,7 @@ export default function AdminDashboard() {
               {currentRole === 'admin' && (
                 <button
                   onClick={() => setShowCustomersManagement(!showCustomersManagement)}
-                  className="px-2 sm:px-3 md:px-4 py-1 sm:py-1.5 md:py-2 text-xs sm:text-sm md:text-base text-gray-700 hover:text-blue-600 transition"
+                  className="px-2 sm:px-3 md:px-4 py-1 sm:py-1.5 md:py-2 text-sm sm:text-base md:text-lg text-gray-700 hover:text-blue-600 transition font-semibold"
                 >
                   المنتسبين
                 </button>
@@ -423,7 +423,7 @@ export default function AdminDashboard() {
               {currentRole === 'admin' && (
                 <button
                   onClick={() => setShowSupervisorsManagement(!showSupervisorsManagement)}
-                  className="px-2 sm:px-3 md:px-4 py-1 sm:py-1.5 md:py-2 text-xs sm:text-sm md:text-base text-gray-700 hover:text-blue-600 transition"
+                  className="px-2 sm:px-3 md:px-4 py-1 sm:py-1.5 md:py-2 text-sm sm:text-base md:text-lg text-gray-700 hover:text-blue-600 transition font-semibold"
                 >
                   المشرفين
                 </button>

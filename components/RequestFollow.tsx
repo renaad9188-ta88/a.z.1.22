@@ -189,6 +189,21 @@ export default function RequestFollow({ requestId, userId }: { requestId: string
     
     try {
       const trip = availableTrips.find((t) => t.id === tripId)
+      if (!trip) {
+        toast.error('الرحلة غير موجودة')
+        return
+      }
+      
+      // ✅ Validation: التحقق من أن تاريخ الرحلة ليس في الماضي
+      const today = new Date()
+      today.setHours(0, 0, 0, 0)
+      const tripDate = new Date(trip.trip_date + 'T00:00:00')
+      
+      if (tripDate < today) {
+        toast.error('لا يمكن حجز رحلة بتاريخ قديم. يرجى اختيار رحلة أخرى.')
+        return
+      }
+      
       const tripType = trip?.trip_type || 'arrival'
       const selectedStopId = selectedStopByTrip[tripId] || null
       
@@ -296,6 +311,19 @@ export default function RequestFollow({ requestId, userId }: { requestId: string
         .eq('id', request.id)
       
       if (error) throw error
+      
+      // ✅ Logging: تسجيل حجز/تعديل رحلة
+      try {
+        const { logBookingCreated } = await import('@/lib/audit')
+        await logBookingCreated(request.id, tripId, {
+          visitor_name: request.visitor_name,
+          trip_type: tripType,
+          selected_stop_id: selectedStopId,
+        })
+      } catch (logErr) {
+        console.error('Error logging booking:', logErr)
+        // لا نوقف العملية إذا فشل الـ logging
+      }
       
       toast.success(hadPreviousBooking ? 'تم تعديل الحجز بنجاح' : 'تم حجز الرحلة بنجاح')
       setShowAvailableTrips(false)

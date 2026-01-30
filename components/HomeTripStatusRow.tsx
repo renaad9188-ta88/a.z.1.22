@@ -63,10 +63,10 @@ function TripMiniCard({
       <div className="p-3 sm:p-4">
         <div className="flex items-center justify-between gap-2">
           <div className="min-w-0">
-            <p className="text-xs sm:text-sm font-bold text-gray-800">
+            <p className="text-sm sm:text-base md:text-lg font-extrabold text-gray-800">
               {isArr ? 'الرحلة الحالية (القادمون)' : 'الرحلة الحالية (المغادرون)'}
             </p>
-            <p className="text-[10px] sm:text-xs text-gray-500 mt-0.5">
+            <p className="text-xs sm:text-sm md:text-base text-gray-600 mt-0.5 font-semibold">
               {loading ? 'جاري التحميل...' : date ? 'أقرب موعد' : 'لا يوجد موعد مجدول'}
             </p>
           </div>
@@ -79,7 +79,7 @@ function TripMiniCard({
           <div className="text-2xl sm:text-3xl font-extrabold text-gray-900 tabular-nums leading-none">
             {countText}
           </div>
-          <div className={`inline-flex items-center gap-1 text-[10px] sm:text-xs border px-2 py-1 rounded-full font-bold ${badgeClass}`}>
+          <div className={`inline-flex items-center gap-1 text-xs sm:text-sm md:text-base border px-2 py-1 rounded-full font-extrabold ${badgeClass}`}>
             <Calendar className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
             {date ? (
               <span className="tabular-nums">
@@ -94,7 +94,7 @@ function TripMiniCard({
         </div>
 
         {routeLabel && (
-          <div className="mt-2 text-[10px] sm:text-xs text-gray-600 flex items-center gap-1.5 min-w-0">
+          <div className="mt-2 text-xs sm:text-sm md:text-base text-gray-700 flex items-center gap-1.5 min-w-0 font-semibold">
             <ArrowLeftRight className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-gray-400 flex-shrink-0" />
             <span className="truncate">{routeLabel}</span>
           </div>

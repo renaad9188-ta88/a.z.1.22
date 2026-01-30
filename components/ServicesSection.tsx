@@ -109,17 +109,17 @@ export default function ServicesSection() {
                   </div>
 
                   {/* Title - صغير وأنيق */}
-                  <h3 className="text-sm sm:text-base md:text-lg font-bold text-gray-800 mb-1.5 sm:mb-2 group-hover:text-blue-600 transition-colors leading-tight">
+                  <h3 className="text-base sm:text-lg md:text-xl lg:text-2xl font-extrabold text-gray-800 mb-1.5 sm:mb-2 group-hover:text-blue-600 transition-colors leading-tight">
                     {service.title}
                   </h3>
 
                   {/* Description - صغير */}
-                  <p className="text-xs sm:text-sm text-gray-600 mb-3 sm:mb-4 leading-relaxed line-clamp-2">
+                  <p className="text-sm sm:text-base md:text-lg text-gray-600 mb-3 sm:mb-4 leading-relaxed line-clamp-2">
                     {service.description}
                   </p>
 
                   {/* Arrow - صغير */}
-                  <div className="flex items-center text-xs sm:text-sm font-semibold text-gray-700 group-hover:text-blue-600 transition-colors">
+                  <div className="flex items-center text-sm sm:text-base md:text-lg font-bold text-gray-700 group-hover:text-blue-600 transition-colors">
                     <span>ابدأ الآن</span>
                     <ArrowLeft className="w-3 h-3 sm:w-4 sm:h-4 mr-1.5 group-hover:translate-x-1 transition-transform" />
                   </div>

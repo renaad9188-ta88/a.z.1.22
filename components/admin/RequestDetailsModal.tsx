@@ -260,6 +260,17 @@ export default function RequestDetailsModal({
 
       if (error) throw error
 
+      // ✅ Logging: تسجيل تغيير حالة الطلب
+      try {
+        const oldStatus = request.status
+        if (oldStatus !== status) {
+          const { logRequestStatusChanged } = await import('@/lib/audit')
+          await logRequestStatusChanged(request.id, oldStatus, status, request.visitor_name)
+        }
+      } catch (logErr) {
+        console.error('Error logging status change:', logErr)
+      }
+
       // إنشاء إشعارات حسب الحالة
       try {
         const oldStatus = request.status

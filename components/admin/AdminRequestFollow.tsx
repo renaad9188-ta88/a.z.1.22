@@ -390,6 +390,14 @@ export default function AdminRequestFollow({
         .eq('id', request.id)
       if (error) throw error
       
+      // ✅ Logging: تسجيل تغيير حالة الطلب
+      try {
+        const { logRequestStatusChanged } = await import('@/lib/audit')
+        await logRequestStatusChanged(request.id, request.status, 'approved', request.visitor_name)
+      } catch (logErr) {
+        console.error('Error logging status change:', logErr)
+      }
+      
       // إرسال الإشعار بشكل منفصل مع معالجة الأخطاء واستخدام نفس Supabase client
       try {
         // استخدام نفس Supabase client المستخدم في الصفحة
@@ -420,6 +428,15 @@ export default function AdminRequestFollow({
         .update({ status: 'rejected', rejection_reason: reason || null, updated_at: new Date().toISOString() } as any)
         .eq('id', request.id)
       if (error) throw error
+      
+      // ✅ Logging: تسجيل تغيير حالة الطلب
+      try {
+        const { logRequestStatusChanged } = await import('@/lib/audit')
+        await logRequestStatusChanged(request.id, request.status, 'rejected', request.visitor_name)
+      } catch (logErr) {
+        console.error('Error logging status change:', logErr)
+      }
+      
       await notifyRequestRejected(request.user_id, request.id, request.visitor_name, reason || undefined)
       toast.success('تم رفض الطلب')
       await load()

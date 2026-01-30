@@ -512,7 +512,48 @@ export default function RouteManagement() {
   }
 
   const deleteDriver = async (driverId: string) => {
-    if (!confirm('هل أنت متأكد من حذف السائق؟ سيتم إزالة ربطه بالخطوط وإلغاء تعيينه من الرحلات.')) return
+    // ✅ تحسين رسالة التأكيد: التحقق من وجود رحلات مرتبطة
+    try {
+      const { data: linkedTrips, error: checkErr } = await supabase
+        .from('route_trip_drivers')
+        .select('trip_id, route_trips(id, trip_date, start_location_name, end_location_name)')
+        .eq('driver_id', driverId)
+        .eq('is_active', true)
+        .limit(5)
+      
+      if (checkErr) throw checkErr
+      
+      const driver = drivers.find((d) => d.id === driverId)
+      const driverName = driver?.name || 'هذا السائق'
+      
+      let confirmMessage = `⚠️ تحذير: هل أنت متأكد من حذف السائق "${driverName}"؟\n\n`
+      
+      if (linkedTrips && linkedTrips.length > 0) {
+        const count = linkedTrips.length
+        const tripsList = linkedTrips.slice(0, 3)
+          .map((lt: any) => {
+            const trip = lt.route_trips
+            return trip ? `${trip.start_location_name} → ${trip.end_location_name} (${trip.trip_date})` : ''
+          })
+          .filter(Boolean)
+          .join('\n- ')
+        const moreText = count > 3 ? `\nو ${count - 3} رحلة أخرى` : ''
+        
+        confirmMessage += `هذا السائق مرتبط بـ ${count} رحلة/رحلات:\n- ${tripsList}${moreText}\n\n`
+        confirmMessage += `سيتم إزالة ربطه بالخطوط وإلغاء تعيينه من جميع الرحلات.\n\n`
+      } else {
+        confirmMessage += `سيتم إزالة ربطه بالخطوط.\n\n`
+      }
+      
+      confirmMessage += `هل أنت متأكد من المتابعة؟`
+      
+      if (!confirm(confirmMessage)) return
+    } catch (checkErr: any) {
+      console.error('Error checking linked trips:', checkErr)
+      // إذا فشل التحقق، نستخدم رسالة بسيطة
+      if (!confirm('هل أنت متأكد من حذف السائق؟ سيتم إزالة ربطه بالخطوط وإلغاء تعيينه من الرحلات.')) return
+    }
+    
     try {
       const { error } = await supabase.from('drivers').delete().eq('id', driverId)
       if (error) throw error
@@ -646,6 +687,17 @@ export default function RouteManagement() {
           ...p,
           [tripId]: drivers,
         }))
+        
+        // ✅ Logging: تسجيل تعيين السائق
+        const assignedDriver = drivers.find((d: Driver) => d.id === driverId)
+        if (assignedDriver) {
+          try {
+            const { logDriverAssigned } = await import('@/lib/audit')
+            await logDriverAssigned(tripId, driverId, assignedDriver.name)
+          } catch (logErr) {
+            console.error('Error logging driver assignment:', logErr)
+          }
+        }
       }
       
       toast.success('تم ربط السائق بالرحلة بنجاح')
@@ -657,6 +709,9 @@ export default function RouteManagement() {
 
   const handleUnassignDriverFromTrip = async (tripId: string, driverId: string, routeId: string) => {
     try {
+      // ✅ Logging: تسجيل إلغاء تعيين السائق (قبل إعادة التحميل)
+      const driverToUnassign = tripAssignedDrivers[tripId]?.find((d: Driver) => d.id === driverId)
+      
       const { error } = await supabase
         .from('route_trip_drivers')
         .update({ is_active: false })
@@ -664,6 +719,15 @@ export default function RouteManagement() {
         .eq('driver_id', driverId)
       
       if (error) throw error
+      
+      if (driverToUnassign) {
+        try {
+          const { logDriverUnassigned } = await import('@/lib/audit')
+          await logDriverUnassigned(tripId, driverId, driverToUnassign.name)
+        } catch (logErr) {
+          console.error('Error logging driver unassignment:', logErr)
+        }
+      }
       
       // إعادة تحميل السائقين من قاعدة البيانات
       const { data: assignments, error: assignErr } = await supabase

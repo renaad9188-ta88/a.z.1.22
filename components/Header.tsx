@@ -148,7 +148,7 @@ export default function Header() {
                 <div className="absolute -inset-0.5 border-2 border-yellow-400/50 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity"></div>
               </div>
               <div className="flex flex-col">
-                <h1 className="text-[10px] sm:text-xs md:text-sm font-bold bg-gradient-to-r from-red-600 via-gray-800 to-green-600 bg-clip-text text-transparent leading-tight group-hover:from-red-500 group-hover:to-green-500 transition-all">
+                <h1 className="text-sm sm:text-base md:text-lg lg:text-xl font-extrabold bg-gradient-to-r from-red-600 via-gray-800 to-green-600 bg-clip-text text-transparent leading-tight group-hover:from-red-500 group-hover:to-green-500 transition-all">
                   منصة خدمات السوريين
                 </h1>
                 <div className="h-0.5 bg-gradient-to-r from-red-500 via-yellow-400 to-green-600 rounded-full mt-0.5 opacity-60 group-hover:opacity-100 transition-opacity"></div>

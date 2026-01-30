@@ -50,8 +50,8 @@ export default function HomeCounters() {
           <div className="p-3 sm:p-4">
             <div className="flex items-center justify-between gap-3">
               <div className="min-w-0">
-                <p className="text-xs sm:text-sm text-gray-600 font-semibold">إجمالي القادمون</p>
-                <p className="text-[10px] sm:text-xs text-gray-500">عدد الأشخاص (القادمون)</p>
+                <p className="text-sm sm:text-base md:text-lg text-gray-700 font-bold">إجمالي القادمون</p>
+                <p className="text-xs sm:text-sm md:text-base text-gray-600">عدد الأشخاص (القادمون)</p>
               </div>
               <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
                 <div className="w-9 h-9 sm:w-10 sm:h-10 md:w-12 md:h-12 rounded-xl bg-blue-50 flex items-center justify-center">
@@ -69,7 +69,7 @@ export default function HomeCounters() {
               <div className="text-2xl sm:text-3xl md:text-4xl font-extrabold text-gray-900 tabular-nums tracking-tight">
                 {arrivalsCount}
               </div>
-              <span className="text-[10px] sm:text-xs text-blue-500 bg-blue-50 border border-blue-100 px-2 py-1 rounded-full font-semibold">
+              <span className="text-xs sm:text-sm md:text-base text-blue-600 bg-blue-50 border border-blue-100 px-2 py-1 rounded-full font-bold">
                 بيانات عامة
               </span>
             </div>
@@ -82,8 +82,8 @@ export default function HomeCounters() {
           <div className="p-3 sm:p-4">
             <div className="flex items-center justify-between gap-3">
               <div className="min-w-0">
-                <p className="text-xs sm:text-sm text-gray-600 font-semibold">إجمالي المغادرون</p>
-                <p className="text-[10px] sm:text-xs text-gray-500">عدد الأشخاص (المغادرون)</p>
+                <p className="text-sm sm:text-base md:text-lg text-gray-700 font-bold">إجمالي المغادرون</p>
+                <p className="text-xs sm:text-sm md:text-base text-gray-600">عدد الأشخاص (المغادرون)</p>
               </div>
               <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
                 <div className="w-9 h-9 sm:w-10 sm:h-10 md:w-12 md:h-12 rounded-xl bg-green-50 flex items-center justify-center">
@@ -101,7 +101,7 @@ export default function HomeCounters() {
               <div className="text-2xl sm:text-3xl md:text-4xl font-extrabold text-gray-900 tabular-nums tracking-tight">
                 {departuresCount}
               </div>
-              <span className="text-[10px] sm:text-xs text-green-500 bg-green-50 border border-green-100 px-2 py-1 rounded-full font-semibold">
+              <span className="text-xs sm:text-sm md:text-base text-green-600 bg-green-50 border border-green-100 px-2 py-1 rounded-full font-bold">
                 بيانات عامة
               </span>
             </div>

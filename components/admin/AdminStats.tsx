@@ -110,8 +110,8 @@ export default function AdminStats({ stats, onStatClick, selectedFilter }: Admin
                 <Icon className={`w-3.5 h-3.5 sm:w-4 sm:h-4 md:w-5 md:h-5 lg:w-6 lg:h-6 ${stat.color}`} />
               </div>
             </div>
-            <p className="text-gray-600 text-[10px] sm:text-xs md:text-sm mb-0.5 sm:mb-1 font-medium truncate">{stat.label}</p>
-            <p className={`text-lg sm:text-xl md:text-2xl lg:text-3xl font-bold ${stat.color}`}>
+            <p className="text-gray-600 text-xs sm:text-sm md:text-base lg:text-lg mb-0.5 sm:mb-1 font-semibold truncate">{stat.label}</p>
+            <p className={`text-xl sm:text-2xl md:text-3xl lg:text-4xl xl:text-5xl font-extrabold ${stat.color}`}>
               {stat.value}
             </p>
           </button>
