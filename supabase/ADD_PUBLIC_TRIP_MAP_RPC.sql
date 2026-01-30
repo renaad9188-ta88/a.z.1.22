@@ -68,15 +68,21 @@ AS $$
     ORDER BY c.trip_date ASC, c.departure_time ASC NULLS LAST, c.created_at ASC
     LIMIT 1
   ),
-  -- Latest created trip for this kind (explicitly requested for homepage "latest entered trip")
-  latest_pick AS (
-    SELECT c.*
-    FROM candidates c
-    ORDER BY c.created_at DESC
+  -- Choose closest trip by date (today first, then nearest future)
+  chosen AS (
+    SELECT * FROM today_pick
+    WHERE EXISTS (SELECT 1 FROM today_pick)
     LIMIT 1
   ),
-  chosen AS (
-    SELECT * FROM latest_pick
+  chosen_fallback AS (
+    SELECT * FROM future_pick
+    WHERE NOT EXISTS (SELECT 1 FROM today_pick)
+    LIMIT 1
+  ),
+  chosen_final AS (
+    SELECT * FROM chosen
+    UNION ALL
+    SELECT * FROM chosen_fallback
     LIMIT 1
   ),
   trip_stops AS (
@@ -91,7 +97,7 @@ AS $$
         ORDER BY s.order_index ASC
       ) AS j
     FROM public.route_trip_stop_points s
-    WHERE s.trip_id = (SELECT id FROM chosen)
+    WHERE s.trip_id = (SELECT id FROM chosen_final)
   ),
   route_stops_fallback AS (
     SELECT
@@ -105,7 +111,7 @@ AS $$
         ORDER BY sp.order_index ASC
       ) AS j
     FROM public.route_stop_points sp
-    WHERE sp.route_id = (SELECT route_id FROM chosen)
+    WHERE sp.route_id = (SELECT route_id FROM chosen_final)
       AND sp.is_active = true
   ),
   demo_route AS (
@@ -133,7 +139,7 @@ AS $$
     LIMIT 1
   )
   SELECT
-    (SELECT id FROM chosen) AS trip_id,
+    (SELECT id FROM chosen_final) AS trip_id,
     -- normalize trip_type to homepage expected values
     (
       SELECT
@@ -141,20 +147,20 @@ AS $$
           WHEN lower(coalesce(trip_type, 'arrivals')) IN ('departure', 'departures') THEN 'departures'
           ELSE 'arrivals'
         END
-      FROM chosen
+      FROM chosen_final
     ) AS trip_type,
-    (SELECT trip_date FROM chosen) AS trip_date,
-    (SELECT meeting_time FROM chosen) AS meeting_time,
-    (SELECT departure_time FROM chosen) AS departure_time,
-    (SELECT start_location_name FROM chosen) AS start_location_name,
-    (SELECT start_lat FROM chosen) AS start_lat,
-    (SELECT start_lng FROM chosen) AS start_lng,
-    (SELECT end_location_name FROM chosen) AS end_location_name,
-    (SELECT end_lat FROM chosen) AS end_lat,
-    (SELECT end_lng FROM chosen) AS end_lng,
+    (SELECT trip_date FROM chosen_final) AS trip_date,
+    (SELECT meeting_time FROM chosen_final) AS meeting_time,
+    (SELECT departure_time FROM chosen_final) AS departure_time,
+    (SELECT start_location_name FROM chosen_final) AS start_location_name,
+    (SELECT start_lat FROM chosen_final) AS start_lat,
+    (SELECT start_lng FROM chosen_final) AS start_lng,
+    (SELECT end_location_name FROM chosen_final) AS end_location_name,
+    (SELECT end_lat FROM chosen_final) AS end_lat,
+    (SELECT end_lng FROM chosen_final) AS end_lng,
     COALESCE((SELECT j FROM trip_stops), (SELECT j FROM route_stops_fallback), '[]'::jsonb) AS stops,
     false AS is_demo
-  WHERE (SELECT count(*) FROM chosen) > 0
+  WHERE (SELECT count(*) FROM chosen_final) > 0
 
   UNION ALL
 
@@ -172,7 +178,7 @@ AS $$
     (SELECT end_lng FROM demo_route) AS end_lng,
     COALESCE((SELECT j FROM demo_stops), '[]'::jsonb) AS stops,
     true AS is_demo
-  WHERE (SELECT count(*) FROM chosen) = 0
+  WHERE (SELECT count(*) FROM chosen_final) = 0
     AND (SELECT count(*) FROM demo_route) > 0
   LIMIT 1;
 $$;

@@ -107,6 +107,10 @@ export default function HomeTransportMap() {
   const directionsServiceForEtaRef = useRef<google.maps.DirectionsService | null>(null)
   const [driverInfo, setDriverInfo] = useState<{ name: string; phone: string; company_phone?: string | null } | null>(null)
   const [showDriverInfo, setShowDriverInfo] = useState(false)
+  const [isLoggedIn, setIsLoggedIn] = useState(false)
+  const [hasUserTrip, setHasUserTrip] = useState(false)
+  const [showStopsList, setShowStopsList] = useState(false)
+  const [isStopsListMinimized, setIsStopsListMinimized] = useState(false)
 
   const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || ''
 
@@ -178,6 +182,16 @@ export default function HomeTransportMap() {
       return []
     }
   }
+
+  // Function to get stops list
+  const getStopsList = () => {
+    if (!tripRow?.stops) return []
+    return normalizeStops(tripRow.stops)
+      .sort((a, b) => (a.order_index ?? 0) - (b.order_index ?? 0))
+  }
+
+  // Determine if trip is arrival or departure
+  const isArrivalTrip = mode === 'arrivals' || (tripRow?.trip_type === 'arrivals' || tripRow?.trip_type === 'arrival')
 
   const ensureDemoStops = (
     stopsIn: Array<{ name: string; lat: number; lng: number; order_index: number }>,
@@ -378,12 +392,12 @@ export default function HomeTransportMap() {
       })
     )
 
-    // Bus marker - use driver location if available, otherwise use start position
-    const busPosition = driverLocation || start
+    // Bus marker - للكل (في نقطة البداية)، لكن للمستخدم المسجل الذي لديه رحلة يظهر في موقع السائق المباشر
+    const busPosition = (isLoggedIn && hasUserTrip && driverLocation) ? driverLocation : start
     const busMarker = new googleMaps.Marker({
       position: busPosition,
       map,
-      title: driverLocation ? 'موقع الباص (مباشر)' : 'الباص',
+      title: (isLoggedIn && hasUserTrip && driverLocation) ? 'موقع الباص (مباشر)' : 'الباص',
       icon: {
         url: 'http://maps.google.com/mapfiles/ms/icons/bus.png',
         scaledSize: new googleMaps.Size(40, 40),
@@ -392,8 +406,9 @@ export default function HomeTransportMap() {
     })
     markersRef.current.push(busMarker)
     
-    // Add click listener to bus marker to show driver info
-    busMarker.addListener('click', async () => {
+    // Add click listener to bus marker to show driver info - فقط للمستخدم المسجل الذي لديه رحلة
+    if (isLoggedIn && hasUserTrip) {
+      busMarker.addListener('click', async () => {
       setShowDriverInfo(true)
       
       // Load driver info if not already loaded
@@ -489,15 +504,16 @@ export default function HomeTransportMap() {
           })
         }
       }
-    })
+      })
+    }
     
-    // If driver location exists, extend bounds to include it
-    if (driverLocation) {
+    // If driver location exists, extend bounds to include it - فقط للمستخدم المسجل
+    if (driverLocation && isLoggedIn && hasUserTrip) {
       bounds.extend(driverLocation)
     }
 
-    // Show user card above bus marker if trip is today OR if driver location is available
-    if (userHint?.trip_id && userHint?.trip_date) {
+    // Show user card above bus marker - فقط للمستخدم المسجل الذي لديه رحلة
+    if (isLoggedIn && hasUserTrip && userHint?.trip_id && userHint?.trip_date) {
       const today = new Date().toISOString().split('T')[0]
       const tripDateStr = new Date(userHint.trip_date + 'T00:00:00').toISOString().split('T')[0]
       const isTripToday = tripDateStr === today
@@ -694,8 +710,8 @@ export default function HomeTransportMap() {
     bounds.extend(start)
     bounds.extend(end)
 
-    // Include driver location if available
-    if (driverLocation) {
+    // Include driver location if available - فقط للمستخدم المسجل
+    if (driverLocation && isLoggedIn && hasUserTrip) {
       bounds.extend(driverLocation)
     }
 
@@ -809,6 +825,11 @@ export default function HomeTransportMap() {
   }
 
   const loadDriverLocation = async (requestId: string, tripId: string) => {
+    // فقط للمستخدم المسجل الذي لديه رحلة
+    if (!isLoggedIn || !hasUserTrip) {
+      return
+    }
+    
     try {
       setDriverLocationLoading(true)
       
@@ -1112,6 +1133,23 @@ export default function HomeTransportMap() {
     }
   }, [apiKey, shouldLoad])
 
+  // Check if user is logged in and has a trip
+  useEffect(() => {
+    const checkUserStatus = async () => {
+      const { data: { user } } = await supabase.auth.getUser()
+      const loggedIn = !!user
+      setIsLoggedIn(loggedIn)
+      
+      if (loggedIn && userHint?.trip_id) {
+        setHasUserTrip(true)
+      } else {
+        setHasUserTrip(false)
+      }
+    }
+    
+    checkUserStatus()
+  }, [userHint?.trip_id])
+
   useEffect(() => {
     if (!ready) return
     initMap()
@@ -1130,10 +1168,11 @@ export default function HomeTransportMap() {
     if (!ready) return
     renderTrip()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ready, JSON.stringify(tripRow), userHint, driverLocation])
+  }, [ready, JSON.stringify(tripRow), userHint, driverLocation, isLoggedIn, hasUserTrip])
 
-  // Update ETAs when driver location changes and passenger list is open
+  // Update ETAs when driver location changes and passenger list is open - فقط للمستخدم المسجل
   useEffect(() => {
+    if (!isLoggedIn || !hasUserTrip) return
     if (showPassengerList && driverLocation && passengers.length > 0 && tripType) {
       const stopIds = passengers
         .map((p) => tripType === 'arrival' ? p.selected_dropoff_stop_id : p.selected_pickup_stop_id)
@@ -1156,7 +1195,7 @@ export default function HomeTransportMap() {
           })
       }
     }
-  }, [driverLocation, showPassengerList])
+  }, [driverLocation, showPassengerList, isLoggedIn, hasUserTrip])
 
   // Handle hash navigation and load user trip when navigating to map
   useEffect(() => {
@@ -1439,17 +1478,106 @@ export default function HomeTransportMap() {
                           <Clock className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-gray-600" />
                           {timeText || '—'}
                         </span>
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-blue-50 border border-blue-100 text-blue-700 font-bold whitespace-nowrap">
+                        <button
+                          onClick={() => setShowStopsList(!showStopsList)}
+                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-blue-50 border border-blue-100 text-blue-700 font-bold whitespace-nowrap hover:bg-blue-100 transition-colors cursor-pointer"
+                        >
                           <Route className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                          نقاط توقف: {stopsCountText}
-                        </span>
+                          {isArrivalTrip ? 'نقاط النزول' : 'نقاط الصعود'}: {stopsCountText}
+                        </button>
                       </div>
                     </div>
                   </div>
                 )}
 
-                {/* Overlay: user hint */}
-                {userHint && (() => {
+                {/* Stops List Modal - قائمة نقاط التوقف */}
+                {showStopsList && (
+                  <>
+                    {/* Backdrop لإغلاق القائمة */}
+                    <div 
+                      className="pointer-events-auto absolute inset-0 z-30"
+                      onClick={() => setShowStopsList(false)}
+                    />
+                    
+                    <div className={`pointer-events-none absolute top-20 md:top-16 right-3 w-[min(20rem,calc(100vw-2rem))] max-h-[60vh] z-40 transition-all duration-300 ${isStopsListMinimized ? 'opacity-0 pointer-events-none scale-95' : 'opacity-100'}`}>
+                      <div className="pointer-events-auto bg-white/90 backdrop-blur-lg rounded-xl shadow-xl border border-gray-200/50 flex flex-col overflow-hidden">
+                        {/* Header */}
+                        <div className="flex items-center justify-between p-3 border-b border-gray-200/50 bg-white/50">
+                          <div className="flex items-center gap-2">
+                            <Route className="w-4 h-4 text-blue-600" />
+                            <h3 className="text-sm font-bold text-gray-900">
+                              {isArrivalTrip ? 'نقاط النزول' : 'نقاط الصعود'}
+                            </h3>
+                            <span className="text-[10px] text-gray-500 bg-gray-100/80 px-1.5 py-0.5 rounded-full">
+                              {getStopsList().length}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <button
+                              onClick={() => setIsStopsListMinimized(!isStopsListMinimized)}
+                              className="p-1 hover:bg-gray-100/50 rounded-lg transition-colors"
+                              aria-label={isStopsListMinimized ? "استرجاع" : "تصغير"}
+                            >
+                              {isStopsListMinimized ? (
+                                <ChevronUp className="w-4 h-4 text-gray-500" />
+                              ) : (
+                                <ChevronDown className="w-4 h-4 text-gray-500" />
+                              )}
+                            </button>
+                            <button
+                              onClick={() => setShowStopsList(false)}
+                              className="p-1 hover:bg-gray-100/50 rounded-lg transition-colors"
+                              aria-label="إغلاق"
+                            >
+                              <X className="w-4 h-4 text-gray-500" />
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Stops List */}
+                        <div className="flex-1 overflow-y-auto p-3 space-y-2 max-h-[calc(60vh-3.5rem)]">
+                          {getStopsList().length === 0 ? (
+                            <div className="text-center py-6 text-gray-500 text-xs">
+                              لا توجد نقاط توقف
+                            </div>
+                          ) : (
+                            getStopsList().map((stop, idx) => {
+                              const stopNumber = (stop.order_index ?? idx) + 1
+                              return (
+                                <div
+                                  key={idx}
+                                  className="bg-gradient-to-r from-blue-50/80 to-indigo-50/80 backdrop-blur-sm rounded-lg p-3 border border-blue-200/50 hover:bg-gradient-to-r hover:from-blue-100/80 hover:to-indigo-100/80 transition-all"
+                                >
+                                  <div className="flex items-start gap-3">
+                                    <div className="w-8 h-8 bg-blue-600 text-white rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0">
+                                      {stopNumber}
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                      <div className="flex items-center gap-2 mb-1">
+                                        <MapPin className="w-4 h-4 text-blue-600 flex-shrink-0" />
+                                        <span className="text-xs font-bold text-gray-900 break-words">
+                                          {stop.name || `نقطة توقف ${stopNumber}`}
+                                        </span>
+                                      </div>
+                                      {stop.lat && stop.lng && (
+                                        <div className="text-[10px] text-gray-500 mt-1">
+                                          📍 {Number(stop.lat).toFixed(6)}, {Number(stop.lng).toFixed(6)}
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
+                                </div>
+                              )
+                            })
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </>
+                )}
+
+                {/* Overlay: user hint - فقط للمستخدم المسجل الذي لديه رحلة */}
+                {isLoggedIn && hasUserTrip && userHint && (() => {
                   const today = new Date().toISOString().split('T')[0]
                   const tripDateStr = userHint.trip_date 
                     ? new Date(userHint.trip_date + 'T00:00:00').toISOString().split('T')[0]
