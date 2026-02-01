@@ -1,7 +1,7 @@
 # دليل تسجيل الدخول كإداري
 
 ## المشكلة
-عند محاولة تسجيل الدخول بالإيميل `phone_tamer88@maidaa.local`، تظهر رسالة "الإيميل أو كلمة المرور غير صحيحة".
+عند محاولة تسجيل الدخول بالإيميل `phone_tamer88@syrian-services.local`، تظهر رسالة "الإيميل أو كلمة المرور غير صحيحة".
 
 ## الحلول
 
@@ -9,7 +9,7 @@
 
 1. اذهب إلى **Supabase Dashboard**
 2. **Authentication** > **Users**
-3. ابحث عن المستخدم `phone_tamer88@maidaa.local`
+3. ابحث عن المستخدم `phone_tamer88@syrian-services.local`
 4. انقر على المستخدم
 5. اضغط **"..."** (القائمة) > **"Reset Password"** أو **"Send Password Reset Email"**
 6. أو اضغط **"Update"** وغيّر كلمة المرور مباشرة
@@ -26,12 +26,12 @@
 
 #### في Supabase Dashboard:
 1. **Authentication** > **Users**
-2. ابحث عن `phone_tamer88@maidaa.local`
+2. ابحث عن `phone_tamer88@syrian-services.local`
 3. انقر على المستخدم
 4. اضغط **"Delete User"** (احذف المستخدم)
 5. ثم أنشئ مستخدم جديد:
    - **Add User** > **Create new user**
-   - **Email**: `phone_tamer88@maidaa.local`
+   - **Email**: `phone_tamer88@syrian-services.local`
    - **Password**: `123456` (أو أي كلمة مرور تريدها)
    - **User Metadata**:
      ```json
@@ -46,14 +46,14 @@
    INSERT INTO profiles (user_id, full_name, phone, role)
    SELECT id, 'tamer88', 'tamer88', 'admin'
    FROM auth.users
-   WHERE email = 'phone_tamer88@maidaa.local'
+   WHERE email = 'phone_tamer88@syrian-services.local'
    ON CONFLICT DO NOTHING;
    
    -- أو تحديث إذا كان موجود
    UPDATE profiles 
    SET role = 'admin'
    WHERE user_id IN (
-     SELECT id FROM auth.users WHERE email = 'phone_tamer88@maidaa.local'
+     SELECT id FROM auth.users WHERE email = 'phone_tamer88@syrian-services.local'
    );
    ```
 
@@ -67,7 +67,7 @@
 ## معلومات تسجيل الدخول
 
 ### للإداريين (تسجيل دخول بالإيميل):
-- **الإيميل**: `phone_tamer88@maidaa.local`
+- **الإيميل**: `phone_tamer88@syrian-services.local`
 - **كلمة المرور**: (الكلمة التي اخترتها في Supabase Dashboard)
 
 ### للمستخدمين العاديين (تسجيل دخول برقم الهاتف):

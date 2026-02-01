@@ -890,7 +890,7 @@ export default function RouteManagement() {
                         e.target.value = ''
                       }
                     }}
-                    className="w-full sm:w-auto px-3 py-2 border border-gray-300 rounded-lg text-xs sm:text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    className="w-full sm:w-auto px-3 py-2 text-gray-900 bg-white border border-gray-300 rounded-lg text-xs sm:text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   >
                     <option value="">إضافة سائق...</option>
                     {drivers
@@ -1291,7 +1291,7 @@ export default function RouteManagement() {
                                             e.target.value = ''
                                           }
                                         }}
-                                        className="w-full px-2 sm:px-3 py-1.5 sm:py-2 border border-gray-300 rounded-lg text-[10px] sm:text-xs focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
+                                        className="w-full px-2 sm:px-3 py-1.5 sm:py-2 text-gray-900 bg-white border border-gray-300 rounded-lg text-[10px] sm:text-xs focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                                       >
                                         <option value="">اختر سائق...</option>
                                         {drivers

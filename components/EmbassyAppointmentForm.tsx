@@ -181,7 +181,7 @@ export default function EmbassyAppointmentForm() {
 
             <div>
               <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1.5 sm:mb-2">نوع السفارة *</label>
-              <select required value={formData.embassyType} onChange={(e) => setFormData({ ...formData, embassyType: e.target.value })} className="w-full px-3 sm:px-4 py-2.5 sm:py-3 text-sm sm:text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500">
+              <select required value={formData.embassyType} onChange={(e) => setFormData({ ...formData, embassyType: e.target.value })} className="w-full px-3 sm:px-4 py-2.5 sm:py-3 text-sm sm:text-base text-gray-900 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500">
                 <option value="">اختر نوع السفارة</option>
                 <option value="سفارة الأردن">سفارة الأردن</option>
                 <option value="سفارة ألمانيا">سفارة ألمانيا</option>

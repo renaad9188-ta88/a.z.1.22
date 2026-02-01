@@ -7,7 +7,7 @@
 -- الخطوة 1: إنشاء مستخدم في auth.users
 -- استبدل القيم التالية:
 -- 'tamer88' - اسم المستخدم
--- 'phone_tamer88@maidaa.local' - رقم هاتف (سيتم تحويله إلى email)
+-- 'phone_tamer88@syrian-services.local' - رقم هاتف (سيتم تحويله إلى email)
 -- '963XXXXXXXXX' - رقم الهاتف الفعلي
 
 -- ملاحظة: في Supabase، يجب استخدام Supabase Dashboard > Authentication > Users > Add User
@@ -19,7 +19,7 @@
 -- 1. اذهب إلى Supabase Dashboard
 -- 2. Authentication > Users
 -- 3. Add User > Create new user
--- 4. Email: phone_tamer88@maidaa.local
+-- 4. Email: phone_tamer88@syrian-services.local
 -- 5. Password: (اختر كلمة مرور)
 -- 6. User Metadata: 
 --    {

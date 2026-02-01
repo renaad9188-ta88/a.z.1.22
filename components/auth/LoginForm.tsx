@@ -34,7 +34,7 @@ export default function LoginForm() {
       if (cleanPhone.startsWith('00')) {
         cleanPhone = cleanPhone.substring(2)
       }
-      const email = `phone_${cleanPhone}@maidaa.local`
+      const email = `phone_${cleanPhone}@syrian-services.local`
       const userPassword = password
 
       const { data, error } = await supabase.auth.signInWithPassword({
@@ -104,7 +104,7 @@ export default function LoginForm() {
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
               required
-              className="w-full px-3 sm:px-4 py-2.5 sm:py-3 text-sm sm:text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full px-3 sm:px-4 py-2.5 sm:py-3 text-sm sm:text-base text-gray-900 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder:text-gray-400"
               placeholder="+966XXXXXXXXX أو 05XXXXXXXX"
             />
             <p className="mt-1 text-xs text-gray-500">
@@ -122,7 +122,7 @@ export default function LoginForm() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
-              className="w-full px-3 sm:px-4 py-2.5 sm:py-3 text-sm sm:text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full px-3 sm:px-4 py-2.5 sm:py-3 text-sm sm:text-base text-gray-900 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder:text-gray-400"
               placeholder="أدخل كلمة المرور"
             />
           </div>

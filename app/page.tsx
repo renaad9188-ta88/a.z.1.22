@@ -112,7 +112,7 @@ export default function HomePage() {
       {/* Footer */}
       <footer className="bg-gray-800 text-white py-6 sm:py-8">
         <div className="container mx-auto px-4 text-center">
-          <p className="mb-3 sm:mb-4 text-sm sm:text-base">© 2024 منصة خدمات السوريين - جميع الحقوق محفوظة</p>
+          <p className="mb-3 sm:mb-4 text-sm sm:text-base">© 2026 منصة خدمات السوريين - جميع الحقوق محفوظة</p>
           <div className="flex flex-col sm:flex-row justify-center gap-3 sm:gap-6 text-sm sm:text-base">
             <Link href="/terms" className="hover:text-blue-400 transition">الشروط والأحكام</Link>
             <Link href="/privacy" className="hover:text-blue-400 transition">الخصوصية</Link>

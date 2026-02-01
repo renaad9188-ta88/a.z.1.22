@@ -408,6 +408,56 @@ a,
   text-rendering: optimizeLegibility;
 }
 
+/* ضمان ظهور النص في حقول الإدخال على جميع الأجهزة */
+input[type="text"],
+input[type="tel"],
+input[type="email"],
+input[type="password"],
+input[type="number"],
+input[type="date"],
+input[type="time"],
+input[type="datetime-local"],
+textarea,
+select {
+  color: #111827 !important; /* رمادي داكن جداً */
+  background-color: #ffffff !important; /* خلفية بيضاء */
+}
+
+/* ضمان ظهور الخيارات في القوائم المنسدلة */
+select option {
+  color: #111827 !important; /* رمادي داكن جداً */
+  background-color: #ffffff !important; /* خلفية بيضاء */
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: #9ca3af !important; /* رمادي فاتح للـ placeholder */
+}
+
+input:focus,
+textarea:focus,
+select:focus {
+  color: #111827 !important; /* ضمان اللون عند التركيز */
+  background-color: #ffffff !important;
+}
+
+select:focus option {
+  color: #111827 !important;
+  background-color: #ffffff !important;
+}
+
+input:disabled,
+textarea:disabled,
+select:disabled {
+  color: #6b7280 !important; /* رمادي عند التعطيل */
+  background-color: #f3f4f6 !important; /* خلفية رمادية فاتحة */
+}
+
+select:disabled option {
+  color: #6b7280 !important;
+  background-color: #f3f4f6 !important;
+}
+
 /* تحسين الألوان على الشاشات المختلفة */
 @media (prefers-color-scheme: light) {
   /* ضمان الألوان الفاتحة دائماً */

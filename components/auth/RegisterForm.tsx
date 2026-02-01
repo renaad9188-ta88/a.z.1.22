@@ -47,8 +47,8 @@ export default function RegisterForm() {
       const inviteToken = searchParams?.get('invite') || null
 
       // استخدام رقم الهاتف كـ email (Supabase يتطلب email)
-      // تنسيق صحيح: phone_XXXXXXXXXX@maidaa.local
-      const phoneEmail = `phone_${cleanPhone}@maidaa.local`
+      // تنسيق صحيح: phone_XXXXXXXXXX@syrian-services.local
+      const phoneEmail = `phone_${cleanPhone}@syrian-services.local`
       const fullName = `${formData.firstName.trim()} ${formData.lastName.trim()}`.trim()
 
       // Register user
@@ -144,7 +144,7 @@ export default function RegisterForm() {
           if (cleanPhoneForLogin.startsWith('00')) {
             cleanPhoneForLogin = cleanPhoneForLogin.substring(2)
           }
-          const phoneEmail = `phone_${cleanPhoneForLogin}@maidaa.local`
+          const phoneEmail = `phone_${cleanPhoneForLogin}@syrian-services.local`
           const { error: loginError } = await supabase.auth.signInWithPassword({
             email: phoneEmail,
             password: formData.password,
@@ -220,7 +220,7 @@ export default function RegisterForm() {
                 value={formData.firstName}
                 onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
                 required
-                className="w-full px-3 sm:px-4 py-2.5 sm:py-3 text-sm sm:text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-3 sm:px-4 py-2.5 sm:py-3 text-sm sm:text-base text-gray-900 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder:text-gray-400"
                 placeholder="الاسم الأول"
               />
               <input
@@ -229,7 +229,7 @@ export default function RegisterForm() {
                 value={formData.lastName}
                 onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
                 required
-                className="w-full px-3 sm:px-4 py-2.5 sm:py-3 text-sm sm:text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-3 sm:px-4 py-2.5 sm:py-3 text-sm sm:text-base text-gray-900 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder:text-gray-400"
                 placeholder="اسم العائلة"
               />
             </div>
@@ -245,7 +245,7 @@ export default function RegisterForm() {
               value={formData.phone}
               onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
               required
-              className="w-full px-3 sm:px-4 py-2.5 sm:py-3 text-sm sm:text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full px-3 sm:px-4 py-2.5 sm:py-3 text-sm sm:text-base text-gray-900 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder:text-gray-400"
               placeholder="+966XXXXXXXXX أو 05XXXXXXXX"
             />
             <p className="mt-1 text-xs text-gray-500">سيتم استخدام رقم الهاتف لتسجيل الدخول</p>
@@ -261,7 +261,7 @@ export default function RegisterForm() {
               value={formData.password}
               onChange={(e) => setFormData({ ...formData, password: e.target.value })}
               required
-              className="w-full px-3 sm:px-4 py-2.5 sm:py-3 text-sm sm:text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full px-3 sm:px-4 py-2.5 sm:py-3 text-sm sm:text-base text-gray-900 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder:text-gray-400"
               placeholder="أدخل كلمة مرور قوية"
             />
           </div>

@@ -394,7 +394,7 @@ export default function JordanVisitForm() {
                     required 
                     value={formData.departureCity} 
                     onChange={(e) => setFormData({ ...formData, departureCity: e.target.value, otherCity: '' })} 
-                    className="w-full px-3 sm:px-4 py-2.5 sm:py-3 text-sm sm:text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 sm:px-4 py-2.5 sm:py-3 text-sm sm:text-base text-gray-900 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                   >
                     <option value="">اختر مكان الانطلاق</option>
                     {DEPARTURE_CITIES.map((city) => (

@@ -26,7 +26,7 @@ SELECT
   created_at,
   raw_user_meta_data
 FROM auth.users 
-WHERE email = 'phone_tamer88@maidaa.local';
+WHERE email = 'phone_tamer88@syrian-services.local';
 
 
 

@@ -165,13 +165,13 @@ export default function RequestCard({ request, userProfile, onClick, onScheduleT
   return (
     <div className={`${getBackgroundGradient()} rounded-xl shadow-lg hover:shadow-2xl transition-all duration-300 p-4 sm:p-6 border-2 border-r-0 ${getBorderColor()} ${
       isNewRequest ? 'ring-2 ring-blue-300 ring-opacity-50' : ''
-    } transform hover:scale-[1.01]`}>
-      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+    } w-full max-w-full overflow-hidden`}>
+      <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
         {/* المعلومات الأساسية */}
         <div className="flex-1 space-y-3">
-          <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
-            <div className="flex-1">
-              <div className="flex items-center gap-2 mb-2">
+          <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3">
+            <div className="flex-1 min-w-0">
+              <div className="flex flex-wrap items-center gap-2 mb-2">
                 {index !== undefined && (
                   <div className={`flex items-center justify-center w-8 h-8 rounded-full font-bold text-sm ${
                     isNewRequest 
@@ -244,7 +244,7 @@ export default function RequestCard({ request, userProfile, onClick, onScheduleT
               {getStatusBadge(request.status)}
             </div>
             <div
-              className="text-left bg-gray-50 rounded-lg p-2 border border-gray-200 cursor-pointer hover:bg-gray-100 transition w-full sm:w-auto"
+              className="text-left bg-gray-50 rounded-lg p-2 border border-gray-200 cursor-pointer hover:bg-gray-100 transition w-full md:w-auto flex-shrink-0"
               role="button"
               tabIndex={0}
               onClick={onClick}
@@ -310,7 +310,7 @@ export default function RequestCard({ request, userProfile, onClick, onScheduleT
             </div>
           </div>
 
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-sm bg-white/50 rounded-lg p-3 border border-gray-100">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 text-sm bg-white/50 rounded-lg p-3 border border-gray-100">
             <div className="flex items-center gap-2 text-gray-700 bg-blue-50 rounded-lg p-2">
               <Calendar className="w-4 h-4 text-blue-600 flex-shrink-0" />
               <div>
