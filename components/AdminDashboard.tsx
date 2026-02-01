@@ -18,6 +18,7 @@ import CustomersManagement from './admin/CustomersManagement'
 import BookingsManagement from './admin/BookingsManagement'
 import { VisitRequest, UserProfile, AdminStats as StatsType } from './admin/types'
 import { ChevronDown, Layers, Calendar } from 'lucide-react'
+import QRCodeShare from './QRCodeShare'
 
 export default function AdminDashboard() {
   const router = useRouter()
@@ -377,6 +378,7 @@ export default function AdminDashboard() {
               </div>
             </div>
             <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 md:gap-3 w-full sm:w-auto justify-end sm:justify-start">
+              <QRCodeShare title="منصة خدمات السوريين - لوحة الإدارة" />
               {currentRole === 'admin' && (
                 <button
                   onClick={() => setShowRouteManagement(!showRouteManagement)}

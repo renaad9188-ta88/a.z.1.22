@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { Phone, MessageCircle } from 'lucide-react'
 import HeroCarousel from '@/components/HeroCarousel'
 import ServicesSection from '@/components/ServicesSection'
+import QRCodeShare from '@/components/QRCodeShare'
 
 export default function HomePage() {
   return (
@@ -46,13 +47,28 @@ export default function HomePage() {
               </div>
             </a>
           </div>
-          <div className="mt-4 sm:mt-6">
+          <div className="mt-4 sm:mt-6 space-y-3">
             <Link 
               href="/contact" 
               className="block w-full text-center px-4 sm:px-6 py-2.5 sm:py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-xs sm:text-sm font-semibold"
             >
               نموذج التواصل المباشر
             </Link>
+            
+            {/* QR Code Section */}
+            <div className="pt-4 border-t border-gray-200">
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+                <div className="text-center sm:text-right">
+                  <p className="text-sm sm:text-base font-semibold text-gray-700 mb-1">
+                    شارك المنصة بسهولة
+                  </p>
+                  <p className="text-xs sm:text-sm text-gray-500">
+                    امسح QR Code للوصول السريع
+                  </p>
+                </div>
+                <QRCodeShare title="منصة خدمات السوريين" />
+              </div>
+            </div>
           </div>
         </div>
       </section>
