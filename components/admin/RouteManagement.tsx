@@ -8,6 +8,11 @@ import TripSchedulingModal from './TripSchedulingModal'
 import CreateTripModal from './CreateTripModal'
 import TripDetailsModal from './TripDetailsModal'
 import TripCardWithMap from './TripCardWithMap'
+import TripsList from './TripsList'
+import DriversList from './DriversList'
+import PassengersModal from './PassengersModal'
+import DriverHistoryModal from './DriverHistoryModal'
+import AddDriverModal from './AddDriverModal'
 import type { VisitRequest } from './types'
 
 type Route = {
@@ -1027,299 +1032,27 @@ export default function RouteManagement() {
                   </div>
 
                   {expandedRouteTrips[route.id] && (
-                    <div className="mt-6">
-                      {/* Statistics Cards */}
-                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 mb-6">
-                        <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-xl p-3 sm:p-4 border-2 border-green-200 shadow-lg">
-                          <div className="flex items-center justify-between">
-                            <div>
-                              <p className="text-xs font-semibold text-green-700 mb-1">إجمالي الرحلات</p>
-                              <p className="text-xl sm:text-2xl font-extrabold text-green-900">
-                                {(routeTrips[route.id] || []).length}
-                              </p>
-                            </div>
-                            <Bus className="w-8 h-8 sm:w-10 sm:h-10 text-green-600 opacity-50 flex-shrink-0" />
-                          </div>
-                        </div>
-                        
-                        <button
-                          onClick={() => {
-                            if (!expandedRouteTrips[route.id]) {
-                              setExpandedRouteTrips((p) => ({ ...p, [route.id]: true }))
-                              loadTripsForRoute(route.id)
-                            }
-                            setExpandedRouteTrips((p) => ({ ...p, [`${route.id}__tab`]: true }))
-                          }}
-                          className="bg-gradient-to-br from-emerald-50 to-emerald-100 rounded-xl p-3 sm:p-4 border-2 border-emerald-200 shadow-lg hover:shadow-xl transition-all cursor-pointer text-right"
-                        >
-                          <div className="flex items-center justify-between">
-                            <div>
-                              <p className="text-xs font-semibold text-emerald-700 mb-1">القادمون</p>
-                              <p className="text-xl sm:text-2xl font-extrabold text-emerald-900">
-                                {(routeTrips[route.id] || []).filter(t => (t.trip_type || 'arrival') === 'arrival').length}
-                              </p>
-                            </div>
-                            <MapPin className="w-8 h-8 sm:w-10 sm:h-10 text-emerald-600 opacity-50 flex-shrink-0" />
-                          </div>
-                        </button>
-                        
-                        <button
-                          onClick={() => {
-                            if (!expandedRouteTrips[route.id]) {
-                              setExpandedRouteTrips((p) => ({ ...p, [route.id]: true }))
-                              loadTripsForRoute(route.id)
-                            }
-                            setExpandedRouteTrips((p) => ({ ...p, [`${route.id}__tab`]: false }))
-                          }}
-                          className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-xl p-3 sm:p-4 border-2 border-purple-200 shadow-lg hover:shadow-xl transition-all cursor-pointer text-right"
-                        >
-                          <div className="flex items-center justify-between">
-                            <div>
-                              <p className="text-xs font-semibold text-purple-700 mb-1">المغادرون</p>
-                              <p className="text-xl sm:text-2xl font-extrabold text-purple-900">
-                                {(routeTrips[route.id] || []).filter(t => (t.trip_type || 'arrival') === 'departure').length}
-                              </p>
-                            </div>
-                            <Navigation className="w-8 h-8 sm:w-10 sm:h-10 text-purple-600 opacity-50 flex-shrink-0" />
-                          </div>
-                        </button>
-                      </div>
-
-                      {/* Tabs */}
-                      <div className="flex flex-wrap gap-2 mb-4">
-                        <button
-                          type="button"
-                          onClick={() => setExpandedRouteTrips((p) => ({ ...p, [`${route.id}__tab`]: true }))}
-                          className={`px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl font-bold text-xs sm:text-sm transition-all ${
-                            (expandedRouteTrips as any)[`${route.id}__tab`] !== false
-                              ? 'bg-gradient-to-r from-green-500 to-emerald-600 text-white shadow-lg scale-105'
-                              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                          }`}
-                        >
-                          <span className="flex items-center gap-2">
-                            <MapPin className="w-3 h-3 sm:w-4 sm:h-4" />
-                            القادمون
-                          </span>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setExpandedRouteTrips((p) => ({ ...p, [`${route.id}__tab`]: false }))}
-                          className={`px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl font-bold text-xs sm:text-sm transition-all ${
-                            (expandedRouteTrips as any)[`${route.id}__tab`] === false
-                              ? 'bg-gradient-to-r from-purple-500 to-purple-600 text-white shadow-lg scale-105'
-                              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                          }`}
-                        >
-                          <span className="flex items-center gap-2">
-                            <Navigation className="w-3 h-3 sm:w-4 sm:h-4" />
-                            المغادرون
-                          </span>
-                        </button>
-                      </div>
-
-                      {/* Trips Grid */}
-                      {(routeTrips[route.id] || []).length === 0 ? (
-                        <div className="text-center py-8 sm:py-12 bg-gradient-to-br from-gray-50 to-gray-100 rounded-xl border-2 border-dashed border-gray-300">
-                          <Bus className="w-12 h-12 sm:w-16 sm:h-16 text-gray-400 mx-auto mb-4" />
-                          <p className="text-sm sm:text-base text-gray-600 font-semibold">لا توجد رحلات مجدولة</p>
-                          <p className="text-xs sm:text-sm text-gray-500 mt-2">استخدم الأزرار أعلاه لإنشاء رحلة جديدة</p>
-                        </div>
-                      ) : (
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
-                          {(routeTrips[route.id] || [])
-                            .filter((t) => {
-                              const tabIsArrival = Boolean((expandedRouteTrips as any)[`${route.id}__tab`] ?? true)
-                              return tabIsArrival 
-                                ? (t.trip_type || 'arrival') === 'arrival' 
-                                : (t.trip_type || 'arrival') === 'departure'
-                            })
-                            .map((t) => {
-                              const isArrival = (t.trip_type || 'arrival') === 'arrival'
-                              const tripDate = new Date(t.arrival_date || '')
-                              return (
-                                <div
-                                  key={t.id}
-                                  className={`group relative bg-white rounded-xl border-2 overflow-hidden shadow-md hover:shadow-2xl transition-all duration-300 hover:-translate-y-1 ${
-                                    isArrival
-                                      ? 'border-green-200 hover:border-green-400'
-                                      : 'border-purple-200 hover:border-purple-400'
-                                  }`}
-                                >
-                                  {/* Gradient Header */}
-                                  <div
-                                    className={`h-2 ${
-                                      isArrival
-                                        ? 'bg-gradient-to-r from-green-500 via-emerald-500 to-green-600'
-                                        : 'bg-gradient-to-r from-purple-500 via-purple-600 to-purple-700'
-                                    }`}
-                                  />
-                                  
-                                  <div className="p-4 sm:p-5">
-                                    {/* Trip Type Badge & Quick Actions */}
-                                    <div className="flex items-center justify-between mb-3">
-                                      <span
-                                        className={`px-2 sm:px-3 py-1 rounded-full text-[10px] sm:text-xs font-bold ${
-                                          isArrival
-                                            ? 'bg-green-100 text-green-800 border border-green-300'
-                                            : 'bg-purple-100 text-purple-800 border border-purple-300'
-                                        }`}
-                                      >
-                                        {isArrival ? '🟢 القادمون' : '🟣 المغادرون'}
-                                      </span>
-                                      
-                                      {/* Quick Actions */}
-                                      <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                        <button
-                                          onClick={() => handleEditTrip(t.id, route.id)}
-                                          className="px-2 sm:px-2.5 py-1.5 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition flex items-center gap-1.5 text-[10px] sm:text-xs font-semibold"
-                                          title="تعديل"
-                                        >
-                                          <Edit className="w-3 h-3 sm:w-4 sm:h-4" />
-                                          <span>تعديل</span>
-                                        </button>
-                                      </div>
-                                    </div>
-
-                                    {/* Route Info */}
-                                    <div className="mb-3 sm:mb-4">
-                                      <div className="flex items-start gap-2 mb-2">
-                                        <MapPin className={`w-4 h-4 sm:w-5 sm:h-5 mt-0.5 flex-shrink-0 ${
-                                          isArrival ? 'text-green-600' : 'text-purple-600'
-                                        }`} />
-                                        <div className="flex-1 min-w-0">
-                                          <p className="font-extrabold text-gray-900 text-xs sm:text-sm leading-tight truncate">
-                                            {t.start_location_name}
-                                          </p>
-                                          <div className="flex items-center gap-1 my-1">
-                                            <div className={`flex-1 h-0.5 ${
-                                              isArrival ? 'bg-green-200' : 'bg-purple-200'
-                                            }`} />
-                                            <Navigation className={`w-3 h-3 sm:w-4 sm:h-4 ${
-                                              isArrival ? 'text-green-500' : 'text-purple-500'
-                                            }`} />
-                                            <div className={`flex-1 h-0.5 ${
-                                              isArrival ? 'bg-green-200' : 'bg-purple-200'
-                                            }`} />
-                                          </div>
-                                          <p className="font-extrabold text-gray-900 text-xs sm:text-sm leading-tight truncate">
-                                            {t.end_location_name}
-                                          </p>
-                                        </div>
-                                      </div>
-                                    </div>
-
-                                    {/* Date & Time */}
-                                    <div className="space-y-1.5 sm:space-y-2 mb-3 sm:mb-4">
-                                      <div className="flex items-center gap-2 text-[10px] sm:text-xs">
-                                        <Calendar className="w-3 h-3 sm:w-4 sm:h-4 text-gray-500 flex-shrink-0" />
-                                        <span className="font-semibold text-gray-700 truncate">
-                                          {tripDate.toLocaleDateString('ar-JO', {
-                                            weekday: 'long'
-                                          })}, <span lang="en" dir="ltr">{String(tripDate.getDate()).padStart(2, '0')}/{String(tripDate.getMonth() + 1).padStart(2, '0')}/{tripDate.getFullYear()}</span>
-                                        </span>
-                                      </div>
-                                      {t.meeting_time && (
-                                        <div className="flex items-center gap-2 text-[10px] sm:text-xs">
-                                          <Clock className="w-3 h-3 sm:w-4 sm:h-4 text-gray-500 flex-shrink-0" />
-                                          <span className="text-gray-600">
-                                            تجمع: <span className="font-semibold">{t.meeting_time}</span>
-                                          </span>
-                                        </div>
-                                      )}
-                                      {t.departure_time && (
-                                        <div className="flex items-center gap-2 text-[10px] sm:text-xs">
-                                          <Clock className="w-3 h-3 sm:w-4 sm:h-4 text-gray-500 flex-shrink-0" />
-                                          <span className="text-gray-600">
-                                            انطلاق: <span className="font-semibold">{t.departure_time}</span>
-                                          </span>
-                                        </div>
-                                      )}
-                                    </div>
-
-                                    {/* Passengers Count */}
-                                    <div className="mb-3 sm:mb-4 pt-2 sm:pt-3 border-t border-gray-100">
-                                      <button
-                                        onClick={() => handleShowPassengers(t.id)}
-                                        className="flex items-center gap-2 text-[10px] sm:text-xs font-semibold text-gray-700 hover:text-blue-600 transition cursor-pointer w-full text-right"
-                                        disabled={!tripPassengers[t.id] || tripPassengers[t.id].length === 0}
-                                      >
-                                        <Users className="w-3 h-3 sm:w-4 sm:h-4" />
-                                        <span>
-                                          عدد الحاجزين: <span className={`font-bold ${(tripPassengers[t.id]?.length || 0) > 0 ? 'text-blue-600' : 'text-gray-400'}`}>
-                                            {tripPassengers[t.id]?.length || 0}
-                                          </span>
-                                        </span>
-                                      </button>
-                                    </div>
-
-                                    {/* Assigned Drivers */}
-                                    {tripAssignedDrivers[t.id] && tripAssignedDrivers[t.id].length > 0 && (
-                                      <div className="mb-3 sm:mb-4 pt-2 sm:pt-3 border-t border-gray-100">
-                                        <p className="text-[10px] sm:text-xs font-semibold text-gray-600 mb-1.5 sm:mb-2">السائقون المعيّنون:</p>
-                                        <div className="flex flex-wrap gap-1 sm:gap-1.5 mb-2">
-                                          {tripAssignedDrivers[t.id].map((driver) => (
-                                            <span
-                                              key={driver.id}
-                                              className="inline-flex items-center gap-1 px-1.5 sm:px-2 py-0.5 sm:py-1 bg-gray-50 text-gray-700 rounded-lg text-[10px] sm:text-xs font-medium border border-gray-200 group/driver"
-                                            >
-                                              <Bus className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
-                                              <span className="truncate max-w-[80px] sm:max-w-none">{driver.name}</span>
-                                              <button
-                                                onClick={() => handleUnassignDriverFromTrip(t.id, driver.id, route.id)}
-                                                className="ml-1 p-0.5 text-red-600 hover:bg-red-100 rounded transition opacity-0 group-hover/driver:opacity-100"
-                                                title="إزالة السائق"
-                                              >
-                                                <X className="w-3 h-3" />
-                                              </button>
-                                            </span>
-                                          ))}
-                                        </div>
-                                      </div>
-                                    )}
-
-                                    {/* Assign Driver Dropdown */}
-                                    <div className="mb-3 sm:mb-4 pt-2 sm:pt-3 border-t border-gray-100">
-                                      <label className="block text-[10px] sm:text-xs font-semibold text-gray-700 mb-1.5 sm:mb-2">
-                                        {tripAssignedDrivers[t.id] && tripAssignedDrivers[t.id].length > 0 
-                                          ? 'إضافة سائق آخر:' 
-                                          : 'ربط سائق بالرحلة:'}
-                                      </label>
-                                      <select
-                                        onChange={(e) => {
-                                          if (e.target.value) {
-                                            handleAssignDriverToTrip(t.id, e.target.value, route.id)
-                                            e.target.value = ''
-                                          }
-                                        }}
-                                        className="w-full px-2 sm:px-3 py-1.5 sm:py-2 text-gray-900 bg-white border border-gray-300 rounded-lg text-[10px] sm:text-xs focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                                      >
-                                        <option value="">اختر سائق...</option>
-                                        {drivers
-                                          .filter(d => d.is_active !== false && !tripAssignedDrivers[t.id]?.find(ad => ad.id === d.id))
-                                          .map(driver => (
-                                            <option key={driver.id} value={driver.id}>
-                                              {driver.name} - {driver.vehicle_type}
-                                            </option>
-                                          ))}
-                                      </select>
-                                    </div>
-
-                                    {/* Action Buttons */}
-                                    <div className="flex gap-2 pt-2 sm:pt-3 border-t border-gray-100">
-                                      <button
-                                        onClick={() => setSelectedTripId(t.id)}
-                                        className="flex-1 px-2 sm:px-3 py-1.5 sm:py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-[10px] sm:text-xs font-semibold"
-                                      >
-                                        عرض التفاصيل
-                                      </button>
-                                    </div>
-                                  </div>
-                                </div>
-                              )
-                            })}
-                        </div>
+                    <TripsList
+                      trips={routeTrips[route.id] || []}
+                      routeId={route.id}
+                      tabIsArrival={Boolean((expandedRouteTrips as any)[`${route.id}__tab`] ?? true)}
+                      onTabChange={(isArrival) => {
+                        setExpandedRouteTrips((p) => ({ ...p, [`${route.id}__tab`]: isArrival }))
+                      }}
+                      passengersCount={Object.fromEntries(
+                        Object.entries(tripPassengers).map(([tripId, passengers]) => [
+                          tripId,
+                          passengers?.length || 0
+                        ])
                       )}
-                    </div>
+                      assignedDrivers={tripAssignedDrivers}
+                      availableDrivers={drivers.filter(d => d.is_active !== false)}
+                      onEdit={handleEditTrip}
+                      onViewDetails={(tripId) => setSelectedTripId(tripId)}
+                      onShowPassengers={handleShowPassengers}
+                      onAssignDriver={handleAssignDriverToTrip}
+                      onUnassignDriver={handleUnassignDriverFromTrip}
+                    />
                   )}
                 </div>
               </div>
@@ -1329,265 +1062,32 @@ export default function RouteManagement() {
       </div>
 
       {/* Drivers Overview */}
-      <div className="bg-white rounded-lg shadow-md p-3 sm:p-4 lg:p-6">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
-          <div className="min-w-0">
-            <h3 className="text-base sm:text-lg md:text-xl font-extrabold text-gray-900 flex items-center gap-2">
-              <Users className="w-5 h-5 text-blue-600" />
-              السائقون (الكل)
-            </h3>
-            <p className="text-xs sm:text-sm text-gray-600 mt-1">
-              عرض السائقين المضافين + ربطهم بالحساب + آخر موقع مُسجل + تواصل مباشر
-            </p>
-          </div>
-          <div className="flex items-center gap-2 w-full sm:w-auto">
-            <input
-              value={driverSearch}
-              onChange={(e) => setDriverSearch(e.target.value)}
-              placeholder="بحث بالاسم أو الهاتف..."
-              className="w-full sm:w-64 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-            />
-          </div>
-        </div>
-
-        <div className="grid gap-3 sm:gap-4">
-          {drivers
-            .filter((d) => {
-              const q = driverSearch.trim()
-              if (!q) return true
-              const qq = q.toLowerCase()
-              return (
-                d.name.toLowerCase().includes(qq) ||
-                (d.phone || '').toLowerCase().includes(qq) ||
-                (d.vehicle_type || '').toLowerCase().includes(qq)
-              )
-            })
-            .map((d) => {
-              const acc = getAccountForDriver(d)
-              const routesCount = getAssignedRoutesCount(d.id)
-              const lastLoc = driverLastLoc[d.id] || null
-              const live = driverLiveMap[d.id] || null
-              const waDigits = normalizePhoneForWhatsApp(d.phone || '')
-              const waHref = waDigits ? `https://wa.me/${waDigits}` : `https://wa.me/?text=${encodeURIComponent(`تواصل مع السائق: ${d.name} — ${d.phone}`)}`
-              const telDigits = normalizePhoneForTel(d.phone || '')
-              const telHref = telDigits ? `tel:${telDigits}` : ''
-              const mapHref =
-                lastLoc ? `https://www.google.com/maps?q=${lastLoc.lat},${lastLoc.lng}` : ''
-
-              return (
-                <div key={d.id} className="border border-gray-200 rounded-xl p-3 sm:p-4 lg:p-5">
-                  <div className="flex flex-col lg:flex-row lg:justify-between lg:items-start gap-4">
-                    <div className="min-w-0 flex-1 space-y-2">
-                      {/* Name and badges */}
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className="font-extrabold text-base sm:text-lg text-gray-900">{d.name}</span>
-                        <span className={`text-[11px] px-2 py-0.5 rounded-full border ${d.is_active ? 'bg-green-50 text-green-700 border-green-200' : 'bg-gray-50 text-gray-700 border-gray-200'}`}>
-                          {d.is_active ? 'نشط' : 'غير نشط'}
-                        </span>
-                        {live?.is_available ? (
-                          <span className="text-[11px] px-2 py-0.5 rounded-full border bg-green-600 text-white border-green-700">
-                            متاح
-                          </span>
-                        ) : (
-                          <span className="text-[11px] px-2 py-0.5 rounded-full border bg-gray-200 text-gray-800 border-gray-300">
-                            غير متاح
-                          </span>
-                        )}
-                        {d.user_id ? (
-                          <span className="text-[11px] px-2 py-0.5 rounded-full border bg-blue-50 text-blue-700 border-blue-200">
-                            مربوط بحساب
-                          </span>
-                        ) : (
-                          <span className="text-[11px] px-2 py-0.5 rounded-full border bg-yellow-50 text-yellow-800 border-yellow-200">
-                            بدون حساب
-                          </span>
-                        )}
-                      </div>
-                      
-                      {/* Driver info - grid layout for better organization */}
-                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 sm:gap-3 text-xs sm:text-sm text-gray-700">
-                        <div className="inline-flex items-center gap-1.5">
-                          <Phone className="w-4 h-4 text-gray-500 flex-shrink-0" />
-                          <span className="truncate">{d.phone}</span>
-                        </div>
-                        <div className="inline-flex items-center gap-1.5">
-                          <Bus className="w-4 h-4 text-gray-500 flex-shrink-0" />
-                          <span>{d.vehicle_type} • {d.seats_count} مقعد</span>
-                        </div>
-                        <div className="inline-flex items-center gap-1.5">
-                          <MapPin className="w-4 h-4 text-gray-500 flex-shrink-0" />
-                          <span>خطوط مربوطة: {routesCount}</span>
-                        </div>
-                      </div>
-                      
-                      {/* Account info */}
-                      {acc && (
-                        <div className="mt-2 text-[11px] sm:text-xs text-gray-600 bg-gray-50 rounded-lg p-2 border border-gray-200">
-                          <span className="font-semibold">حساب:</span> {acc.full_name || 'بدون اسم'} — {acc.phone || 'بدون رقم'} — <span className="font-semibold">الدور:</span> {acc.role || 'user'}
-                        </div>
-                      )}
-                      
-                      {/* Location info */}
-                      {lastLoc && (
-                        <div className="mt-2 text-[11px] sm:text-xs text-gray-600">
-                          <span className="font-semibold">آخر موقع:</span> {new Date(lastLoc.updated_at).toLocaleString('ar-JO')} •{' '}
-                          <a href={mapHref} target="_blank" rel="noopener noreferrer" className="text-blue-700 font-bold hover:underline">
-                            فتح على الخريطة
-                          </a>
-                        </div>
-                      )}
-                      {live?.updated_at && (
-                        <div className="mt-1 text-[11px] sm:text-xs text-gray-500">
-                          <span className="font-semibold">حالة متاح:</span> آخر تحديث {new Date(live.updated_at).toLocaleString('ar-JO')}
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Action buttons: grid on mobile, better layout on medium/large screens */}
-                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2 w-full">
-                      <a
-                        href={waHref}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="w-full px-2.5 py-2 rounded-lg bg-green-600 text-white text-xs sm:text-sm font-bold hover:bg-green-700 transition inline-flex items-center justify-center gap-2"
-                        title="تواصل واتساب"
-                      >
-                        <Phone className="w-4 h-4" />
-                        واتساب
-                      </a>
-                      {telHref && (
-                        <a
-                          href={telHref}
-                          className="w-full px-2.5 py-2 rounded-lg bg-amber-50 text-amber-900 text-xs sm:text-sm font-bold hover:bg-amber-100 transition inline-flex items-center justify-center gap-2 border border-amber-200"
-                          title="اتصال مباشر"
-                        >
-                          <Phone className="w-4 h-4" />
-                          اتصال
-                        </a>
-                      )}
-                      <button
-                        type="button"
-                        onClick={() => loadDriverLastLocation(d)}
-                        disabled={Boolean(driverLocLoading[d.id])}
-                        className="w-full px-2.5 py-2 rounded-lg bg-blue-600 text-white text-xs sm:text-sm font-bold hover:bg-blue-700 transition disabled:opacity-50 inline-flex items-center justify-center gap-2"
-                        title="آخر موقع مسجل"
-                      >
-                        <Navigation className="w-4 h-4" />
-                        {driverLocLoading[d.id] ? 'تحميل...' : 'آخر موقع'}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => loadDriverLocationHistory(d)}
-                        disabled={Boolean(driverLocLoading[d.id])}
-                        className="w-full px-2.5 py-2 rounded-lg bg-gray-100 text-gray-800 text-xs sm:text-sm font-bold hover:bg-gray-200 transition disabled:opacity-50 inline-flex items-center justify-center gap-2"
-                        title="سجل حركة (آخر 20 نقطة)"
-                      >
-                        <MapPin className="w-4 h-4" />
-                        سجل حركة
-                      </button>
-                      {d.user_id && (
-                        <button
-                          type="button"
-                          onClick={async () => {
-                            try {
-                              await navigator.clipboard.writeText(d.user_id || '')
-                              toast.success('تم نسخ User ID')
-                            } catch {
-                              toast.error('تعذر النسخ')
-                            }
-                          }}
-                          className="w-full px-2.5 py-2 rounded-lg bg-gray-100 text-gray-800 text-xs sm:text-sm font-bold hover:bg-gray-200 transition inline-flex items-center justify-center gap-2"
-                          title="نسخ معرف الحساب (يُستخدم للربط والصلاحيات)"
-                        >
-                          <Copy className="w-4 h-4" />
-                          <span className="hidden sm:inline">معرف الحساب</span>
-                          <span className="sm:hidden">المعرّف</span>
-                        </button>
-                      )}
-
-                      <button
-                        type="button"
-                        onClick={() => toggleDriverActive(d.id, !d.is_active)}
-                        className={`w-full px-2.5 py-2 rounded-lg text-xs sm:text-sm font-bold transition ${
-                          d.is_active
-                            ? 'bg-yellow-50 text-yellow-800 hover:bg-yellow-100 border border-yellow-200'
-                            : 'bg-green-50 text-green-800 hover:bg-green-100 border border-green-200'
-                        }`}
-                        title={d.is_active ? 'تعطيل السائق (لن يظهر للحجز/التعيين)' : 'تفعيل السائق'}
-                      >
-                        {d.is_active ? 'تعطيل' : 'تفعيل'}
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => deleteDriver(d.id)}
-                        className="w-full px-2.5 py-2 rounded-lg bg-red-50 text-red-700 hover:bg-red-100 border border-red-200 text-xs sm:text-sm font-bold transition inline-flex items-center justify-center gap-2"
-                        title="حذف السائق"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                        حذف
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              )
-            })}
-
-          {drivers.length === 0 && (
-            <div className="text-sm text-gray-600 bg-gray-50 border border-gray-200 rounded-lg p-4">
-              لا يوجد سائقون بعد. اضغط &quot;إضافة سائق&quot; لإنشاء أول سائق.
-            </div>
-          )}
-        </div>
-      </div>
+      <DriversList
+        drivers={drivers}
+        driverSearch={driverSearch}
+        onSearchChange={setDriverSearch}
+        driverAccounts={driverAccounts}
+        driverLastLoc={driverLastLoc}
+        driverLiveMap={driverLiveMap}
+        driverLocLoading={driverLocLoading}
+        getAccountForDriver={getAccountForDriver}
+        getAssignedRoutesCount={getAssignedRoutesCount}
+        normalizePhoneForWhatsApp={normalizePhoneForWhatsApp}
+        normalizePhoneForTel={normalizePhoneForTel}
+        loadDriverLastLocation={loadDriverLastLocation}
+        loadDriverLocationHistory={loadDriverLocationHistory}
+        onOpenHistory={setOpenHistoryFor}
+        toggleDriverActive={toggleDriverActive}
+        deleteDriver={deleteDriver}
+      />
 
       {/* Driver History Modal */}
       {openHistoryFor && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-3 sm:p-4 overflow-y-auto">
-          <div className="bg-white rounded-lg max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
-            <div className="p-4 sm:p-6">
-              <div className="flex items-center justify-between gap-3 mb-4">
-                <h3 className="text-lg sm:text-xl font-bold text-gray-800">
-                  سجل حركة السائق: {openHistoryFor.name}
-                </h3>
-                <button
-                  type="button"
-                  onClick={() => setOpenHistoryFor(null)}
-                  className="px-3 py-1.5 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition text-sm font-semibold"
-                >
-                  إغلاق
-                </button>
-              </div>
-
-              <div className="space-y-2">
-                {(driverLocHistory[openHistoryFor.id] || []).length === 0 ? (
-                  <div className="text-sm text-gray-600 bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-                    لا يوجد سجل حركة حالياً. تأكد أن السائق بدأ التتبع أثناء رحلة نشطة.
-                  </div>
-                ) : (
-                  (driverLocHistory[openHistoryFor.id] || []).map((x, idx) => (
-                    <div key={idx} className="flex items-center justify-between gap-3 border border-gray-200 rounded-lg p-3">
-                      <div className="text-sm text-gray-800">
-                        <div className="font-bold">{new Date(x.updated_at).toLocaleString('ar-JO')}</div>
-                        <div className="text-xs text-gray-500">
-                          طلب: #{String(x.request_id).slice(0, 8).toUpperCase()}
-                        </div>
-                      </div>
-                      <a
-                        href={`https://www.google.com/maps?q=${x.lat},${x.lng}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="px-3 py-2 rounded-lg bg-blue-600 text-white text-xs sm:text-sm font-bold hover:bg-blue-700 transition"
-                      >
-                        فتح
-                      </a>
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
+        <DriverHistoryModal
+          driver={openHistoryFor}
+          history={driverLocHistory[openHistoryFor.id] || []}
+          onClose={() => setOpenHistoryFor(null)}
+        />
       )}
 
       {/* Create Trip Modal */}
@@ -1675,223 +1175,20 @@ export default function RouteManagement() {
 
       {/* Add Driver Modal */}
       {showAddDriver && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-3 sm:p-4 overflow-y-auto">
-          <div className="bg-white rounded-lg max-w-sm sm:max-w-md w-full mx-4 max-h-[90vh] overflow-y-auto">
-            <div className="p-4 sm:p-6">
-              <h3 className="text-lg sm:text-xl font-bold text-gray-800 mb-4 sm:mb-6">إضافة سائق جديد</h3>
-              <form action={handleAddDriver} className="space-y-4 sm:space-y-6">
-                <div className="bg-blue-50 border border-blue-100 rounded-lg p-3 text-xs sm:text-sm text-blue-800 leading-relaxed">
-                  <p className="font-bold mb-1">ربط السائق بحساب (اختياري)</p>
-                  <p>
-                    إذا اخترت حسابًا هنا، سيتمكن السائق من تسجيل الدخول إلى لوحة السائق وبدء التتبع وتحديث المسار حسب الصلاحيات.
-                  </p>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">حساب السائق (User ID)</label>
-                  <select
-                    name="user_id"
-                    value={driverForm.user_id}
-                    onChange={(e) => {
-                      const userId = e.target.value
-                      if (!userId) {
-                        setDriverForm((p) => ({ ...p, user_id: '', name: '', phone: '' }))
-                        setDriverAutofill({ name: false, phone: false })
-                        return
-                      }
-
-                      const acc = driverAccounts.find((a) => a.user_id === userId)
-                      const nextName = (acc?.full_name || '').trim()
-                      const nextPhone = (acc?.phone || '').trim()
-                      setDriverForm((p) => ({
-                        ...p,
-                        user_id: userId,
-                        name: nextName || p.name,
-                        phone: nextPhone || p.phone,
-                      }))
-                      setDriverAutofill({ name: Boolean(nextName), phone: Boolean(nextPhone) })
-                    }}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm sm:text-base"
-                  >
-                    <option value="">بدون ربط (سائق بدون تسجيل دخول)</option>
-                    {driverAccounts.map((acc) => (
-                      <option key={acc.user_id} value={acc.user_id}>
-                        {(acc.full_name || 'بدون اسم')} — {(acc.phone || 'بدون رقم')} — {(acc.role || 'user')}
-                      </option>
-                    ))}
-                  </select>
-                  <p className="mt-1 text-[11px] sm:text-xs text-gray-500">
-                    ملاحظة: الحساب يجب أن يكون موجودًا بالفعل (مستخدم مسجل). سيتم تعيين دوره إلى driver تلقائياً.
-                  </p>
-                  {driverForm.user_id && (driverAutofill.name || driverAutofill.phone) && (
-                    <p className="mt-1 text-[11px] sm:text-xs text-green-700">
-                      تم تعبئة بيانات السائق تلقائياً من الحساب المختار.
-                    </p>
-                  )}
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">الاسم</label>
-                  <input
-                    name="name"
-                    required
-                    value={driverForm.name}
-                    onChange={(e) => setDriverForm((p) => ({ ...p, name: e.target.value }))}
-                    readOnly={Boolean(driverForm.user_id) && driverAutofill.name}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm sm:text-base"
-                  />
-                  {Boolean(driverForm.user_id) && driverAutofill.name && (
-                    <p className="mt-1 text-[11px] sm:text-xs text-gray-500">تم جلب الاسم من الحساب (يمكن تغييره من بيانات الحساب إن لزم).</p>
-                  )}
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">الهاتف</label>
-                  <input
-                    name="phone"
-                    type="tel"
-                    required
-                    value={driverForm.phone}
-                    onChange={(e) => setDriverForm((p) => ({ ...p, phone: e.target.value }))}
-                    readOnly={Boolean(driverForm.user_id) && driverAutofill.phone}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm sm:text-base"
-                  />
-                  {Boolean(driverForm.user_id) && driverAutofill.phone && (
-                    <p className="mt-1 text-[11px] sm:text-xs text-gray-500">تم جلب الهاتف من الحساب.</p>
-                  )}
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">نوع المركبة</label>
-                  <select
-                    name="vehicle_type"
-                    required
-                    value={driverForm.vehicle_type}
-                    onChange={(e) => setDriverForm((p) => ({ ...p, vehicle_type: e.target.value }))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm sm:text-base"
-                  >
-                    <option value="حافلة">حافلة</option>
-                    <option value="فان">فان</option>
-                    <option value="سيارة">سيارة</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">عدد المقاعد</label>
-                  <input
-                    name="seats_count"
-                    type="number"
-                    required
-                    min="1"
-                    value={driverForm.seats_count}
-                    onChange={(e) => setDriverForm((p) => ({ ...p, seats_count: e.target.value }))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm sm:text-base"
-                  />
-                </div>
-                <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 pt-4">
-                  <button
-                    type="submit"
-                    className="flex-1 px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition font-medium text-sm sm:text-base"
-                  >
-                    إضافة
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setShowAddDriver(false)}
-                    className="flex-1 px-4 py-2.5 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition font-medium text-sm sm:text-base"
-                  >
-                    إلغاء
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
-        </div>
+        <AddDriverModal
+          driverAccounts={driverAccounts}
+          onClose={() => setShowAddDriver(false)}
+          onSubmit={handleAddDriver}
+        />
       )}
 
       {/* Passengers Modal */}
       {showPassengersModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-3 sm:p-4 overflow-y-auto">
-          <div className="bg-white rounded-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto shadow-2xl">
-            <div className="sticky top-0 bg-white border-b border-gray-200 p-4 sm:p-6 flex items-center justify-between z-10">
-              <h3 className="text-lg sm:text-xl font-bold text-gray-800 flex items-center gap-2">
-                <Users className="w-5 h-5 text-blue-600" />
-                قائمة الحاجزين ({showPassengersModal.passengers.length})
-              </h3>
-              <button
-                onClick={() => setShowPassengersModal(null)}
-                className="p-2 hover:bg-gray-100 rounded-lg transition"
-              >
-                <X className="w-5 h-5 text-gray-600" />
-              </button>
-            </div>
-            
-            <div className="p-4 sm:p-6 space-y-3">
-              {showPassengersModal.passengers.map((passenger: any, idx: number) => {
-                const totalPeople = 1 + (passenger.companions_count || 0)
-                const whatsappPhone = normalizePhoneForWhatsApp(passenger.phone)
-                const whatsappUrl = whatsappPhone 
-                  ? `https://wa.me/${whatsappPhone}` 
-                  : `https://wa.me/?text=${encodeURIComponent(`تواصل مع ${passenger.visitor_name}`)}`
-                
-                return (
-                  <div key={passenger.id} className="border border-gray-200 rounded-lg p-3 sm:p-4 hover:bg-gray-50 transition">
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-2">
-                          <span className="w-6 h-6 bg-blue-600 text-white rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0">
-                            {idx + 1}
-                          </span>
-                          <h4 className="font-bold text-gray-900 text-sm sm:text-base">
-                            {passenger.visitor_name}
-                          </h4>
-                          {passenger.full_name && passenger.full_name !== passenger.visitor_name && (
-                            <span className="text-xs text-gray-500">({passenger.full_name})</span>
-                          )}
-                        </div>
-                        
-                        <div className="space-y-1.5 text-xs sm:text-sm text-gray-600">
-                          <div className="flex items-center gap-2">
-                            <Users className="w-3 h-3 sm:w-4 sm:h-4 text-gray-500" />
-                            <span>عدد الأشخاص: <span className="font-semibold">{totalPeople}</span></span>
-                          </div>
-                          {passenger.phone && (
-                            <div className="flex items-center gap-2">
-                              <Phone className="w-3 h-3 sm:w-4 sm:h-4 text-gray-500" />
-                              <span>{passenger.phone}</span>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                      
-                      {passenger.phone && (
-                        <div className="flex gap-2 flex-shrink-0">
-                          <a
-                            href={whatsappUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="px-3 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition text-xs font-semibold flex items-center gap-1.5"
-                          >
-                            <Phone className="w-3 h-3 sm:w-4 sm:h-4" />
-                            واتساب
-                          </a>
-                          <a
-                            href={`tel:${passenger.phone.replace(/\D/g, '')}`}
-                            className="px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-xs font-semibold flex items-center gap-1.5"
-                          >
-                            <Phone className="w-3 h-3 sm:w-4 sm:h-4" />
-                            اتصال
-                          </a>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )
-              })}
-              
-              {showPassengersModal.passengers.length === 0 && (
-                <div className="text-center py-8 text-gray-500">
-                  لا يوجد حاجزين في هذه الرحلة
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
+        <PassengersModal
+          passengers={showPassengersModal.passengers}
+          onClose={() => setShowPassengersModal(null)}
+          normalizePhoneForWhatsApp={normalizePhoneForWhatsApp}
+        />
       )}
     </div>
   )
