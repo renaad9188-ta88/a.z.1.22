@@ -27,6 +27,9 @@ type ReqRow = {
   trip_status: string | null
   trip_id?: string | null
   assigned_to: string | null
+  selected_dropoff_stop_id?: string | null
+  selected_pickup_stop_id?: string | null
+  deposit_paid?: boolean | null
   created_at: string
   updated_at: string
 }
