@@ -5,8 +5,16 @@ import { createSupabaseBrowserClient } from '@/lib/supabase'
 import Link from 'next/link'
 import { Bus, Calendar, Clock, MapPin, Plane, Route, ChevronLeft, Users, Navigation, ChevronDown, ChevronUp, X, Map, Satellite, LocateFixed } from 'lucide-react'
 import { formatDate } from '@/lib/date-utils'
-
-const BORDER_CENTER = { lat: 32.5456, lng: 35.825 } // معبر جابر تقريباً
+import MapControls from './map/MapControls'
+import TripMetaCard from './map/TripMetaCard'
+import UserHintCard from './map/UserHintCard'
+import StopsListModal from './map/StopsListModal'
+import DriverInfoModal from './map/DriverInfoModal'
+import PassengerListModal from './map/PassengerListModal'
+import TripModeSelector from './map/TripModeSelector'
+import MapHeader from './map/MapHeader'
+import MapMinimizeButtons from './map/MapMinimizeButtons'
+import { BORDER_CENTER, normalizeStops, ensureDemoStops } from './map/mapHelpers'
 
 function loadGoogleMaps(apiKey: string): Promise<void> {
   if (typeof window === 'undefined') return Promise.resolve()
@@ -193,41 +201,6 @@ export default function HomeTransportMap() {
   // Determine if trip is arrival or departure
   const isArrivalTrip = mode === 'arrivals' || (tripRow?.trip_type === 'arrivals' || tripRow?.trip_type === 'arrival')
 
-  const ensureDemoStops = (
-    stopsIn: Array<{ name: string; lat: number; lng: number; order_index: number }>,
-    start: LatLng,
-    end: LatLng
-  ) => {
-    // We want a nicer "demo" with exactly 4 visible stop points.
-    const target = 4
-    const base = (stopsIn || [])
-      .filter((s) => Number.isFinite(Number(s.lat)) && Number.isFinite(Number(s.lng)))
-      .map((s, idx) => ({
-        name: s.name || `نقطة توقف ${idx + 1}`,
-        lat: Number(s.lat),
-        lng: Number(s.lng),
-        order_index: Number.isFinite(Number(s.order_index)) ? Number(s.order_index) : idx,
-      }))
-      .sort((a, b) => (a.order_index ?? 0) - (b.order_index ?? 0))
-
-    if (base.length >= target) return base.slice(0, target)
-
-    const out = [...base]
-    // Generate missing stops by interpolating between start/end with a slight zigzag so it looks "متعرّج"
-    for (let i = out.length; i < target; i++) {
-      const t = (i + 1) / (target + 1) // between 0..1
-      const lat = start.lat + (end.lat - start.lat) * t
-      const lng = start.lng + (end.lng - start.lng) * t
-      const zig = (i % 2 === 0 ? 1 : -1) * 0.08
-      out.push({
-        name: `نقطة توقف ${i + 1}`,
-        lat: lat + zig * 0.02,
-        lng: lng + zig * 0.03,
-        order_index: i,
-      })
-    }
-    return out
-  }
 
   const fetchTripMap = async (kind: 'arrivals' | 'departures') => {
     try {
@@ -1302,46 +1275,8 @@ export default function HomeTransportMap() {
     <div className="max-w-6xl mx-auto">
       <div className="bg-white rounded-2xl shadow-md border border-gray-100 overflow-hidden">
         <div className="p-4 sm:p-5 border-b border-gray-100">
-          <div className="mb-3 sm:mb-4">
-            <h3 className="text-sm sm:text-base md:text-lg font-extrabold text-gray-900 flex items-center gap-2">
-              <MapPin className="w-5 h-5 text-blue-600" />
-              خريطة تسلسل الرحلة والمسار
-            </h3>
-            <p className="text-xs sm:text-sm text-gray-600 mt-1 break-words">
-              رحلة حالية إن وجدت — وإن لم توجد نعرض نموذج رحلة مع نقاط التوقف ورسم المسار
-            </p>
-          </div>
-          {/* أزرار القادمون والمغادرون - تقسيم الشاشة إلى قسمين متساويين */}
-          <div className="grid grid-cols-2 gap-3 sm:gap-4">
-            <button
-              type="button"
-              onClick={() => setMode('arrivals')}
-              className={[
-                'w-full px-4 py-3 sm:py-4 rounded-xl text-sm sm:text-base font-extrabold border-2 transition-all duration-200 flex items-center justify-center gap-2 sm:gap-3',
-                mode === 'arrivals'
-                  ? 'bg-blue-600 text-white border-blue-600 shadow-lg shadow-blue-200 scale-[1.02]'
-                  : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50 hover:border-gray-300',
-              ].join(' ')}
-              aria-label="القادمون"
-            >
-              <Plane className="w-5 h-5 sm:w-6 sm:h-6" />
-              <span>القادمون</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setMode('departures')}
-              className={[
-                'w-full px-4 py-3 sm:py-4 rounded-xl text-sm sm:text-base font-extrabold border-2 transition-all duration-200 flex items-center justify-center gap-2 sm:gap-3',
-                mode === 'departures'
-                  ? 'bg-green-600 text-white border-green-600 shadow-lg shadow-green-200 scale-[1.02]'
-                  : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50 hover:border-gray-300',
-              ].join(' ')}
-              aria-label="المغادرون"
-            >
-              <Plane className="w-5 h-5 sm:w-6 sm:h-6 rotate-180" />
-              <span>المغادرون</span>
-            </button>
-          </div>
+          <MapHeader />
+          <TripModeSelector mode={mode} onModeChange={setMode} />
         </div>
 
         {errorText ? (
@@ -1361,448 +1296,79 @@ export default function HomeTransportMap() {
             {/* Overlay: Trip meta */}
             {shouldLoad && (
               <div className="pointer-events-none absolute inset-0">
-                {/* Minimize/Restore button for Passenger List */}
-                {showPassengerList && (
-                  <button
-                    onClick={() => setIsPassengerListMinimized(!isPassengerListMinimized)}
-                    className="pointer-events-auto absolute bottom-3 left-3 z-50 bg-white hover:bg-gray-50 border border-gray-300 rounded-lg shadow-md p-2.5 transition-all hover:shadow-lg active:scale-95 flex items-center gap-2"
-                    title={isPassengerListMinimized ? "استرجاع قائمة الركاب" : "تصغير قائمة الركاب"}
-                    aria-label={isPassengerListMinimized ? "استرجاع" : "تصغير"}
-                  >
-                    {isPassengerListMinimized ? (
-                      <ChevronUp className="w-5 h-5 text-gray-700" />
-                    ) : (
-                      <ChevronDown className="w-5 h-5 text-gray-700" />
-                    )}
-                    <span className="text-xs font-medium text-gray-700 hidden sm:inline">
-                      {isPassengerListMinimized ? "استرجاع" : "تصغير"}
-                    </span>
-                  </button>
-                )}
+                <MapMinimizeButtons
+                  showPassengerList={showPassengerList}
+                  showDriverInfo={showDriverInfo}
+                  isPassengerListMinimized={isPassengerListMinimized}
+                  isDriverInfoMinimized={isDriverInfoMinimized}
+                  onTogglePassengerList={() => setIsPassengerListMinimized(!isPassengerListMinimized)}
+                  onToggleDriverInfo={() => setIsDriverInfoMinimized(!isDriverInfoMinimized)}
+                />
 
-                {/* Minimize/Restore button for Driver Info */}
-                {showDriverInfo && (
-                  <button
-                    onClick={() => setIsDriverInfoMinimized(!isDriverInfoMinimized)}
-                    className="pointer-events-auto absolute bottom-3 left-3 z-50 bg-white hover:bg-gray-50 border border-gray-300 rounded-lg shadow-md p-2.5 transition-all hover:shadow-lg active:scale-95 flex items-center gap-2"
-                    title={isDriverInfoMinimized ? "استرجاع معلومات السائق" : "تصغير معلومات السائق"}
-                    aria-label={isDriverInfoMinimized ? "استرجاع" : "تصغير"}
-                  >
-                    {isDriverInfoMinimized ? (
-                      <ChevronUp className="w-5 h-5 text-gray-700" />
-                    ) : (
-                      <ChevronDown className="w-5 h-5 text-gray-700" />
-                    )}
-                    <span className="text-xs font-medium text-gray-700 hidden sm:inline">
-                      {isDriverInfoMinimized ? "استرجاع" : "تصغير"}
-                    </span>
-                  </button>
-                )}
+                {/* Map Controls */}
+                <MapControls
+                  isTripMetaHidden={isTripMetaHidden}
+                  mapType={mapType}
+                  onShowTripMeta={() => setIsTripMetaHidden(false)}
+                  onResetMap={resetMapToTrip}
+                  onToggleMapType={toggleMapType}
+                />
 
-                {/* Reset to Trip Button - تم نقله إلى مجموعة الأزرار في أعلى اليمين */}
-
-                {/* Custom Map Type Toggle Button - أسفل البطاقة */}
-                <div className={`pointer-events-none absolute right-3 z-30 ${isTripMetaHidden ? 'top-14 md:top-3' : 'top-32 md:top-24'}`}>
-                  <div className="pointer-events-auto flex flex-col gap-2">
-                    {/* Show Trip Meta button - appears when hidden */}
-                    {isTripMetaHidden && (
-                      <button
-                        onClick={() => setIsTripMetaHidden(false)}
-                        className="bg-white hover:bg-gray-50 border border-gray-300 rounded-lg shadow-md p-2 md:p-2.5 transition-all hover:shadow-lg active:scale-95"
-                        title="إظهار معلومات الرحلة"
-                        aria-label="إظهار معلومات الرحلة"
-                      >
-                        <Bus className="w-5 h-5 md:w-6 md:h-6 text-gray-700" />
-                      </button>
-                    )}
-
-                    {/* Reset to Trip Button - يرجع لنطاق الرحلة */}
-                    <button
-                      onClick={resetMapToTrip}
-                      className="bg-white hover:bg-gray-50 border border-gray-300 rounded-lg shadow-md p-2 md:p-2.5 transition-all hover:shadow-lg active:scale-95"
-                      title={tripRow ? "العودة إلى نطاق الرحلة" : "العودة إلى نطاق الخريطة"}
-                      aria-label={tripRow ? "العودة إلى نطاق الرحلة" : "العودة إلى نطاق الخريطة"}
-                    >
-                      <LocateFixed className="w-5 h-5 md:w-6 md:h-6 text-gray-700" />
-                    </button>
-
-                    {/* Map Type Toggle Button - يظهر دائماً */}
-                    <button
-                      onClick={toggleMapType}
-                      className="bg-white hover:bg-gray-50 border border-gray-300 rounded-lg shadow-md p-2 md:p-2.5 transition-all hover:shadow-lg active:scale-95"
-                      title={mapType === 'roadmap' ? 'عرض القمر الصناعي' : 'عرض الخريطة'}
-                      aria-label={mapType === 'roadmap' ? 'قمر صناعي' : 'خريطة'}
-                    >
-                      {mapType === 'roadmap' ? (
-                        <Satellite className="w-5 h-5 md:w-6 md:h-6 text-gray-700" />
-                      ) : (
-                        <Map className="w-5 h-5 md:w-6 md:h-6 text-gray-700" />
-                      )}
-                    </button>
-                  </div>
-                </div>
-
-                {/* Trip meta (top-right) - responsive positioning to avoid covering Google Maps controls */}
+                {/* Trip meta (top-right) */}
                 {!isTripMetaHidden && (
-                  <div className="pointer-events-none absolute top-14 md:top-3 right-3">
-                    <div className="pointer-events-auto bg-white/85 backdrop-blur-md rounded-lg shadow-md border border-gray-200 px-2.5 py-2 sm:px-3 sm:py-2.5 min-w-0 w-[min(18rem,calc(100vw-1.5rem))] sm:w-[min(22rem,calc(100vw-1.5rem))]">
-                      <div className="flex items-center justify-between gap-2 mb-1.5">
-                        <div className="flex items-center gap-2 min-w-0 flex-1">
-                          <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-lg bg-amber-50 flex items-center justify-center flex-shrink-0">
-                            <Bus className="w-4.5 h-4.5 sm:w-5 sm:h-5 text-amber-700" />
-                          </div>
-                          <div className="min-w-0">
-                            <div className="text-[11px] sm:text-xs font-extrabold text-gray-900 truncate">
-                              {tripLabel.badge} — {loadingTrip ? 'جاري التحميل...' : tripLabel.demo}
-                            </div>
-                            <div className="text-[10px] sm:text-[11px] text-gray-600 truncate">
-                              {tripLabel.route || 'مسار افتراضي'}
-                            </div>
-                          </div>
-                        </div>
-                        <button
-                          onClick={() => setIsTripMetaHidden(true)}
-                          className="p-1.5 sm:p-2 hover:bg-gray-100/50 rounded-lg transition-colors flex-shrink-0 active:scale-95"
-                          title="إخفاء معلومات الرحلة"
-                          aria-label="إخفاء"
-                        >
-                          <X className="w-4 h-4 sm:w-5 sm:h-5 text-gray-500 hover:text-gray-700" />
-                        </button>
-                      </div>
-                      <div className="flex flex-wrap items-center gap-1.5 text-[10px] sm:text-[11px] text-gray-700">
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-gray-50 border border-gray-200 whitespace-nowrap">
-                          <Calendar className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-gray-600" />
-                          {dateText || '—'}
-                        </span>
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-gray-50 border border-gray-200 whitespace-nowrap">
-                          <Clock className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-gray-600" />
-                          {timeText || '—'}
-                        </span>
-                        <button
-                          onClick={() => setShowStopsList(!showStopsList)}
-                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-blue-50 border border-blue-100 text-blue-700 font-bold whitespace-nowrap hover:bg-blue-100 transition-colors cursor-pointer"
-                        >
-                          <Route className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                          {isArrivalTrip ? 'نقاط النزول' : 'نقاط الصعود'}: {stopsCountText}
-                        </button>
-                      </div>
-                    </div>
-                  </div>
+                  <TripMetaCard
+                    tripLabel={tripLabel}
+                    loadingTrip={loadingTrip}
+                    dateText={dateText}
+                    timeText={timeText}
+                    stopsCountText={stopsCountText}
+                    isArrivalTrip={isArrivalTrip}
+                    onHide={() => setIsTripMetaHidden(true)}
+                    onShowStopsList={() => setShowStopsList(!showStopsList)}
+                  />
                 )}
 
-                {/* Stops List Modal - قائمة نقاط التوقف */}
+                {/* Stops List Modal */}
                 {showStopsList && (
-                  <>
-                    {/* Backdrop لإغلاق القائمة */}
-                    <div 
-                      className="pointer-events-auto absolute inset-0 z-30"
-                      onClick={() => setShowStopsList(false)}
-                    />
-                    
-                    <div className={`pointer-events-none absolute top-20 md:top-16 right-3 w-[min(20rem,calc(100vw-2rem))] max-h-[60vh] z-40 transition-all duration-300 ${isStopsListMinimized ? 'opacity-0 pointer-events-none scale-95' : 'opacity-100'}`}>
-                      <div className="pointer-events-auto bg-white/90 backdrop-blur-lg rounded-xl shadow-xl border border-gray-200/50 flex flex-col overflow-hidden">
-                        {/* Header */}
-                        <div className="flex items-center justify-between p-3 border-b border-gray-200/50 bg-white/50">
-                          <div className="flex items-center gap-2">
-                            <Route className="w-4 h-4 text-blue-600" />
-                            <h3 className="text-sm font-bold text-gray-900">
-                              {isArrivalTrip ? 'نقاط النزول' : 'نقاط الصعود'}
-                            </h3>
-                            <span className="text-[10px] text-gray-500 bg-gray-100/80 px-1.5 py-0.5 rounded-full">
-                              {getStopsList().length}
-                            </span>
-                          </div>
-                          <div className="flex items-center gap-1">
-                            <button
-                              onClick={() => setIsStopsListMinimized(!isStopsListMinimized)}
-                              className="p-1 hover:bg-gray-100/50 rounded-lg transition-colors"
-                              aria-label={isStopsListMinimized ? "استرجاع" : "تصغير"}
-                            >
-                              {isStopsListMinimized ? (
-                                <ChevronUp className="w-4 h-4 text-gray-500" />
-                              ) : (
-                                <ChevronDown className="w-4 h-4 text-gray-500" />
-                              )}
-                            </button>
-                            <button
-                              onClick={() => setShowStopsList(false)}
-                              className="p-1 hover:bg-gray-100/50 rounded-lg transition-colors"
-                              aria-label="إغلاق"
-                            >
-                              <X className="w-4 h-4 text-gray-500" />
-                            </button>
-                          </div>
-                        </div>
-
-                        {/* Stops List */}
-                        <div className="flex-1 overflow-y-auto p-3 space-y-2 max-h-[calc(60vh-3.5rem)]">
-                          {getStopsList().length === 0 ? (
-                            <div className="text-center py-6 text-gray-500 text-xs">
-                              لا توجد نقاط توقف
-                            </div>
-                          ) : (
-                            getStopsList().map((stop, idx) => {
-                              const stopNumber = (stop.order_index ?? idx) + 1
-                              return (
-                                <div
-                                  key={idx}
-                                  className="bg-gradient-to-r from-blue-50/80 to-indigo-50/80 backdrop-blur-sm rounded-lg p-3 border border-blue-200/50 hover:bg-gradient-to-r hover:from-blue-100/80 hover:to-indigo-100/80 transition-all"
-                                >
-                                  <div className="flex items-start gap-3">
-                                    <div className="w-8 h-8 bg-blue-600 text-white rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0">
-                                      {stopNumber}
-                                    </div>
-                                    <div className="flex-1 min-w-0">
-                                      <div className="flex items-center gap-2 mb-1">
-                                        <MapPin className="w-4 h-4 text-blue-600 flex-shrink-0" />
-                                        <span className="text-xs font-bold text-gray-900 break-words">
-                                          {stop.name || `نقطة توقف ${stopNumber}`}
-                                        </span>
-                                      </div>
-                                      {stop.lat && stop.lng && (
-                                        <div className="text-[10px] text-gray-500 mt-1">
-                                          📍 {Number(stop.lat).toFixed(6)}, {Number(stop.lng).toFixed(6)}
-                                        </div>
-                                      )}
-                                    </div>
-                                  </div>
-                                </div>
-                              )
-                            })
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  </>
+                  <StopsListModal
+                    stops={getStopsList()}
+                    isArrivalTrip={isArrivalTrip}
+                    isMinimized={isStopsListMinimized}
+                    onToggleMinimize={() => setIsStopsListMinimized(!isStopsListMinimized)}
+                    onClose={() => setShowStopsList(false)}
+                  />
                 )}
 
                 {/* Overlay: user hint - فقط للمستخدم المسجل الذي لديه رحلة */}
-                {isLoggedIn && hasUserTrip && userHint && (() => {
-                  const today = new Date().toISOString().split('T')[0]
-                  const tripDateStr = userHint.trip_date 
-                    ? new Date(userHint.trip_date + 'T00:00:00').toISOString().split('T')[0]
-                    : null
-                  const isTripToday = tripDateStr === today
+                {isLoggedIn && hasUserTrip && userHint && (
+                  <>
+                    <UserHintCard
+                      userHint={userHint}
+                      onClick={handleCardClick}
+                    />
 
-                  return (
-                    <>
-                      <div className="pointer-events-none absolute bottom-3 left-3">
-                        <div 
-                          className="pointer-events-auto bg-white/85 backdrop-blur-md rounded-lg shadow-md border border-gray-200 px-2.5 py-2 sm:px-3 sm:py-2.5 w-[min(16rem,calc(100vw-1.5rem))] cursor-pointer hover:bg-white/95 transition-colors active:scale-[0.98]"
-                          onClick={handleCardClick}
-                        >
-                          <div className="flex items-center justify-between gap-2">
-                            <div className="flex-1 min-w-0">
-                              <div className="text-[11px] sm:text-xs font-extrabold text-gray-900 break-words leading-tight">
-                                {userHint.visitor_name}
-                              </div>
-                              <div className="text-[10px] text-gray-700 mt-1 leading-relaxed line-clamp-2">
-                                {userHint.trip_id && isTripToday
-                                  ? 'يتم تتبع رحلتك الآن'
-                                  : userHint.trip_id
-                                  ? 'سيتم تتبع رحلتك عند انطلاق حجزك بالرحلة المحددة من قبلك'
-                                  : 'سيتوفر لك تتبّع الرحلة عند بداية رحلة الراكب.'}
-                              </div>
-                            </div>
-                            <ChevronLeft 
-                              className="w-5 h-5 flex-shrink-0 rotate-180 text-blue-600 hover:text-blue-700 transition-colors" 
-                            />
-                          </div>
-                        </div>
-                      </div>
+                    {/* Driver Info Modal */}
+                    {showDriverInfo && (
+                      <DriverInfoModal
+                        driverInfo={driverInfo}
+                        loading={driverLocationLoading}
+                        onClose={() => setShowDriverInfo(false)}
+                      />
+                    )}
 
-                      {/* Driver Info Modal - معلومات السائق */}
-                      {showDriverInfo && (
-                        <>
-                          {/* Backdrop شفاف لإغلاق القائمة عند النقر خارجها */}
-                          <div 
-                            className="pointer-events-auto absolute inset-0 z-30"
-                            onClick={() => setShowDriverInfo(false)}
-                          />
-                          <div className={`pointer-events-none absolute bottom-3 right-3 w-[min(18rem,calc(100vw-2rem))] z-40 transition-all duration-300 ${isDriverInfoMinimized ? 'opacity-0 pointer-events-none scale-95' : 'opacity-100'}`}>
-                            <div className="pointer-events-auto bg-white/90 backdrop-blur-lg rounded-xl shadow-xl border border-gray-200/50 p-4">
-                              <div className="flex items-center justify-between mb-3">
-                                <h3 className="text-sm font-bold text-gray-900">معلومات السائق</h3>
-                                <button
-                                  onClick={() => setShowDriverInfo(false)}
-                                  className="p-1 hover:bg-gray-100/50 rounded-lg transition-colors"
-                                  aria-label="إغلاق"
-                                >
-                                  <ChevronLeft className="w-4 h-4 text-gray-500 rotate-90" />
-                                </button>
-                              </div>
-                              
-                              {driverInfo ? (
-                                <div className="space-y-3">
-                                  <div>
-                                    <div className="text-xs text-gray-500 mb-1">اسم السائق</div>
-                                    <div className="text-sm font-semibold text-gray-900">{driverInfo.name}</div>
-                                  </div>
-                                  
-                                  <div>
-                                    <div className="text-xs text-gray-500 mb-1">رقم السائق</div>
-                                    <div className="flex items-center gap-2">
-                                      <a 
-                                        href={`tel:${driverInfo.phone}`}
-                                        className="text-sm font-semibold text-blue-600 hover:text-blue-700"
-                                      >
-                                        {driverInfo.phone}
-                                      </a>
-                                      <button
-                                        onClick={async () => {
-                                          try {
-                                            await navigator.clipboard.writeText(driverInfo.phone)
-                                            // يمكن إضافة toast هنا لاحقاً
-                                          } catch (e) {
-                                            console.error('Failed to copy:', e)
-                                          }
-                                        }}
-                                        className="text-xs text-gray-500 hover:text-gray-700 px-2 py-1 bg-gray-100 rounded transition-colors"
-                                        title="نسخ"
-                                      >
-                                        نسخ
-                                      </button>
-                                    </div>
-                                  </div>
-
-                                  {driverInfo.company_phone && (
-                                    <div>
-                                      <div className="text-xs text-gray-500 mb-1">رقم الشركة</div>
-                                      <div className="flex items-center gap-2">
-                                        <a 
-                                          href={`tel:${driverInfo.company_phone}`}
-                                          className="text-sm font-semibold text-blue-600 hover:text-blue-700"
-                                        >
-                                          {driverInfo.company_phone}
-                                        </a>
-                                        <button
-                                          onClick={async () => {
-                                            try {
-                                              await navigator.clipboard.writeText(driverInfo.company_phone!)
-                                              // يمكن إضافة toast هنا لاحقاً
-                                            } catch (e) {
-                                              console.error('Failed to copy:', e)
-                                            }
-                                          }}
-                                          className="text-xs text-gray-500 hover:text-gray-700 px-2 py-1 bg-gray-100 rounded transition-colors"
-                                          title="نسخ"
-                                        >
-                                          نسخ
-                                        </button>
-                                      </div>
-                                    </div>
-                                  )}
-                                </div>
-                              ) : (
-                                <div className="text-center py-4 text-gray-500 text-xs">
-                                  جاري تحميل معلومات السائق...
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        </>
-                      )}
-
-                      {/* Passenger List - داخل الخريطة بشكل أنعم */}
-                      {showPassengerList && (
-                        <>
-                          {/* Backdrop شفاف لإغلاق القائمة عند النقر خارجها */}
-                          <div 
-                            className="pointer-events-auto absolute inset-0 z-30"
-                            onClick={() => setShowPassengerList(false)}
-                          />
-                          <div className={`pointer-events-none absolute bottom-3 right-3 w-[min(20rem,calc(100vw-2rem))] max-h-[60vh] z-40 transition-all duration-300 ${isPassengerListMinimized ? 'opacity-0 pointer-events-none scale-95' : 'opacity-100'}`}>
-                            <div className="pointer-events-auto bg-white/90 backdrop-blur-lg rounded-xl shadow-xl border border-gray-200/50 flex flex-col overflow-hidden">
-                            {/* Header */}
-                            <div className="flex items-center justify-between p-3 border-b border-gray-200/50 bg-white/50">
-                              <div className="flex items-center gap-2">
-                                <Users className="w-4 h-4 text-blue-600" />
-                                <h3 className="text-sm font-bold text-gray-900">
-                                  {tripType === 'arrival' ? 'القادمون' : tripType === 'departure' ? 'المغادرون' : 'الركاب'}
-                                </h3>
-                                {userHint?.trip_id && (
-                                  <span className="text-[10px] text-gray-500 bg-gray-100/80 px-1.5 py-0.5 rounded-full">
-                                    {passengers.length}
-                                  </span>
-                                )}
-                              </div>
-                              <button
-                                onClick={() => setShowPassengerList(false)}
-                                className="p-1 hover:bg-gray-100/50 rounded-lg transition-colors"
-                                aria-label="إغلاق"
-                              >
-                                <ChevronLeft className="w-4 h-4 text-gray-500 rotate-90" />
-                              </button>
-                            </div>
-
-                            {/* Passengers List */}
-                            <div className="flex-1 overflow-y-auto p-3 space-y-2 max-h-[calc(60vh-3.5rem)]">
-                              {!userHint?.trip_id ? (
-                                <div className="text-center py-6">
-                                  <div className="text-gray-500 text-xs mb-1.5">
-                                    لم يتم ربط رحلة بعد
-                                  </div>
-                                  <div className="text-[10px] text-gray-400">
-                                    سيتوفر لك تتبّع الرحلة عند بداية رحلة الراكب
-                                  </div>
-                                </div>
-                              ) : loadingPassengers ? (
-                                <div className="text-center py-6 text-gray-500 text-xs">
-                                  جاري التحميل...
-                                </div>
-                              ) : passengers.length === 0 ? (
-                                <div className="text-center py-6 text-gray-500 text-xs">
-                                  لا يوجد ركاب في هذه الرحلة
-                                </div>
-                              ) : (
-                                passengers.map((passenger) => (
-                                  <div
-                                    key={passenger.id}
-                                    className="bg-gray-50/80 backdrop-blur-sm rounded-lg p-2.5 border border-gray-200/50 hover:bg-gray-100/80 transition-colors"
-                                  >
-                                    <div className="flex items-start justify-between gap-2">
-                                      <div className="flex-1 min-w-0">
-                                        <div className="text-xs font-bold text-gray-900 mb-1">
-                                          {passenger.visitor_name}
-                                        </div>
-                                        {(passenger.dropoff_stop_name || passenger.pickup_stop_name) && (
-                                          <div className="flex items-start gap-1.5 text-[10px] text-gray-600 mb-1.5">
-                                            <MapPin className="w-3 h-3 text-blue-500 mt-0.5 flex-shrink-0" />
-                                            <span className="break-words leading-relaxed">
-                                              {tripType === 'arrival' 
-                                                ? `نقطة النزول: ${passenger.dropoff_stop_name || 'غير محدد'}`
-                                                : `نقطة الصعود: ${passenger.pickup_stop_name || 'غير محدد'}`}
-                                            </span>
-                                          </div>
-                                        )}
-                                        {/* Show ETA if trip is active, or message if trip is upcoming */}
-                                        {driverLocation && passenger.eta ? (
-                                          <div className="flex items-center gap-1.5 text-[10px] text-green-600 font-semibold mt-1.5 pt-1.5 border-t border-gray-200/50">
-                                            <Clock className="w-3 h-3 flex-shrink-0" />
-                                            <span>الوقت المتبقي: {passenger.eta.durationText}</span>
-                                            {passenger.eta.distanceText && (
-                                              <span className="text-gray-500">({passenger.eta.distanceText})</span>
-                                            )}
-                                          </div>
-                                        ) : !driverLocation && userHint?.trip_id ? (
-                                          <div className="flex items-center gap-1.5 text-[10px] text-amber-600 font-semibold mt-1.5 pt-1.5 border-t border-gray-200/50">
-                                            <Clock className="w-3 h-3 flex-shrink-0" />
-                                            <span>عندما تبدأ الرحلة</span>
-                                          </div>
-                                        ) : null}
-                                      </div>
-                                    </div>
-                                  </div>
-                                ))
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                        </>
-                      )}
-                    </>
-                  )
-                })()}
+                    {/* Passenger List Modal */}
+                    {showPassengerList && (
+                      <PassengerListModal
+                        passengers={passengers}
+                        tripType={tripType}
+                        userHintTripId={userHint.trip_id}
+                        driverLocation={driverLocation}
+                        loading={loadingPassengers}
+                        onClose={() => setShowPassengerList(false)}
+                      />
+                    )}
+                  </>
+                )}
               </div>
             )}
           </div>

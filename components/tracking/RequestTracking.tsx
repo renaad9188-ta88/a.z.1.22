@@ -5,6 +5,9 @@ import Link from 'next/link'
 import { createSupabaseBrowserClient } from '@/lib/supabase'
 import toast from 'react-hot-toast'
 import { MapPin, Users, Navigation, Share2, Copy, Smartphone } from 'lucide-react'
+import TrackingInfoCard from './TrackingInfoCard'
+import SharingSection from './SharingSection'
+import TrackingStatusCard from './TrackingStatusCard'
 
 type LatLng = { lat: number; lng: number }
 
@@ -962,167 +965,35 @@ export default function RequestTracking({ requestId, userId }: { requestId: stri
             </Link>
           </div>
 
-          {/* بطاقة سريعة (تظهر دائماً فوق الخريطة) */}
-          <div className="mt-4 rounded-xl border-2 border-blue-200 bg-gradient-to-br from-white to-blue-50 p-4 shadow-lg">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2 mb-2">
-                  <Users className="w-5 h-5 text-green-600 flex-shrink-0" />
-                  <h2 className="text-sm sm:text-base font-extrabold text-gray-900 truncate">
-                    {request?.visitor_name || '—'}
-                  </h2>
-                  <span className="text-xs font-mono font-bold text-gray-600 bg-gray-50 border border-gray-200 rounded-md px-2 py-0.5">
-                    #{shortCode}
-                  </span>
-                  {tripInfo?.trip_type && (
-                    <span className="text-xs font-extrabold px-2 py-1 rounded-full border border-blue-300 text-blue-800 bg-blue-100">
-                      {tripInfo.trip_type === 'arrival' ? 'القادمون' : 'المغادرون'}
-                    </span>
-                  )}
-                </div>
-                <p className="text-xs sm:text-sm text-gray-600 mb-1">
-                  المدينة: <span className="font-semibold text-gray-800">{request?.city || '—'}</span> • عدد الأشخاص:{' '}
-                  <span className="font-semibold text-gray-800 tabular-nums">{request ? peopleCount : '—'}</span>
-                </p>
-                {tripInfo && (
-                  <div className="mt-2 p-2 bg-white rounded-lg border border-blue-200">
-                    <p className="text-xs font-semibold text-gray-800 mb-1">
-                      {tripInfo.start_location_name} → {tripInfo.end_location_name}
-                    </p>
-                    {tripInfo.departure_time && (
-                      <p className="text-xs text-gray-600">وقت الانطلاق: {tripInfo.departure_time}</p>
-                    )}
-                    {selectedStopPoint && (
-                      <p className="text-xs text-green-700 font-semibold mt-1">
-                        {tripInfo.trip_type === 'arrival' ? 'نقطة النزول' : 'نقطة التحميل'}: {selectedStopPoint.name}
-                      </p>
-                    )}
-                  </div>
-                )}
-                {companionNames.length > 0 && (
-                  <div className="mt-2 flex flex-wrap gap-1.5">
-                    {companionNames.slice(0, 6).map((n) => (
-                      <span
-                        key={n}
-                        className="px-2 py-1 bg-gray-50 border border-gray-200 rounded-full text-[11px] font-semibold text-gray-700 max-w-full truncate"
-                        title={n}
-                      >
-                        {n}
-                      </span>
-                    ))}
-                    {companionNames.length > 6 && (
-                      <span className="px-2 py-1 bg-blue-50 border border-blue-200 rounded-full text-[11px] font-bold text-blue-700">
-                        +{companionNames.length - 6}
-                      </span>
-                    )}
-                  </div>
-                )}
-              </div>
-              <div className="flex flex-col sm:flex-row gap-2">
-                <button
-                  type="button"
-                  onClick={() => copyText(shortCode, 'تم نسخ كود الطلب')}
-                  className="inline-flex items-center justify-center gap-2 px-3 py-2 rounded-lg bg-white border border-gray-200 hover:bg-gray-50 text-sm font-semibold"
-                  title="نسخ كود الطلب"
-                >
-                  <Copy className="w-4 h-4 text-gray-600" />
-                  نسخ الكود
-                </button>
-                <button
-                  type="button"
-                  onClick={() => copyText(window.location.href, 'تم نسخ رابط التتبع')}
-                  className="inline-flex items-center justify-center gap-2 px-3 py-2 rounded-lg bg-white border border-gray-200 hover:bg-gray-50 text-sm font-semibold"
-                  title="نسخ رابط التتبع"
-                >
-                  <Copy className="w-4 h-4 text-gray-600" />
-                  نسخ رابط التتبع
-                </button>
-              </div>
-            </div>
-          </div>
+          {/* بطاقة سريعة */}
+          <TrackingInfoCard
+            visitorName={request?.visitor_name || null}
+            shortCode={shortCode}
+            city={request?.city || null}
+            peopleCount={peopleCount}
+            tripInfo={tripInfo}
+            selectedStopPoint={selectedStopPoint}
+            companionNames={companionNames}
+            onCopyCode={() => copyText(shortCode, 'تم نسخ كود الطلب')}
+            onCopyLink={() => copyText(window.location.href, 'تم نسخ رابط التتبع')}
+          />
 
           <div className="mt-4 grid grid-cols-1 lg:grid-cols-3 gap-4">
             {/* على الموبايل: البطاقات تظهر أولاً، ثم الخريطة */}
             <div className="space-y-3 order-1 lg:order-2">
-              <div className="rounded-xl border border-gray-200 bg-white p-4">
-                <div className="flex items-center gap-2 font-bold text-gray-800">
-                  <Share2 className="w-5 h-5 text-purple-600" />
-                  مشاركة
-                </div>
-                <div className="mt-3 space-y-2">
-                  <button
-                    type="button"
-                    onClick={shareMyLocationWhatsApp}
-                    disabled={sharingLocation}
-                    className="w-full inline-flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg bg-green-600 text-white hover:bg-green-700 transition text-sm font-semibold disabled:opacity-50"
-                  >
-                    <Smartphone className="w-4 h-4" />
-                    {sharingLocation ? 'جاري تحديد الموقع...' : 'مشاركة موقعي الحالي عبر واتساب'}
-                  </button>
+              <SharingSection
+                sharingLocation={sharingLocation}
+                geoError={geoError}
+                onShareLocation={shareMyLocationWhatsApp}
+                onCopyLink={() => copyText(window.location.href, 'تم نسخ رابط التتبع')}
+              />
 
-                  <button
-                    type="button"
-                    onClick={() => copyText(window.location.href, 'تم نسخ رابط التتبع')}
-                    className="w-full inline-flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg bg-white border border-gray-200 hover:bg-gray-50 transition text-sm font-semibold text-gray-800"
-                  >
-                    <Copy className="w-4 h-4 text-gray-600" />
-                    نسخ رابط التتبع
-                  </button>
-                </div>
-                <p className="mt-2 text-[11px] text-gray-500 leading-relaxed">
-                  ملاحظة: قد يطلب المتصفح صلاحية الموقع. إذا رفضت، سنرسل رابط التتبع عبر واتساب بدل الموقع.
-                </p>
-                {geoError && (
-                  <div className="mt-2 text-[11px] text-red-600 bg-red-50 border border-red-200 rounded-lg p-2 leading-relaxed">
-                    {geoError}
-                  </div>
-                )}
-              </div>
-
-              <div className="rounded-xl border border-gray-200 bg-white p-4">
-                <div className="flex items-center gap-2 font-bold text-gray-800">
-                  <Navigation className="w-5 h-5 text-blue-600" />
-                  حالة التتبّع
-                </div>
-                <div className="mt-2 text-sm text-gray-700 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="text-gray-500">موقع السائق</span>
-                    <span className={`font-semibold ${driverLocation ? 'text-green-700' : 'text-gray-500'}`}>
-                      {driverLocation ? 'متاح' : 'غير متاح بعد'}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-gray-500">الوقت المتوقع للوصول</span>
-                    <span className={`font-semibold ${eta ? 'text-blue-700' : 'text-gray-500'}`}>
-                      {driverLocation
-                        ? eta
-                          ? eta.distanceText
-                            ? `${eta.durationText} • ${eta.distanceText}`
-                            : eta.durationText
-                          : 'جاري الحساب...'
-                        : 'غير متاح'}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-gray-500">محطات التوقف</span>
-                    <span className="font-semibold tabular-nums">{stops.length}</span>
-                  </div>
-                  <div className="text-xs text-gray-500 bg-gray-50 border border-gray-200 rounded-lg p-2 leading-relaxed">
-                    ملاحظة: سيتم تفعيل التتبع بعد الحجز والانطلاق.
-                  </div>
-                  {!loading && stops.length === 0 && !driverLocation && (
-                    <div className="text-xs text-gray-500 space-y-1">
-                      <p>
-                        ملاحظة: يلزم تفعيل جداول التتبع في Supabase (سأجهز لك ملف SQL جاهز) ثم يبدأ الإدمن بإدخال نقاط السائق/التوقف.
-                      </p>
-                      <p>
-                        سيتم إضافة تفاصيل التتبّع وموقع الراكب مع السائق على الخريطة لتتبّع الرحلة ومعرفة أماكن النزول للراكب.
-                      </p>
-                      <p>نتمنى لكم السلامة وزيارة جميلة.</p>
-                    </div>
-                  )}
-                </div>
-              </div>
+              <TrackingStatusCard
+                driverLocation={driverLocation}
+                eta={eta}
+                stopsCount={stops.length}
+                loading={loading}
+              />
             </div>
 
             <div className="lg:col-span-2 order-2 lg:order-1">

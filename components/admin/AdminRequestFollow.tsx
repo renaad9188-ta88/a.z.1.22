@@ -9,6 +9,13 @@ import TripSchedulingModal from '@/components/admin/TripSchedulingModal'
 import { formatDate } from '@/lib/date-utils'
 import { parseAdminNotes, getSignedImageUrl } from '@/components/request-details/utils'
 import { notifyRequestApproved, notifyRequestRejected, notifyPaymentVerified, notifyCustomMessage } from '@/lib/notifications'
+import AdminRequestFollowStepper from './AdminRequestFollowStepper'
+import AdminResponseSection from './AdminResponseSection'
+import DepositPaymentImages from './DepositPaymentImages'
+import RemainingPaymentImage from './RemainingPaymentImage'
+import StepActions from './StepActions'
+import BookedTripDetails from './BookedTripDetails'
+import TripModificationsHistory from './TripModificationsHistory'
 
 type Role = 'admin' | 'supervisor'
 type ContactProfile = { full_name: string | null; phone: string | null; jordan_phone?: string | null; whatsapp_phone?: string | null }
@@ -568,49 +575,13 @@ export default function AdminRequestFollow({
               <span className="font-mono font-bold">{request.id.slice(0, 8).toUpperCase()}</span>
             </p>
 
-            {/* Stepper (scrollable on mobile to avoid broken text) */}
+            {/* Stepper */}
             <div className="mt-4">
-              <div className="flex items-start gap-3 overflow-x-auto pb-2 -mx-1 px-1 sm:overflow-visible sm:pb-0 sm:mx-0 sm:px-0">
-                {steps.map((s, idx) => {
-                  const isActive = s.id === activeStep
-                  const isDone = s.done
-                  const isClickable = s.id <= activeStep
-                  return (
-                    <div key={s.id} className="flex-1 min-w-[92px] sm:min-w-0 flex-shrink-0 sm:flex-shrink">
-                      <button
-                        type="button"
-                        onClick={() => isClickable && setActiveStep(s.id)}
-                        className={`w-full flex flex-col items-center gap-1 ${
-                          isClickable ? 'cursor-pointer' : 'cursor-default'
-                        }`}
-                        disabled={!isClickable}
-                      >
-                        <div
-                          className={`w-9 h-9 rounded-full flex items-center justify-center border-2 ${
-                            isDone
-                              ? 'bg-green-600 border-green-600 text-white'
-                              : isActive
-                              ? 'bg-blue-600 border-blue-600 text-white'
-                              : 'bg-white border-gray-300 text-gray-500'
-                          }`}
-                        >
-                          {isDone ? <CheckCircle className="w-5 h-5" /> : <span className="font-bold">{s.id}</span>}
-                        </div>
-                        <div
-                          className={`text-[11px] sm:text-xs font-bold text-center leading-snug ${
-                            isActive ? 'text-blue-700' : 'text-gray-700'
-                          }`}
-                        >
-                          {s.title}
-                        </div>
-                      </button>
-                      {idx < steps.length - 1 && (
-                        <div className="hidden sm:block h-0.5 bg-gray-200 -mt-5 mx-6"></div>
-                      )}
-                    </div>
-                  )
-                })}
-              </div>
+              <AdminRequestFollowStepper
+                steps={steps}
+                activeStep={activeStep}
+                onStepClick={setActiveStep}
+              />
             </div>
           </div>
 
@@ -710,42 +681,10 @@ export default function AdminRequestFollow({
                       </div>
 
                       {/* عرض صور الدفعة الأولية */}
-                      {depositPaymentImageUrls.length > 0 && (
-                        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 space-y-3">
-                          <div className="flex items-center gap-2">
-                            <DollarSign className="w-5 h-5 text-blue-600" />
-                            <p className="font-bold text-blue-900 text-sm">صور الدفعة الأولية ({depositPaymentImageUrls.length})</p>
-                          </div>
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                            {depositPaymentImageUrls.map((url, index) => (
-                              <a
-                                key={index}
-                                href={url}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="block"
-                              >
-                                <img
-                                  src={url}
-                                  alt={`صورة الدفعة ${index + 1}`}
-                                  className="w-full h-48 object-cover rounded-lg border border-gray-300 hover:opacity-90 transition"
-                                  onError={(e) => {
-                                    console.error('Error loading payment image:', e)
-                                    // في حالة فشل تحميل الصورة، حاول استخدام الرابط الأصلي
-                                    const originalUrl = adminInfo?.paymentImages?.[index]
-                                    if (originalUrl && originalUrl !== url) {
-                                      (e.target as HTMLImageElement).src = originalUrl
-                                    }
-                                  }}
-                                />
-                              </a>
-                            ))}
-                          </div>
-                          <p className="text-xs text-blue-800">
-                            يرجى التحقق من صحة الدفعة قبل الضغط على &quot;تم استلام الطلب&quot;
-                          </p>
-                        </div>
-                      )}
+                      <DepositPaymentImages
+                        imageUrls={depositPaymentImageUrls}
+                        originalUrls={adminInfo?.paymentImages}
+                      />
 
                       <div className="flex flex-col sm:flex-row gap-2">
                         <button
@@ -805,385 +744,75 @@ export default function AdminRequestFollow({
                       <p className="font-extrabold text-gray-900 text-sm">تأكيد دفع المبلغ المتبقي</p>
                     </div>
                     
-                    {/* عرض صورة الدفع المتبقي إن وجدت */}
-                    {(() => {
-                      const notes = (request?.admin_notes || '') as string
-                      const match = notes.match(/صورة الدفع المتبقي:\s*([^\n]+)/)
-                      const hasPaymentImage = match?.[1]?.trim()
-                      
-                      if (hasPaymentImage && remainingPaymentImageUrl) {
-                        return (
-                          <div className="space-y-3">
-                            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-                              <p className="text-xs text-blue-800 mb-2 font-semibold">صورة الدفع المتبقي المرفوعة:</p>
-                              <a
-                                href={remainingPaymentImageUrl}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="block"
-                              >
-                                <img
-                                  src={remainingPaymentImageUrl}
-                                  alt="صورة الدفع المتبقي"
-                                  className="w-full h-48 object-cover rounded-lg border border-gray-300"
-                                  onError={(e) => {
-                                    console.error('Error loading payment image:', e)
-                                    // في حالة فشل تحميل الصورة، حاول استخدام الرابط الأصلي
-                                    const rawUrl = match?.[1]?.trim()
-                                    if (rawUrl && rawUrl !== remainingPaymentImageUrl) {
-                                      (e.target as HTMLImageElement).src = rawUrl
-                                    }
-                                  }}
-                                />
-                              </a>
-                            </div>
-                            <div className="bg-white border border-gray-200 rounded-lg p-3">
-                              <p className="text-xs text-gray-700 mb-2">
-                                المبلغ المتبقي: <span className="font-bold text-blue-700">25 دينار</span>
-                              </p>
-                              <p className="text-xs text-gray-600 leading-relaxed">
-                                يشمل: الحجز + الموافقة + الإجراءات + توقيع الكفالة + تصوير الكفالة + رفعها على الموقع
-                              </p>
-                            </div>
-                            <div className="flex flex-col sm:flex-row gap-2">
-                              <button
-                                type="button"
-                                onClick={() => setPaymentVerified(true)}
-                                disabled={saving || Boolean(request.payment_verified)}
-                                className="px-4 py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition text-sm font-semibold disabled:opacity-50"
-                              >
-                                تأكيد الدفع (فتح الحجز)
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => setPaymentVerified(false)}
-                                disabled={saving || !Boolean(request.payment_verified)}
-                                className="px-4 py-2.5 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 transition text-sm font-semibold disabled:opacity-50"
-                              >
-                                إلغاء تأكيد الدفع
-                              </button>
-                            </div>
-                          </div>
-                        )
-                      } else if (hasPaymentImage && !remainingPaymentImageUrl) {
-                        // جاري تحميل signed URL
-                        return (
-                          <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-                            <p className="text-xs text-blue-800 mb-2 font-semibold">صورة الدفع المتبقي المرفوعة:</p>
-                            <div className="w-full h-48 bg-gray-100 rounded-lg border border-gray-300 flex items-center justify-center">
-                              <p className="text-gray-500 text-sm">جاري تحميل الصورة...</p>
-                            </div>
-                          </div>
-                        )
-                      } else {
-                        return (
-                          <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
-                            <p className="text-xs text-amber-800">
-                              بانتظار رفع المستخدم لصورة الدفع المتبقي (25 دينار). بعد الرفع، سيتم إشعارك.
-                            </p>
-                          </div>
-                        )
-                      }
-                    })()}
+                    {/* عرض صورة الدفع المتبقي */}
+                    <RemainingPaymentImage
+                      imageUrl={remainingPaymentImageUrl}
+                      loading={(() => {
+                        const notes = (request?.admin_notes || '') as string
+                        const match = notes.match(/صورة الدفع المتبقي:\s*([^\n]+)/)
+                        return Boolean(match?.[1]?.trim() && !remainingPaymentImageUrl)
+                      })()}
+                      remaining={remaining}
+                      paymentVerified={request.payment_verified}
+                      saving={saving}
+                      onVerify={() => setPaymentVerified(true)}
+                      onUnverify={() => setPaymentVerified(false)}
+                    />
                   </div>
                 )}
 
                 {activeStep === 4 && (
                   <div className="space-y-3">
-                    {/* Booked trip details (user-selected trip) */}
-                    {(request as any)?.trip_id ? (
-                      bookedTrip ? (
-                        <div className="bg-green-50 border border-green-200 rounded-xl p-3 sm:p-4">
-                          <div className="flex items-start justify-between gap-3">
-                            <div className="min-w-0">
-                              <p className="font-extrabold text-green-900 flex items-center gap-2">
-                                <Bus className="w-4 h-4" />
-                                رحلة محجوزة
-                              </p>
-                              <p className="text-sm text-gray-900 font-bold mt-1 truncate">
-                                {bookedTrip.start_location_name} → {bookedTrip.end_location_name}
-                              </p>
-                            </div>
-                            {bookedTrip.trip_type && (
-                              <span className="text-[11px] font-extrabold px-2 py-1 rounded-full border border-green-300 text-green-800 bg-white">
-                                {String(bookedTrip.trip_type).includes('depart') ? 'مغادرون' : 'قادمون'}
-                              </span>
-                            )}
-                          </div>
+                    <BookedTripDetails
+                      bookedTrip={bookedTrip}
+                      bookedStops={bookedStops}
+                      selectedDropoffStop={selectedDropoffStop}
+                      selectedPickupStop={selectedPickupStop}
+                      arrivalDate={request?.arrival_date || null}
+                      departureDate={request?.departure_date || null}
+                      tripId={(request as any)?.trip_id || null}
+                    />
 
-                          <div className="mt-3 grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs sm:text-sm">
-                            <div className="flex items-center justify-between gap-2 bg-white/70 border border-green-200 rounded-lg px-3 py-2">
-                              <span className="text-gray-600 inline-flex items-center gap-1">
-                                <Calendar className="w-4 h-4 text-green-700" />
-                                التاريخ
-                              </span>
-                              <span className="font-extrabold text-gray-900">{formatDate(bookedTrip.trip_date)}</span>
-                            </div>
-                            <div className="flex items-center justify-between gap-2 bg-white/70 border border-green-200 rounded-lg px-3 py-2">
-                              <span className="text-gray-600 inline-flex items-center gap-1">
-                                <Clock className="w-4 h-4 text-green-700" />
-                                التجمع
-                              </span>
-                              <span className="font-extrabold text-gray-900">{bookedTrip.meeting_time || '—'}</span>
-                            </div>
-                            <div className="flex items-center justify-between gap-2 bg-white/70 border border-green-200 rounded-lg px-3 py-2">
-                              <span className="text-gray-600 inline-flex items-center gap-1">
-                                <Clock className="w-4 h-4 text-green-700" />
-                                الانطلاق
-                              </span>
-                              <span className="font-extrabold text-gray-900">{bookedTrip.departure_time || '—'}</span>
-                            </div>
-                          </div>
+                    <TripModificationsHistory modifications={tripModifications} />
 
-                          <div className="mt-3">
-                            <p className="text-xs font-extrabold text-gray-800 mb-2 inline-flex items-center gap-2">
-                              <MapPin className="w-4 h-4 text-blue-600" />
-                              نقاط التوقف
-                            </p>
-                            {bookedStops && bookedStops.length > 0 ? (
-                              <div className="flex flex-wrap gap-2">
-                                {bookedStops.slice(0, 7).map((s, idx) => (
-                                  <span
-                                    key={s.id}
-                                    className="text-[11px] font-bold px-2.5 py-1 rounded-full border border-blue-200 bg-white text-blue-900"
-                                    title={s.name}
-                                  >
-                                    {idx + 1}. {s.name}
-                                  </span>
-                                ))}
-                              </div>
-                            ) : (
-                              <p className="text-xs text-gray-600">لا توجد نقاط توقف مسجلة لهذه الرحلة.</p>
-                            )}
-                          </div>
-
-                          {/* عرض نقطة النزول/التحميل المختارة */}
-                          {(selectedDropoffStop || selectedPickupStop) && (
-                            <div className="mt-3 bg-blue-50 border border-blue-200 rounded-lg p-3">
-                              {bookedTrip?.trip_type === 'arrival' && selectedDropoffStop && (
-                                <div className="flex items-center gap-2">
-                                  <MapPin className="w-4 h-4 text-blue-600 flex-shrink-0" />
-                                  <div>
-                                    <p className="text-xs font-extrabold text-blue-900">نقطة النزول المختارة:</p>
-                                    <p className="text-sm font-bold text-blue-800">{selectedDropoffStop.name}</p>
-                                  </div>
-                                </div>
-                              )}
-                              {bookedTrip?.trip_type === 'departure' && selectedPickupStop && (
-                                <div className="flex items-center gap-2">
-                                  <MapPin className="w-4 h-4 text-blue-600 flex-shrink-0" />
-                                  <div>
-                                    <p className="text-xs font-extrabold text-blue-900">نقطة التحميل المختارة:</p>
-                                    <p className="text-sm font-bold text-blue-800">{selectedPickupStop.name}</p>
-                                  </div>
-                                </div>
-                              )}
-                            </div>
-                          )}
-                        </div>
-                      ) : (
-                        <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 sm:p-4">
-                          <p className="font-extrabold text-amber-900">تم تسجيل حجز على الطلب، لكن تعذر تحميل تفاصيل الرحلة.</p>
-                          <p className="text-xs text-amber-800 mt-1">تحقق من صلاحيات RLS لجدول route_trips/route_trip_stop_points.</p>
-                        </div>
-                      )
-                    ) : null}
-                    
-                    {/* عرض رحلة القدوم إذا كانت موجودة */}
-                    {request?.arrival_date && bookedTrip?.trip_type === 'departure' && (
-                      <div className="bg-blue-50 border-2 border-blue-200 rounded-xl p-3 sm:p-4">
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="min-w-0">
-                            <p className="font-extrabold text-blue-900 flex items-center gap-2">
-                              <Bus className="w-4 h-4" />
-                              رحلة القدوم المحجوزة
-                            </p>
-                            <p className="text-xs text-blue-800 mt-1">
-                              تاريخ القدوم: <span className="font-bold">{formatDate(request.arrival_date)}</span>
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-                    )}
-                    
-                    {/* عرض موعد المغادرة إذا كان موجوداً */}
-                    {request?.departure_date && (
-                      <div className="bg-purple-50 border-2 border-purple-200 rounded-xl p-3 sm:p-4">
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="min-w-0">
-                            <p className="font-extrabold text-purple-900 flex items-center gap-2">
-                              <Navigation className="w-4 h-4 rotate-180" />
-                              موعد المغادرة
-                            </p>
-                            <p className="text-xs text-purple-800 mt-1">
-                              تاريخ المغادرة: <span className="font-bold">{formatDate(request.departure_date)}</span>
-                            </p>
-                            {bookedTrip?.trip_type === 'departure' && bookedTrip.departure_time && (
-                              <p className="text-xs text-purple-800 mt-1">
-                                وقت الانطلاق: <span className="font-bold">{bookedTrip.departure_time}</span>
-                              </p>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    )}
-                    
-                    {!request?.trip_id && (
-                      <div className="bg-gray-50 border border-gray-200 rounded-xl p-3 sm:p-4">
-                        <p className="font-extrabold text-gray-800">لا يوجد حجز رحلة حتى الآن.</p>
-                        <p className="text-xs text-gray-600 mt-1">سيظهر هنا تلقائياً عندما يحجز المستخدم رحلة.</p>
-                      </div>
-                    )}
-
-                    {/* عرض سجل التعديلات */}
-                    {tripModifications.length > 0 && (
-                      <div className="bg-yellow-50 border-2 border-yellow-300 rounded-xl p-3 sm:p-4 space-y-3">
-                        <div className="flex items-center gap-2 mb-2">
-                          <Clock className="w-4 h-4 sm:w-5 sm:h-5 text-yellow-700 flex-shrink-0" />
-                          <p className="font-extrabold text-yellow-900 text-xs sm:text-sm">سجل تعديلات الحجز</p>
-                        </div>
-                        <div className="space-y-2">
-                          {tripModifications.map((mod, idx) => (
-                            <div key={idx} className="bg-white border border-yellow-200 rounded-lg p-2.5 sm:p-3">
-                              <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 mb-2">
-                                <p className="text-xs font-bold text-yellow-800">تعديل #{tripModifications.length - idx}</p>
-                                {mod.dateText && (
-                                  <p className="text-xs text-gray-600 break-words">{mod.dateText}</p>
-                                )}
-                              </div>
-                              {mod.tripInfo && (
-                                <p className="text-xs sm:text-sm text-gray-800 mb-1 break-words">
-                                  <span className="font-semibold">الرحلة:</span> {mod.tripInfo}
-                                </p>
-                              )}
-                              {mod.stopInfo && (
-                                <p className="text-xs sm:text-sm text-gray-800 break-words">
-                                  <span className="font-semibold">النقطة المختارة:</span> {mod.stopInfo}
-                                </p>
-                              )}
-                              {mod.oldTripId && mod.newTripId && (
-                                <p className="text-xs text-gray-600 mt-1 break-words">
-                                  تم التغيير من الرحلة {mod.oldTripId} إلى {mod.newTripId}
-                                </p>
-                              )}
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                    <div className="flex flex-col sm:flex-row gap-2">
-                      {(() => {
+                    <BookingActions
+                      request={request}
+                      userProfile={userProfile}
+                      saving={saving}
+                      isBookingConfirmed={(() => {
                         const notes = (request?.admin_notes || '') as string
-                        const isBookingConfirmed = notes.includes('تم تأكيد الحجز')
-                        
-                        // بعد تأكيد الحجز: إظهار زر تعديل الحجز + زر التواصل
-                        if (isBookingConfirmed) {
-                          const contactRaw = String(userProfile?.whatsapp_phone || userProfile?.phone || '')
-                          const waDigits = contactRaw.replace(/[^\d]/g, '')
-                          const callDigits = String(userProfile?.phone || userProfile?.jordan_phone || '').replace(/[^\d+]/g, '')
-                          
-                          return (
-                            <div className="flex flex-col sm:flex-row gap-2">
-                              {(request as any)?.trip_id && (
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    // فتح modal تعديل الحجز
-                                    setShowSchedule(true)
-                                  }}
-                                  className="px-4 py-2.5 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition text-sm font-semibold inline-flex items-center justify-center gap-2"
-                                >
-                                  <Calendar className="w-4 h-4" />
-                                  تعديل الحجز
-                                </button>
-                              )}
-                              {waDigits && (
-                                <a
-                                  href={`https://wa.me/${waDigits}`}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="px-4 py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition text-sm font-semibold inline-flex items-center justify-center gap-2"
-                                >
-                                  <MessageCircle className="w-4 h-4" />
-                                  واتساب
-                                </a>
-                              )}
-                              {callDigits && (
-                                <a
-                                  href={`tel:${callDigits}`}
-                                  className="px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm font-semibold inline-flex items-center justify-center gap-2"
-                                >
-                                  <Phone className="w-4 h-4" />
-                                  اتصال
-                                </a>
-                              )}
-                              {!waDigits && !callDigits && (
-                                <div className="px-4 py-2.5 bg-gray-100 border border-gray-300 rounded-lg text-sm text-gray-600">
-                                  لا يوجد رقم هاتف متاح
-                                </div>
-                              )}
-                            </div>
-                          )
-                        }
-                        
-                        // قبل تأكيد الحجز: عرض الأزرار العادية
-                        return (
-                          <>
-                            <button
-                              type="button"
-                              onClick={() => setShowSchedule(true)}
-                              disabled={saving || request.status !== 'approved'}
-                              className="px-4 py-2.5 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition text-sm font-semibold disabled:opacity-50"
-                            >
-                              {request.arrival_date ? 'تعديل موعد القدوم' : 'تحديد موعد القدوم'}
-                            </button>
-                            <button
-                              type="button"
-                              onClick={async () => {
-                                if (!request) return
-                                try {
-                                  setSaving(true)
-                                  const stamp = new Date().toISOString()
-                                  const section = `\n\n=== رد الإدارة ===\nتم تأكيد الحجز\nتاريخ الرد: ${stamp}`
-                                  const updatedNotes = ((request.admin_notes || '') as string) + section
-                                  
-                                  // تحديث admin_notes و trip_status
-                                  const { error } = await supabase
-                                    .from('visit_requests')
-                                    .update({ 
-                                      admin_notes: updatedNotes,
-                                      trip_status: 'pending_arrival', // تغيير الحالة من scheduled_pending_approval إلى pending_arrival
-                                      updated_at: new Date().toISOString() 
-                                    } as any)
-                                    .eq('id', request.id)
-                                  
-                                  if (error) throw error
-                                  await notifyCustomMessage(request.user_id, request.id, 'تم تأكيد الحجز')
-                                  toast.success('تم تأكيد الحجز')
-                                  await load()
-                                } catch (e: any) {
-                                  console.error('confirm booking error:', e)
-                                  toast.error(e?.message || 'تعذر تأكيد الحجز')
-                                } finally {
-                                  setSaving(false)
-                                }
-                              }}
-                              disabled={saving}
-                              className="px-4 py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition text-sm font-semibold disabled:opacity-50"
-                              title="يرسل للمستخدم رسالة تأكيد الحجز"
-                            >
-                              تأكيد الحجز
-                            </button>
-                            {request.arrival_date && (
-                              <div className="px-4 py-2.5 bg-white border border-gray-200 rounded-lg text-sm text-gray-700">
-                                الموعد: <span className="font-bold">{formatDate(request.arrival_date)}</span>
-                              </div>
-                            )}
-                          </>
-                        )
+                        return notes.includes('تم تأكيد الحجز')
                       })()}
-                    </div>
+                      onEditSchedule={() => setShowSchedule(true)}
+                      onConfirmBooking={async () => {
+                        if (!request) return
+                        try {
+                          setSaving(true)
+                          const stamp = new Date().toISOString()
+                          const section = `\n\n=== رد الإدارة ===\nتم تأكيد الحجز\nتاريخ الرد: ${stamp}`
+                          const updatedNotes = ((request.admin_notes || '') as string) + section
+                          
+                          const { error } = await supabase
+                            .from('visit_requests')
+                            .update({ 
+                              admin_notes: updatedNotes,
+                              trip_status: 'pending_arrival',
+                              updated_at: new Date().toISOString() 
+                            } as any)
+                            .eq('id', request.id)
+                          
+                          if (error) throw error
+                          await notifyCustomMessage(request.user_id, request.id, 'تم تأكيد الحجز')
+                          toast.success('تم تأكيد الحجز')
+                          await load()
+                        } catch (e: any) {
+                          console.error('confirm booking error:', e)
+                          toast.error(e?.message || 'تعذر تأكيد الحجز')
+                        } finally {
+                          setSaving(false)
+                        }
+                      }}
+                    />
                   </div>
                 )}
               </div>
@@ -1210,62 +839,15 @@ export default function AdminRequestFollow({
             </div>
 
             {/* Admin responses */}
-            <div className="bg-white border border-gray-200 rounded-lg p-4">
-              <p className="font-extrabold text-gray-900 mb-2">ردود الإدارة (تصل للمستخدم)</p>
-              {latestResponse ? (
-                <div className="mb-3 bg-gray-50 border border-gray-200 rounded-lg p-3">
-                  <p className="text-xs text-gray-500 mb-1">آخر رد</p>
-                  <p className="text-sm text-gray-800 font-semibold whitespace-pre-wrap">{latestResponse.body}</p>
-                  {latestResponse.dateText && (
-                    <p className="mt-1 text-[11px] text-gray-500">تاريخ: {latestResponse.dateText}</p>
-                  )}
-                </div>
-              ) : (
-                <div className="mb-3 text-sm text-gray-600">لا يوجد رد حتى الآن.</div>
-              )}
-
-              <textarea
-                value={newResponse}
-                onChange={(e) => setNewResponse(e.target.value)}
-                rows={4}
-                className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
-                placeholder="اكتب رد الإدارة هنا..."
-              />
-              <div className="mt-2 flex gap-2">
-                <button
-                  type="button"
-                  onClick={saveResponse}
-                  disabled={saving}
-                  className="px-4 py-2.5 bg-slate-800 text-white rounded-lg hover:bg-slate-900 transition text-sm font-semibold disabled:opacity-50 inline-flex items-center gap-2"
-                >
-                  <Save className="w-4 h-4" />
-                  إرسال الرد
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setNewResponse('')}
-                  className="px-4 py-2.5 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 transition text-sm font-semibold"
-                >
-                  مسح
-                </button>
-              </div>
-
-              {responseHistory.length > 1 && (
-                <div className="mt-4">
-                  <p className="text-xs font-bold text-gray-700 mb-2">سجل الردود</p>
-                  <div className="space-y-2">
-                    {responseHistory.slice(0, 5).map((r, idx) => (
-                      <div key={idx} className="bg-gray-50 border border-gray-200 rounded-lg p-3">
-                        <p className="text-xs text-gray-500 mb-1">
-                          {r.dateText ? `تاريخ: ${r.dateText}` : 'بدون تاريخ'}
-                        </p>
-                        <p className="text-sm text-gray-800 whitespace-pre-wrap">{r.body}</p>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
+            <AdminResponseSection
+              latestResponse={latestResponse}
+              responseHistory={responseHistory}
+              newResponse={newResponse}
+              saving={saving}
+              onResponseChange={setNewResponse}
+              onSave={saveResponse}
+              onClear={() => setNewResponse('')}
+            />
 
             <div className="text-[11px] text-gray-500">
               آخر تحديث: {formatDate(request.updated_at)} • تاريخ الإنشاء: {formatDate(request.created_at)}
