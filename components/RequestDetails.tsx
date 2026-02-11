@@ -33,29 +33,6 @@ export default function RequestDetails({ requestId, userId }: { requestId: strin
     loadRequest()
   }, [requestId, userId])
 
-  // تحديد الإشعارات المرتبطة بهذا الطلب كمقروءة عند فتح الصفحة
-  useEffect(() => {
-    if (requestId && userId) {
-      ;(async () => {
-        try {
-          await supabase
-            .from('notifications')
-            .update({ 
-              is_read: true,
-              read_at: new Date().toISOString()
-            })
-            .eq('user_id', userId)
-            .eq('related_type', 'request')
-            .eq('related_id', requestId)
-            .eq('is_read', false)
-          // لا حاجة لتحديث الحالة هنا لأن NotificationsDropdown يستمع للتغييرات
-        } catch (error) {
-          console.error('Error marking request notifications as read:', error)
-        }
-      })()
-    }
-  }, [requestId, userId, supabase])
-
   // تحويل الصور إلى signed URLs عند تحميل الطلب
   useEffect(() => {
     const convertImagesToSigned = async () => {
