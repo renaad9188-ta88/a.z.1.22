@@ -373,7 +373,7 @@ export default function RequestDetails({ requestId, userId }: { requestId: strin
         </Link>
 
         <div className="card">
-          <RequestHeader requestId={request.id} status={request.status} trackingHref={`/dashboard/request/${request.id}/track`} />
+          <RequestHeader requestId={request.id} status={request.status} />
           
           <RequestInfo request={request} adminInfo={adminInfo} />
 
@@ -397,7 +397,14 @@ export default function RequestDetails({ requestId, userId }: { requestId: strin
 
           {/* رد الإدارة */}
           <div id="admin-response">
-            <AdminResponse adminNotes={request.admin_notes} />
+            <AdminResponse
+              adminNotes={request.admin_notes}
+              status={request.status as any}
+              depositPaid={Boolean((request as any).deposit_paid)}
+              arrivalDate={(request as any).arrival_date || null}
+              departureDate={(request as any).departure_date || null}
+              tripStatus={(request as any).trip_status || null}
+            />
           </div>
 
           {/* التواريخ */}
@@ -405,17 +412,6 @@ export default function RequestDetails({ requestId, userId }: { requestId: strin
             <div className="flex flex-col sm:flex-row justify-between gap-2 text-xs sm:text-sm text-gray-600">
               <p>تاريخ الإنشاء: {formatDate(request.created_at)}</p>
               <p>آخر تحديث: {formatDate(request.updated_at)}</p>
-            </div>
-            <div className="mt-4">
-              <button
-                type="button"
-                onClick={handleSendReportWhatsApp}
-                disabled={reportGenerating}
-                className="w-full sm:w-auto btn px-4 py-2.5 sm:py-3 bg-green-600 text-white hover:bg-green-700 text-sm sm:text-base disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <MessageCircle className="w-4 h-4" />
-                {reportGenerating ? 'جارٍ الإعداد...' : 'إرسال التقرير والصور عبر واتساب'}
-              </button>
             </div>
           </div>
         </div>

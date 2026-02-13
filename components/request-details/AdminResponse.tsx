@@ -5,6 +5,11 @@ import { formatDate } from '@/lib/date-utils'
 
 interface AdminResponseProps {
   adminNotes: string | null
+  status?: 'pending' | 'under_review' | 'approved' | 'rejected' | 'completed'
+  depositPaid?: boolean | null
+  arrivalDate?: string | null
+  departureDate?: string | null
+  tripStatus?: string | null
 }
 
 // دالة لإزالة الروابط من النص
@@ -115,14 +120,44 @@ const formatResponseDate = (dateStr: string): string => {
   }
 }
 
-export default function AdminResponse({ adminNotes }: AdminResponseProps) {
-  if (!adminNotes) return null
+export default function AdminResponse({
+  adminNotes,
+  status,
+  depositPaid,
+  arrivalDate,
+  departureDate,
+  tripStatus,
+}: AdminResponseProps) {
+  const notes = (adminNotes || '') as string
+
+  // رسالة الحالة الحالية (حتى لو آخر رد قديم)
+  const currentStatusMessage = (() => {
+    // إذا لم يتم تمرير status، لا نعرض رسالة الحالة (توافق للخلف)
+    if (!status) return null
+
+    const hasBooking = Boolean(arrivalDate) || Boolean(departureDate) || Boolean(tripStatus)
+
+    if (status === 'rejected') return 'تم رفض الطلب.'
+    if (status === 'completed') return 'تم اكتمال الطلب.'
+    if (status === 'approved') {
+      return hasBooking
+        ? '✅ تمت الموافقة وتم تسجيل الحجز. يمكنك متابعة تفاصيل الرحلة.'
+        : '✅ تمت الموافقة على الطلب. يمكنك الآن المتابعة للحجز.'
+    }
+    if (status === 'under_review') {
+      return Boolean(depositPaid)
+        ? '📌 تم استلام الرسوم وتحويل الطلب إلى مرحلة المراجعة. بانتظار الموافقة.'
+        : '📌 تم استلام الطلب وهو قيد المراجعة. بانتظار الموافقة.'
+    }
+    // pending
+    return 'تم تقديم الطلب. بانتظار استلامه من الإدارة.'
+  })()
 
   // استخراج الرد من admin_notes
-  const responseIndex = adminNotes.indexOf('=== رد الإدارة ===')
-  if (responseIndex === -1) return null
+  // نعرض آخر رد (الأحدث) بدل أول رد لتجنب عرض رسائل قديمة
+  const responseIndex = notes.lastIndexOf('=== رد الإدارة ===')
 
-  const responseSection = adminNotes.substring(responseIndex)
+  const responseSection = responseIndex === -1 ? '' : notes.substring(responseIndex)
   const lines = responseSection.split('\n')
   
   // استخراج الرد (كل شيء بعد العنوان)
@@ -137,6 +172,10 @@ export default function AdminResponse({ adminNotes }: AdminResponseProps) {
       continue
     }
     if (foundResponse) {
+      // إذا وصلنا إلى قسم آخر داخل admin_notes، نتوقف حتى لا نخلط الرد مع سجلات أخرى
+      if (line.startsWith('===') && !line.includes('=== رد الإدارة ===')) {
+        break
+      }
       if (line.includes('تاريخ الرد:')) {
         const datePart = line.replace('تاريخ الرد:', '').trim()
         responseDate = formatResponseDate(datePart)
@@ -150,7 +189,7 @@ export default function AdminResponse({ adminNotes }: AdminResponseProps) {
 
   const responseText = cleanText(responseLines.join('\n').trim())
 
-  if (!responseText) return null
+  if (!responseText && !currentStatusMessage) return null
 
   return (
     <div className="mt-6 bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl p-4 sm:p-6 border border-blue-200 shadow-md">
@@ -169,9 +208,19 @@ export default function AdminResponse({ adminNotes }: AdminResponseProps) {
         </div>
       </div>
       <div className="bg-white rounded-lg p-4 sm:p-5 border border-blue-100">
-        <p className="text-sm sm:text-base text-gray-800 whitespace-pre-wrap leading-relaxed">
-          {responseText}
-        </p>
+        {currentStatusMessage && (
+          <div className="mb-3 bg-blue-50 border border-blue-200 rounded-lg p-3">
+            <p className="text-xs sm:text-sm font-extrabold text-blue-900">حالة الطلب الآن</p>
+            <p className="text-xs sm:text-sm text-blue-800 whitespace-pre-wrap leading-relaxed mt-1">
+              {currentStatusMessage}
+            </p>
+          </div>
+        )}
+        {responseText && (
+          <p className="text-sm sm:text-base text-gray-800 whitespace-pre-wrap leading-relaxed">
+            {responseText}
+          </p>
+        )}
       </div>
     </div>
   )

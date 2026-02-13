@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import toast from 'react-hot-toast'
 import { createSupabaseBrowserClient } from '@/lib/supabase'
 import { MapPin, Navigation, Power } from 'lucide-react'
+import Link from 'next/link'
 
 type LatLng = { lat: number; lng: number }
 
@@ -67,6 +68,8 @@ export default function DriverAvailabilityMap({ selectedTripId }: { selectedTrip
   const [tripStops, setTripStops] = useState<TripStopRow[]>([])
   const [isAvailable, setIsAvailable] = useState(false)
   const [myLoc, setMyLoc] = useState<LatLng | null>(null)
+  const [lastLiveAt, setLastLiveAt] = useState<string | null>(null)
+  const [showStartPrompt, setShowStartPrompt] = useState(false)
 
   const todayISO = useMemo(() => {
     const d = new Date()
@@ -75,6 +78,33 @@ export default function DriverAvailabilityMap({ selectedTripId }: { selectedTrip
     const dd = String(d.getDate()).padStart(2, '0')
     return `${yyyy}-${mm}-${dd}`
   }, [])
+
+  const isTripToday = useMemo(() => {
+    if (!trip?.trip_date) return false
+    return String(trip.trip_date).slice(0, 10) === todayISO
+  }, [trip?.trip_date, todayISO])
+
+  const isNowNearTripTime = useMemo(() => {
+    if (!trip || !isTripToday) return false
+    const time = (trip.departure_time || trip.meeting_time || '').toString().slice(0, 5)
+    if (!time || !/^\d{1,2}:\d{2}$/.test(time)) return true
+    const [hh, mm] = time.split(':').map((x) => Number(x))
+    const dt = new Date(`${todayISO}T${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}:00`)
+    const diffMin = (Date.now() - dt.getTime()) / 60000
+    return diffMin >= -180 && diffMin <= 480
+  }, [trip, isTripToday, todayISO])
+
+  const lastLiveText = useMemo(() => {
+    if (!lastLiveAt) return null
+    const t = new Date(lastLiveAt).getTime()
+    if (Number.isNaN(t)) return null
+    const diffMin = Math.max(0, Math.round((Date.now() - t) / 60000))
+    if (diffMin === 0) return 'الآن'
+    if (diffMin === 1) return 'منذ دقيقة'
+    if (diffMin < 60) return `منذ ${diffMin} دقيقة`
+    const diffHr = Math.round(diffMin / 60)
+    return diffHr === 1 ? 'منذ ساعة' : `منذ ${diffHr} ساعة`
+  }, [lastLiveAt])
 
   const clearMarkers = () => {
     markersRef.current.forEach((m) => m.setMap(null))
@@ -385,11 +415,12 @@ export default function DriverAvailabilityMap({ selectedTripId }: { selectedTrip
       // Read current live status (فقط للحالة "متاح"، مش للموقع)
       const { data: liveRow } = await supabase
         .from('driver_live_status')
-        .select('is_available')
+        .select('is_available, updated_at')
         .eq('driver_id', driverRow.id)
         .maybeSingle()
       const wasAvailable = Boolean((liveRow as any)?.is_available)
       setIsAvailable(wasAvailable)
+      setLastLiveAt(((liveRow as any)?.updated_at as string) || null)
       
       // مهم: ما نقرأ الموقع القديم من قاعدة البيانات - لازم نجيب الموقع الحقيقي من المتصفح
       // لأن الموقع القديم ممكن يكون غير دقيق أو قديم
@@ -415,6 +446,21 @@ export default function DriverAvailabilityMap({ selectedTripId }: { selectedTrip
       setLoading(false)
     }
   }
+
+  useEffect(() => {
+    try {
+      if (!trip?.id) {
+        setShowStartPrompt(false)
+        return
+      }
+      const key = `driver_tracking_prompt_dismissed_${trip.id}_${todayISO}`
+      const dismissed = localStorage.getItem(key) === '1'
+      const shouldPrompt = Boolean(trip) && isTripToday && isNowNearTripTime && !isAvailable && !dismissed
+      setShowStartPrompt(shouldPrompt)
+    } catch {
+      // ignore
+    }
+  }, [trip?.id, isTripToday, isNowNearTripTime, isAvailable, todayISO, trip])
 
   useEffect(() => {
     // Reload trip/map when selection changes
@@ -613,7 +659,7 @@ export default function DriverAvailabilityMap({ selectedTripId }: { selectedTrip
   }, [])
 
   return (
-    <div className="bg-white rounded-lg sm:rounded-xl shadow-md p-4 sm:p-6">
+    <div className="relative bg-white rounded-lg sm:rounded-xl shadow-md p-4 sm:p-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
         <div className="min-w-0">
           <h3 className="text-base sm:text-lg font-extrabold text-gray-900 flex items-center gap-2">
@@ -625,20 +671,37 @@ export default function DriverAvailabilityMap({ selectedTripId }: { selectedTrip
               ? `الرحلة الحالية: ${trip.start_location_name} → ${trip.end_location_name} (تجمع: ${trip.meeting_time || '—'} | انطلاق: ${trip.departure_time || '—'})`
               : 'لا توجد رحلة معيّنة لك حالياً. اطلب من الإدارة تعيين رحلة لك.'}
           </p>
+          {lastLiveText && (
+            <p className="text-[11px] sm:text-xs text-gray-500 mt-1">
+              آخر إرسال موقع: <span className="font-bold text-gray-700">{lastLiveText}</span>
+            </p>
+          )}
         </div>
 
-        <button
-          type="button"
-          onClick={toggle}
-          className={`px-4 py-2.5 rounded-lg transition text-sm font-extrabold inline-flex items-center gap-2 ${
-            isAvailable ? 'bg-red-600 text-white hover:bg-red-700' : 'bg-green-600 text-white hover:bg-green-700'
-          }`}
-          title="تشغيل/إيقاف الظهور والتتبع"
-          disabled={loading}
-        >
-          <Power className="w-4 h-4" />
-          {isAvailable ? 'غير متاح (إيقاف)' : 'متاح (تشغيل)'}
-        </button>
+        <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+          {trip?.id && (
+            <Link
+              href={`/driver/trip/${trip.id}`}
+              className="px-4 py-2.5 rounded-lg border border-gray-200 bg-white hover:bg-gray-50 transition text-sm font-extrabold text-gray-900 inline-flex items-center justify-center gap-2"
+              title="عرض قائمة الركاب ونقاط النزول"
+            >
+              <Navigation className="w-4 h-4 text-blue-600" />
+              قائمة الركاب
+            </Link>
+          )}
+          <button
+            type="button"
+            onClick={toggle}
+            className={`px-4 py-2.5 rounded-lg transition text-sm font-extrabold inline-flex items-center justify-center gap-2 ${
+              isAvailable ? 'bg-red-600 text-white hover:bg-red-700' : 'bg-green-600 text-white hover:bg-green-700'
+            }`}
+            title="تشغيل/إيقاف الظهور والتتبع"
+            disabled={loading}
+          >
+            <Power className="w-4 h-4" />
+            {isAvailable ? 'إيقاف التتبع' : 'ابدأ الرحلة (تشغيل التتبع)'}
+          </button>
+        </div>
       </div>
 
       {loading ? (
@@ -661,6 +724,44 @@ export default function DriverAvailabilityMap({ selectedTripId }: { selectedTrip
         <Navigation className="w-4 h-4" />
         التتبع يُرسل فقط عند تفعيل &quot;متاح&quot;، ويمكنك إيقافه فوراً.
       </div>
+
+      {showStartPrompt && (
+        <div className="absolute inset-0 bg-black/40 backdrop-blur-[2px] rounded-lg sm:rounded-xl flex items-center justify-center p-4">
+          <div className="w-full max-w-md bg-white rounded-2xl border border-gray-200 shadow-2xl p-4 sm:p-5">
+            <p className="text-sm sm:text-base font-extrabold text-gray-900">حان وقت الرحلة — شغّل التتبع الآن</p>
+            <p className="mt-1 text-xs sm:text-sm text-gray-600">
+              اضغط زر واحد فقط. إذا طلب الهاتف صلاحية الموقع، اختر &quot;سماح&quot;.
+            </p>
+            <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={async () => {
+                  await toggle()
+                  setShowStartPrompt(false)
+                }}
+                className="px-4 py-3 rounded-xl bg-green-600 text-white hover:bg-green-700 transition font-extrabold"
+              >
+                ابدأ الرحلة الآن
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  try {
+                    if (trip?.id) {
+                      const key = `driver_tracking_prompt_dismissed_${trip.id}_${todayISO}`
+                      localStorage.setItem(key, '1')
+                    }
+                  } catch {}
+                  setShowStartPrompt(false)
+                }}
+                className="px-4 py-3 rounded-xl bg-white border border-gray-200 hover:bg-gray-50 transition font-extrabold text-gray-800"
+              >
+                لاحقاً
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

@@ -38,6 +38,8 @@ type Driver = {
   vehicle_type: string
 }
 
+type DriverLiveLite = { driver_id: string; is_available: boolean; updated_at: string | null }
+
 type Passenger = {
   id: string
   visitor_name: string
@@ -97,6 +99,37 @@ export default function TripDetailsModal({
   const [stopPoints, setStopPoints] = useState<StopPoint[]>([])
   const [drivers, setDrivers] = useState<Driver[]>([])
   const [passengers, setPassengers] = useState<Passenger[]>([])
+  const [driverLiveMap, setDriverLiveMap] = useState<Record<string, DriverLiveLite | null>>({})
+
+  const trackingAlert = (() => {
+    if (!trip) return null
+    const todayISO = new Date().toISOString().slice(0, 10)
+    const isToday = String(trip.trip_date || '').slice(0, 10) === todayISO
+    if (!isToday) return null
+    if (drivers.length === 0) return { kind: 'warn' as const, text: 'لا يوجد سائق معيّن لهذه الرحلة.' }
+    const now = Date.now()
+    const FIVE_MIN = 5 * 60 * 1000
+
+    let anyFresh = false
+    let anyStale = false
+    let anyOff = false
+
+    for (const d of drivers) {
+      const live = driverLiveMap[d.id]
+      const on = Boolean(live?.is_available)
+      const updatedAt = live?.updated_at ? new Date(live.updated_at).getTime() : NaN
+      const fresh = on && Number.isFinite(updatedAt) && now - updatedAt < FIVE_MIN
+      const stale = on && (!Number.isFinite(updatedAt) || now - updatedAt >= FIVE_MIN)
+      if (!on) anyOff = true
+      if (fresh) anyFresh = true
+      if (stale) anyStale = true
+    }
+
+    if (anyFresh) return { kind: 'ok' as const, text: '✅ التتبع يعمل الآن (آخر تحديث خلال 5 دقائق).' }
+    if (anyStale) return { kind: 'danger' as const, text: '🚨 التتبع متوقف أو آخر تحديث قديم. اتصل بالسائق فوراً.' }
+    if (anyOff) return { kind: 'danger' as const, text: '🚨 السائق لم يشغّل التتبع (غير متاح). اتصل بالسائق.' }
+    return { kind: 'warn' as const, text: '⚠️ لا توجد بيانات تتبع كافية.' }
+  })()
 
   useEffect(() => {
     let mounted = true
@@ -123,9 +156,17 @@ export default function TripDetailsModal({
     loadTripData()
   }, [tripId])
 
-  const loadTripData = async () => {
+  useEffect(() => {
+    const t = setInterval(() => {
+      loadTripData(true)
+    }, 30_000)
+    return () => clearInterval(t)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tripId])
+
+  const loadTripData = async (silent = false) => {
     try {
-      setLoading(true)
+      if (!silent) setLoading(true)
       
       // Load trip
       const { data: tripData, error: tripErr } = await supabase
@@ -159,6 +200,30 @@ export default function TripDetailsModal({
         .map((d: any) => d.drivers)
         .filter(Boolean) as Driver[]
       setDrivers(driversList)
+
+      // Load driver live status for clear tracking alert
+      try {
+        const ids = driversList.map((d) => d.id).filter(Boolean)
+        if (ids.length > 0) {
+          const { data: liveRows } = await supabase
+            .from('driver_live_status')
+            .select('driver_id,is_available,updated_at')
+            .in('driver_id', ids)
+          const map: Record<string, DriverLiveLite | null> = {}
+          ;(liveRows || []).forEach((r: any) => {
+            map[r.driver_id] = {
+              driver_id: r.driver_id,
+              is_available: Boolean(r.is_available),
+              updated_at: r.updated_at || null,
+            }
+          })
+          setDriverLiveMap(map)
+        } else {
+          setDriverLiveMap({})
+        }
+      } catch {
+        setDriverLiveMap({})
+      }
       
       // Load passengers booked on this trip (visit_requests.trip_id)
       const { data: passengersData, error: passengersErr } = await supabase
@@ -214,9 +279,9 @@ export default function TripDetailsModal({
       }
     } catch (e: any) {
       console.error('Load trip data error:', e)
-      toast.error(e?.message || 'تعذر تحميل بيانات الرحلة')
+      if (!silent) toast.error(e?.message || 'تعذر تحميل بيانات الرحلة')
     } finally {
-      setLoading(false)
+      if (!silent) setLoading(false)
     }
   }
 
@@ -411,6 +476,19 @@ export default function TripDetailsModal({
 
         {/* Content */}
         <div className="p-4 sm:p-6 space-y-4 sm:space-y-6">
+          {trackingAlert && (
+            <div
+              className={`rounded-xl border-2 p-3 sm:p-4 text-sm font-extrabold ${
+                trackingAlert.kind === 'ok'
+                  ? 'bg-green-50 border-green-200 text-green-900'
+                  : trackingAlert.kind === 'danger'
+                    ? 'bg-red-50 border-red-200 text-red-900'
+                    : 'bg-amber-50 border-amber-200 text-amber-900'
+              }`}
+            >
+              {trackingAlert.text}
+            </div>
+          )}
           {/* Map */}
           <div className="bg-gray-50 rounded-lg border border-gray-200 overflow-hidden">
             <div className="p-3 bg-blue-50 border-b border-gray-200">

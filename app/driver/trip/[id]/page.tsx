@@ -79,6 +79,8 @@ export default function DriverTripDetailsPage() {
   const [passengers, setPassengers] = useState<Array<PassengerRow & { profile?: { full_name: string | null; phone: string | null } }>>([])
   const [mapsReady, setMapsReady] = useState(false)
   const [errorText, setErrorText] = useState<string>('')
+  const [search, setSearch] = useState('')
+  const [groupByStop, setGroupByStop] = useState(true)
 
   const mapRef = useRef<HTMLDivElement | null>(null)
   const mapObjRef = useRef<google.maps.Map | null>(null)
@@ -232,6 +234,48 @@ export default function DriverTripDetailsPage() {
   const passengerCount = useMemo(() => {
     return passengers.reduce((sum, p) => sum + 1 + (p.companions_count || 0), 0)
   }, [passengers])
+
+  const stopLabelForPassenger = useMemo(() => {
+    const tripType = trip?.trip_type || null
+    return (p: PassengerRow & { selectedDropoffStop?: { name: string } | null; selectedPickupStop?: { name: string } | null }) => {
+      if (tripType === 'arrival') return p.selectedDropoffStop?.name || 'لم يحدد نقطة نزول'
+      if (tripType === 'departure') return p.selectedPickupStop?.name || 'لم يحدد نقطة تحميل'
+      return p.selectedDropoffStop?.name || p.selectedPickupStop?.name || '—'
+    }
+  }, [trip?.trip_type])
+
+  const visiblePassengers = useMemo(() => {
+    const q = search.trim().toLowerCase()
+    const list = q
+      ? passengers.filter((p) => {
+          const name = (p.visitor_name || '').toLowerCase()
+          const phone = ((p as any)?.profile?.phone || '').toString().toLowerCase()
+          const stop = stopLabelForPassenger(p).toLowerCase()
+          return name.includes(q) || phone.includes(q) || stop.includes(q)
+        })
+      : passengers
+
+    // Sort by stop name then visitor name (to help the driver)
+    return [...list].sort((a, b) => {
+      const sa = stopLabelForPassenger(a)
+      const sb = stopLabelForPassenger(b)
+      if (sa !== sb) return sa.localeCompare(sb, 'ar')
+      return (a.visitor_name || '').localeCompare((b.visitor_name || ''), 'ar')
+    })
+  }, [passengers, search, stopLabelForPassenger])
+
+  const groupedPassengers = useMemo(() => {
+    if (!groupByStop) return null
+    const map = new Map<string, typeof visiblePassengers>()
+    for (const p of visiblePassengers) {
+      const key = stopLabelForPassenger(p)
+      const arr = map.get(key) || []
+      arr.push(p)
+      map.set(key, arr)
+    }
+    // Keep deterministic order
+    return Array.from(map.entries()).sort((a, b) => a[0].localeCompare(b[0], 'ar'))
+  }, [visiblePassengers, groupByStop, stopLabelForPassenger])
 
   useEffect(() => {
     if (!mapsReady || !trip || !mapRef.current) return
@@ -467,71 +511,114 @@ export default function DriverTripDetailsPage() {
             <div className="bg-white border border-gray-200 rounded-lg p-4">
               <h3 className="font-bold text-gray-800 flex items-center gap-2 mb-3">
                 <Users className="w-4 h-4 text-blue-600" />
-                الركاب ({passengers.length})
+                الركاب ({visiblePassengers.length})
               </h3>
+              
+              <div className="mb-3 space-y-2">
+                <input
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="ابحث بالاسم أو رقم الهاتف أو نقطة النزول..."
+                  className="w-full px-3 py-2.5 rounded-lg border border-gray-300 bg-white text-sm"
+                />
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setGroupByStop((p) => !p)}
+                    className="px-3 py-2 rounded-lg border border-gray-200 bg-white hover:bg-gray-50 text-xs sm:text-sm font-bold text-gray-900"
+                  >
+                    {groupByStop ? 'إلغاء التجميع حسب النقطة' : 'تجميع حسب النقطة'}
+                  </button>
+                  <div className="text-[11px] sm:text-xs text-gray-600 flex items-center gap-2">
+                    <MapPin className="w-4 h-4 text-blue-600" />
+                    {trip?.trip_type === 'departure' ? 'المهم للسائق: نقطة التحميل لكل راكب' : 'المهم للسائق: نقطة النزول لكل راكب'}
+                  </div>
+                </div>
+              </div>
+
               {passengers.length === 0 ? (
                 <p className="text-sm text-gray-600">لا يوجد ركاب مسجلين على هذه الرحلة بعد.</p>
-              ) : (
-                <div className="space-y-2">
-                  {passengers.map((p) => (
-                    <div key={p.id} className="border-2 border-blue-200 rounded-lg p-4 bg-blue-50">
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 mb-2">
-                            <div className="w-10 h-10 bg-blue-600 text-white rounded-full flex items-center justify-center font-bold text-lg flex-shrink-0">
-                              {p.visitor_name.charAt(0)}
-                            </div>
-                            <div>
-                              <div className="text-lg sm:text-xl font-extrabold text-gray-900 truncate">
-                                {p.visitor_name}
-                              </div>
-                              {p.profile?.full_name && (
-                                <div className="text-xs sm:text-sm text-gray-600 mt-0.5">
-                                  المستخدم: {p.profile.full_name}
+              ) : visiblePassengers.length === 0 ? (
+                <p className="text-sm text-gray-600">لا توجد نتائج مطابقة للبحث.</p>
+              ) : groupByStop && groupedPassengers ? (
+                <div className="space-y-3">
+                  {groupedPassengers.map(([stopName, list]) => (
+                    <div key={stopName} className="border-2 border-gray-200 rounded-xl overflow-hidden">
+                      <div className={`px-3 py-2 font-extrabold text-sm ${stopName.includes('لم يحدد') ? 'bg-amber-50 text-amber-900' : 'bg-gray-50 text-gray-900'}`}>
+                        {stopName} <span className="text-xs font-bold text-gray-600">({list.length})</span>
+                      </div>
+                      <div className="p-3 space-y-2 bg-white">
+                        {list.map((p) => (
+                          <div key={p.id} className="border-2 border-blue-200 rounded-xl p-3 bg-blue-50">
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="min-w-0 flex-1">
+                                <p className="text-base sm:text-lg font-extrabold text-gray-900 truncate">{p.visitor_name}</p>
+                                <div className="mt-1 grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs sm:text-sm text-gray-700">
+                                  <div className="inline-flex items-center gap-2">
+                                    <Users className="w-4 h-4 text-green-700" />
+                                    الأشخاص: <span className="font-extrabold">{1 + (p.companions_count || 0)}</span>
+                                  </div>
+                                  {p.profile?.phone && (
+                                    <div className="inline-flex items-center gap-2">
+                                      <Phone className="w-4 h-4 text-blue-700" />
+                                      {p.profile.phone}
+                                    </div>
+                                  )}
+                                  <div className={`inline-flex items-center gap-2 sm:col-span-2 ${stopName.includes('لم يحدد') ? 'text-amber-800' : 'text-blue-800'} font-extrabold`}>
+                                    <MapPin className="w-4 h-4" />
+                                    {trip?.trip_type === 'departure' ? 'نقطة التحميل:' : 'نقطة النزول:'} {stopName}
+                                  </div>
                                 </div>
-                              )}
+                              </div>
+                              <Link
+                                href={`/driver/passenger/${p.id}`}
+                                className="px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-xs sm:text-sm font-semibold whitespace-nowrap self-start"
+                              >
+                                تفاصيل
+                              </Link>
                             </div>
                           </div>
-                          <div className="text-xs sm:text-sm text-gray-700 mt-2 space-y-1 bg-white rounded-lg p-2">
-                            {p.profile?.phone && (
-                              <div className="flex items-center gap-2">
-                                <Phone className="w-4 h-4 text-blue-600" />
-                                <span>الهاتف: {p.profile.phone}</span>
-                              </div>
-                            )}
-                            <div className="flex items-center gap-2">
-                              <Users className="w-4 h-4 text-green-600" />
-                              <span>عدد الأشخاص: <strong>{1 + (p.companions_count || 0)}</strong></span>
-                            </div>
-                            {p.arrival_date && (
-                              <div className="flex items-center gap-2">
-                                <Calendar className="w-4 h-4 text-purple-600" />
-                                <span>تاريخ القدوم: {formatDate(p.arrival_date)}</span>
-                              </div>
-                            )}
-                            {trip?.trip_type === 'arrival' && p.selectedDropoffStop && (
-                              <div className="flex items-center gap-2 text-blue-700 font-semibold">
-                                <MapPin className="w-4 h-4" />
-                                <span>نقطة النزول المختارة: {p.selectedDropoffStop.name}</span>
-                              </div>
-                            )}
-                            {trip?.trip_type === 'departure' && p.selectedPickupStop && (
-                              <div className="flex items-center gap-2 text-blue-700 font-semibold">
-                                <MapPin className="w-4 h-4" />
-                                <span>نقطة التحميل المختارة: {p.selectedPickupStop.name}</span>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                        <Link
-                          href={`/driver/passenger/${p.id}`}
-                          className="px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-xs sm:text-sm font-semibold whitespace-nowrap self-start"
-                        >
-                          تفاصيل الراكب
-                        </Link>
+                        ))}
                       </div>
                     </div>
                   ))}
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {visiblePassengers.map((p) => {
+                    const stopName = stopLabelForPassenger(p)
+                    return (
+                      <div key={p.id} className="border-2 border-blue-200 rounded-xl p-3 bg-blue-50">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0 flex-1">
+                            <p className="text-base sm:text-lg font-extrabold text-gray-900 truncate">{p.visitor_name}</p>
+                            <div className="mt-1 grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs sm:text-sm text-gray-700">
+                              <div className="inline-flex items-center gap-2">
+                                <Users className="w-4 h-4 text-green-700" />
+                                الأشخاص: <span className="font-extrabold">{1 + (p.companions_count || 0)}</span>
+                              </div>
+                              {p.profile?.phone && (
+                                <div className="inline-flex items-center gap-2">
+                                  <Phone className="w-4 h-4 text-blue-700" />
+                                  {p.profile.phone}
+                                </div>
+                              )}
+                              <div className={`inline-flex items-center gap-2 sm:col-span-2 ${stopName.includes('لم يحدد') ? 'text-amber-800' : 'text-blue-800'} font-extrabold`}>
+                                <MapPin className="w-4 h-4" />
+                                {trip?.trip_type === 'departure' ? 'نقطة التحميل:' : 'نقطة النزول:'} {stopName}
+                              </div>
+                            </div>
+                          </div>
+                          <Link
+                            href={`/driver/passenger/${p.id}`}
+                            className="px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-xs sm:text-sm font-semibold whitespace-nowrap self-start"
+                          >
+                            تفاصيل
+                          </Link>
+                        </div>
+                      </div>
+                    )
+                  })}
                 </div>
               )}
             </div>

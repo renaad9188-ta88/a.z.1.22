@@ -23,7 +23,7 @@ interface Driver {
 interface RouteCardProps {
   route: Route
   assignedDrivers: Driver[]
-  driverLiveMap: Record<string, { is_available: boolean }>
+  driverLiveMap: Record<string, { is_available: boolean; updated_at?: string | null } | null>
   drivers: Driver[]
   expandedRouteTrips: Record<string, boolean>
   routeTrips: Record<string, any[]>
@@ -272,6 +272,7 @@ export default function RouteCard({
                   ])
                 )}
                 assignedDrivers={tripAssignedDrivers}
+                driverLiveMap={driverLiveMap}
                 availableDrivers={drivers.filter(d => d.is_active !== false)}
                 onEdit={onEdit}
                 onViewDetails={onViewDetails}

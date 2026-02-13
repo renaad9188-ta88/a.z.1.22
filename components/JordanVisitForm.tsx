@@ -4,16 +4,14 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createSupabaseBrowserClient } from '@/lib/supabase'
 import toast from 'react-hot-toast'
-import { ArrowLeft, Calendar, Upload, Trash2, X, Plus, User, Phone, MessageCircle, Lock } from 'lucide-react'
+import { ArrowLeft, Calendar, Upload, Trash2, X, Plus, User, Phone, MessageCircle, Lock, CheckCircle } from 'lucide-react'
+import { createNotification, notifyAdminNewRequest } from '@/lib/notifications'
 
 const DEPARTURE_CITIES = [
   'الشام', 'درعا', 'حلب', 'حمص', 'حماة', 'اللاذقية', 'طرطوس', 
   'دير الزور', 'الحسكة', 'الرقة', 'إدلب', 'السويداء', 'القنيطرة', 'أخرى'
 ]
 
-const DEFAULT_TOURISM_COMPANY = 'شركة نوفا'
-
-const DEFAULT_TRANSPORT_COMPANY = 'شركة الرويال للنقل'
 const DEFAULT_PURPOSE = 'زيارات الاقارب ( سياحة )'
 
 interface Person {
@@ -29,6 +27,8 @@ export default function JordanVisitForm() {
   const [loading, setLoading] = useState(false)
   const [profileLoading, setProfileLoading] = useState(true)
   const [accountName, setAccountName] = useState<string>('')
+  const [requestId, setRequestId] = useState<string | null>(null)
+  const [requestConfirmed, setRequestConfirmed] = useState(false)
   const [persons, setPersons] = useState<Person[]>([
     { id: '1', name: '', passportImages: [], passportPreviews: [] }
   ])
@@ -265,15 +265,10 @@ export default function JordanVisitForm() {
         })
       )
 
-      // حفظ الطلب كـ Draft (لا يظهر للإدمن قبل الدفع)
+      // حفظ الطلب مباشرة (بدون Draft)
       const primary = personsData[0]
       const primaryVisitorName = primary?.name || 'زائر'
       const companionsOnly = personsData.slice(1) // المرافقين فقط (بدون الزائر الرئيسي)
-
-      const companiesBlock = [
-        `الشركات (طلب زيارة): ${DEFAULT_TOURISM_COMPANY}`,
-        `شركة النقل: ${DEFAULT_TRANSPORT_COMPANY}`,
-      ].join('\n')
 
       const { data: requestData, error } = await supabase
         .from('visit_requests')
@@ -291,18 +286,143 @@ export default function JordanVisitForm() {
           passport_expiry: new Date().toISOString().split('T')[0],
           companions_count: companionsOnly.length,
           companions_data: companionsOnly,
-          admin_notes: `خدمة: زيارة الأردن لمدة شهر\nاسم الحساب: ${accountName || 'غير محدد'}\nالهاتف الأردني: ${formData.jordanPhone}\nواتساب سوري (اختياري): ${formData.whatsappPhone || 'غير مدخل'}\n${companiesBlock}\nالغرض: ${DEFAULT_PURPOSE}`,
+          admin_notes: `خدمة: زيارة الأردن لمدة شهر\nاسم الحساب: ${accountName || 'غير محدد'}\nالهاتف الأردني: ${formData.jordanPhone}\nواتساب سوري (اختياري): ${formData.whatsappPhone || 'غير مدخل'}\nالغرض: ${DEFAULT_PURPOSE}`,
         })
         .select()
         .single()
 
       if (error) throw error
 
-      toast.success('تم حفظ الطلب بنجاح!')
-      router.push(`/services/jordan-visit/payment/${requestData.id}`)
-      router.refresh()
+      // إرسال إشعارات بشكل غير متزامن (لا ننتظرها)
+      setTimeout(async () => {
+        try {
+          await notifyAdminNewRequest(
+            requestData.id,
+            primaryVisitorName,
+            accountName || 'مستخدم',
+            finalDepartureCity
+          )
+        } catch (notifyError) {
+          console.error('Error sending admin notification:', notifyError)
+        }
+
+        try {
+          await createNotification({
+            userId: user.id,
+            title: 'تم إرسال الطلب بنجاح',
+            message: `تم إرسال طلب الزيارة لـ ${primaryVisitorName} بنجاح. يرجى التواصل مع الموظف المسؤول لدفع الرسوم.`,
+            type: 'success',
+            relatedType: 'request',
+            relatedId: requestData.id,
+          })
+        } catch (notifyError) {
+          console.error('Error sending user notification:', notifyError)
+        }
+      }, 100)
+
+      toast.success('تم حفظ الطلب بنجاح! يرجى التواصل مع الموظف المسؤول لدفع الرسوم.')
+      
+      // حفظ requestId في state لإظهار زر واتساب (بعد التمرير للأعلى)
+      setTimeout(() => {
+        setRequestId(requestData.id)
+        window.scrollTo({ top: 0, behavior: 'smooth' })
+      }, 100)
     } catch (error: any) {
-      toast.error(error.message || 'حدث خطأ أثناء حفظ الطلب')
+      console.error('Error saving request:', error)
+      // تجاهل أخطاء AbortError (عادة تكون بسبب إلغاء الطلب)
+      if (error?.name !== 'AbortError' && error?.message !== 'signal is aborted without reason') {
+        toast.error(error.message || 'حدث خطأ أثناء حفظ الطلب')
+      }
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleConfirmViaWhatsApp = async () => {
+    if (!requestId || loading) return
+
+    try {
+      setLoading(true)
+      
+      // الحصول على بيانات المستخدم أولاً
+      const { data: { user }, error: userError } = await supabase.auth.getUser()
+      if (userError) throw userError
+      if (!user) {
+        toast.error('يجب تسجيل الدخول أولاً')
+        router.push('/auth/login')
+        return
+      }
+
+      // جلب بيانات الطلب أولاً
+      const { data: request, error: requestError } = await supabase
+        .from('visit_requests')
+        .select('visitor_name, city')
+        .eq('id', requestId)
+        .eq('user_id', user.id)
+        .single()
+
+      if (requestError) throw requestError
+      if (!request) {
+        toast.error('الطلب غير موجود')
+        return
+      }
+
+      // تحديث الطلب - إزالة Draft وإرسال للإدمن
+      const { error: updateError } = await supabase
+        .from('visit_requests')
+        .update({
+          deposit_paid: true,
+          deposit_amount: persons.length * 10,
+          total_amount: persons.length * 10,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', requestId)
+        .eq('user_id', user.id)
+
+      if (updateError) throw updateError
+
+      // إنشاء رسالة واتساب
+      const message = `مرحباً، أريد تأكيد طلب الزيارة رقم ${requestId}\nالزائر: ${request.visitor_name || ''}\nمكان الانطلاق: ${request.city || ''}\nعدد الأشخاص: ${persons.length}\nتم إرسال الطلب عبر المنصة.`
+      
+      const whatsappUrl = `https://wa.me/962798905595?text=${encodeURIComponent(message)}`
+      window.open(whatsappUrl, '_blank')
+
+      setRequestConfirmed(true)
+      toast.success('تم فتح واتساب. يرجى إرسال الرسالة لتأكيد الطلب.')
+
+      // إرسال إشعار للإدمن (بشكل غير متزامن)
+      setTimeout(async () => {
+        try {
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('full_name')
+            .eq('user_id', user.id)
+            .maybeSingle()
+          const userName = profile?.full_name || 'مستخدم'
+
+          await notifyAdminNewRequest(
+            requestId,
+            request.visitor_name || 'زائر',
+            userName,
+            request.city || ''
+          )
+        } catch (notifyError) {
+          console.error('Error sending admin notification:', notifyError)
+          // لا نعرض خطأ للمستخدم هنا
+        }
+      }, 500)
+
+      // الانتقال إلى لوحة التحكم بعد ثانيتين
+      setTimeout(() => {
+        router.push('/dashboard')
+        router.refresh()
+      }, 2000)
+    } catch (error: any) {
+      console.error('Error confirming request:', error)
+      // تجاهل أخطاء AbortError (عادة تكون بسبب إلغاء الطلب)
+      if (error?.name !== 'AbortError' && error?.message !== 'signal is aborted without reason') {
+        toast.error(error.message || 'حدث خطأ أثناء تأكيد الطلب')
+      }
     } finally {
       setLoading(false)
     }
@@ -374,18 +494,6 @@ export default function JordanVisitForm() {
                     className="w-full px-3 sm:px-4 py-2.5 sm:py-3 text-sm sm:text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" 
                     placeholder="09XXXXXXXX أو +963XXXXXXXX" 
                   />
-                </div>
-
-                <div>
-                  <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1.5 sm:mb-2">
-                    الشركات (طلب زيارة)
-                  </label>
-                  <div className="w-full px-3 sm:px-4 py-2.5 sm:py-3 text-sm sm:text-base border border-gray-300 rounded-lg bg-gray-50 text-gray-700 flex items-center">
-                    {DEFAULT_TOURISM_COMPANY}
-                  </div>
-                  <p className="mt-1 text-xs text-gray-500">
-                    الشركة المعتمدة حالياً في المنصة
-                  </p>
                 </div>
 
                 <div>
@@ -522,15 +630,20 @@ export default function JordanVisitForm() {
 
             <button 
               type="submit" 
-              disabled={loading}
+              disabled={loading || requestConfirmed}
               className="w-full py-2.5 sm:py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition font-semibold text-sm sm:text-base md:text-lg disabled:opacity-50 px-4 sm:px-6"
             >
               {loading ? (
                 <span className="w-full text-center">جاري الحفظ...</span>
+              ) : requestConfirmed ? (
+                <span className="flex items-center justify-center gap-2">
+                  <CheckCircle className="w-5 h-5" />
+                  تم تأكيد الطلب
+                </span>
               ) : (
                 <span className="grid grid-cols-3 items-center">
                   <span />
-                  <span className="text-center">حفظ والمتابعة</span>
+                  <span className="text-center">حفظ الطلب</span>
                   <span className="inline-flex items-center justify-end gap-1 text-white/95">
                     التالي
                     <ArrowLeft className="w-4 h-4 sm:w-5 sm:h-5" />
@@ -539,6 +652,37 @@ export default function JordanVisitForm() {
               )}
             </button>
           </form>
+
+          {/* زر واتساب بعد الحفظ */}
+          {requestId && !requestConfirmed && (
+            <div className="mt-6 p-4 sm:p-5 bg-green-50 border-2 border-green-200 rounded-lg">
+              <p className="text-sm sm:text-base text-gray-700 mb-4 text-center">
+                تم حفظ الطلب بنجاح. يرجى التواصل مع الموظف المسؤول عبر واتساب لإرسال الدفعة وتأكيد الطلب.
+              </p>
+              <button
+                onClick={handleConfirmViaWhatsApp}
+                disabled={loading}
+                className="w-full flex items-center justify-center gap-2 px-4 py-2.5 sm:py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition font-semibold text-sm sm:text-base disabled:opacity-50"
+              >
+                <MessageCircle className="w-5 h-5" />
+                {loading ? 'جاري التأكيد...' : 'إرسال الدفعة وتأكيد الطلب عبر واتساب'}
+              </button>
+            </div>
+          )}
+
+          {requestConfirmed && (
+            <div className="mt-6 p-4 sm:p-5 bg-green-50 border-2 border-green-200 rounded-lg">
+              <div className="flex items-center justify-center gap-2 mb-2">
+                <CheckCircle className="w-5 h-5 text-green-600" />
+                <p className="text-sm sm:text-base font-semibold text-green-800">
+                  تم تأكيد الطلب بنجاح
+                </p>
+              </div>
+              <p className="text-xs sm:text-sm text-gray-700 text-center">
+                سيتم توجيهك إلى لوحة التحكم قريباً...
+              </p>
+            </div>
+          )}
           </div>
         </div>
       </div>

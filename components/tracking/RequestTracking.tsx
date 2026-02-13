@@ -136,6 +136,7 @@ export default function RequestTracking({ requestId, userId }: { requestId: stri
   const [eta, setEta] = useState<{ durationText: string; distanceText?: string } | null>(null)
   const [sharingLocation, setSharingLocation] = useState(false)
   const [geoError, setGeoError] = useState<string | null>(null)
+  const [creatingShareLink, setCreatingShareLink] = useState(false)
 
   const peopleCount = useMemo(() => {
     if (!request) return 0
@@ -941,6 +942,30 @@ export default function RequestTracking({ requestId, userId }: { requestId: stri
     }
   }
 
+  const createRelativesShareLink = async () => {
+    try {
+      if (userId === 'driver') return
+      setCreatingShareLink(true)
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) {
+        toast.error('يجب تسجيل الدخول لإنشاء رابط مشاركة')
+        return
+      }
+      const { data, error } = await supabase.rpc('create_tracking_share_link', { p_request_id: requestId, p_hours: 48 })
+      if (error) throw error
+      const token = String(data || '')
+      if (!token) throw new Error('تعذر إنشاء الرابط')
+      const origin = typeof window !== 'undefined' ? window.location.origin : ''
+      const url = `${origin}/share/${token}`
+      await copyText(url, 'تم إنشاء ونسخ رابط مشاركة للأقارب')
+    } catch (e: any) {
+      console.error('createRelativesShareLink error:', e)
+      toast.error(e?.message || 'تعذر إنشاء رابط المشاركة')
+    } finally {
+      setCreatingShareLink(false)
+    }
+  }
+
   return (
     <div className="page">
       <div className="page-container">
@@ -986,6 +1011,8 @@ export default function RequestTracking({ requestId, userId }: { requestId: stri
                 geoError={geoError}
                 onShareLocation={shareMyLocationWhatsApp}
                 onCopyLink={() => copyText(window.location.href, 'تم نسخ رابط التتبع')}
+                onCreateShareLink={userId === 'driver' ? undefined : createRelativesShareLink}
+                creatingShareLink={creatingShareLink}
               />
 
               <TrackingStatusCard

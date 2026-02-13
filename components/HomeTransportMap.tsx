@@ -813,7 +813,21 @@ export default function HomeTransportMap() {
         .eq('id', requestId)
         .maybeSingle()
       
-      const assignedDriverId = (requestData as any)?.assigned_driver_id
+      let assignedDriverId: string | null = (requestData as any)?.assigned_driver_id || null
+      
+      // Fallback: إذا لم يتم تعيين سائق داخل الطلب، جرب السائق/السائقين المعيّنين للرحلة
+      if (!assignedDriverId && tripId) {
+        const { data: tripDriverData } = await supabase
+          .from('route_trip_drivers')
+          .select('driver_id')
+          .eq('trip_id', tripId)
+          .eq('is_active', true)
+          .limit(1)
+          .maybeSingle()
+        
+        assignedDriverId = (tripDriverData as any)?.driver_id || null
+      }
+      
       if (!assignedDriverId) {
         setDriverLocation(null)
         setDriverInfo(null)

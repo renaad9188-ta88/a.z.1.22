@@ -54,8 +54,7 @@ export default function MyRequests({ userId }: { userId: string }) {
     // حذف آمن: المنتهي/المرفوض/المسودة
     const isCompleted = r.status === 'completed' || r.trip_status === 'completed'
     const isRejected = r.status === 'rejected'
-    const isDraft = ((r.admin_notes || '') as string).startsWith('[DRAFT]')
-    return isCompleted || isRejected || isDraft
+    return isCompleted || isRejected
   }
 
   const canTrack = (r: VisitRequest) => {
@@ -138,9 +137,7 @@ export default function MyRequests({ userId }: { userId: string }) {
             <div className="space-y-3">
               {requests.map((r) => (
                 (() => {
-                  const isDraft = ((r.admin_notes || '') as string).startsWith('[DRAFT]')
                   const isJordanVisit = r.visit_type === 'visit'
-                  const canResume = isDraft && isJordanVisit
                   return (
                 <div key={r.id} className="border border-gray-200 rounded-lg p-3 sm:p-4">
                   <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
@@ -149,7 +146,7 @@ export default function MyRequests({ userId }: { userId: string }) {
                         <h3 className="font-bold text-gray-800 text-sm sm:text-base break-words">
                           {r.visitor_name}
                         </h3>
-                        {isDraft && (
+                        {false && (
                           <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] sm:text-xs font-bold bg-amber-100 text-amber-900 border border-amber-200">
                             مسودة
                           </span>
@@ -191,14 +188,6 @@ export default function MyRequests({ userId }: { userId: string }) {
                     </div>
 
                     <div className="flex flex-col gap-2 w-28 sm:w-auto">
-                      {canResume && (
-                        <Link
-                          href={`/services/jordan-visit/payment/${r.id}`}
-                          className="inline-flex items-center justify-center gap-2 px-3 py-2 rounded-lg bg-amber-600 text-white hover:bg-amber-700 text-xs sm:text-sm font-semibold"
-                        >
-                          استكمال
-                        </Link>
-                      )}
                       <Link
                         href={`/dashboard/request/${r.id}`}
                         className="inline-flex items-center justify-center gap-2 px-3 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 text-xs sm:text-sm font-semibold"

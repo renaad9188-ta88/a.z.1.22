@@ -74,7 +74,10 @@ export default function DriverAssignedTripsPanel({
           end_location_name: t.end_location_name,
         }))
 
-        const isDepartures = (x: Trip) => String(x.trip_type || '').toLowerCase() === 'departures'
+        const isDepartures = (x: Trip) => {
+          const t = String(x.trip_type || '').toLowerCase()
+          return t === 'departure' || t === 'departures'
+        }
         const aTrip = list.find((x) => !isDepartures(x)) || null
         const dTrip = list.find((x) => isDepartures(x)) || null
 

@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import toast from 'react-hot-toast'
-import { CheckCircle, Clock, ArrowRight, MapPin, Navigation, Bus, Calendar, Upload, X, DollarSign } from 'lucide-react'
+import { CheckCircle, Clock, ArrowRight, MapPin, Navigation, Bus, Calendar, Upload, X, DollarSign, MessageCircle, Phone } from 'lucide-react'
 import { createSupabaseBrowserClient } from '@/lib/supabase'
 import TripSchedulingModal from '@/components/admin/TripSchedulingModal'
 import { formatDate, formatDateTime } from '@/lib/date-utils'
@@ -11,6 +11,7 @@ import RequestFollowStepper from './request-follow/RequestFollowStepper'
 import RemainingPaymentSection from './request-follow/RemainingPaymentSection'
 import BookedTripCard from './request-follow/BookedTripCard'
 import AvailableTripsModal from './request-follow/AvailableTripsModal'
+import HelpContactButtons from '@/components/HelpContactButtons'
 
 type ReqRow = {
   id: string
@@ -27,11 +28,102 @@ type ReqRow = {
   trip_id: string | null
   selected_dropoff_stop_id?: string | null
   selected_pickup_stop_id?: string | null
+  deposit_paid?: boolean | null
+  deposit_amount?: number | null
+  city?: string | null
   created_at: string
   updated_at: string
 }
 
 const POST_APPROVAL_SUBMITTED_MARK = 'حالة الاستكمال: مرسل'
+
+type ActionLogItem = {
+  kind: 'admin_response' | 'admin_booking' | 'admin_created' | 'user_booking_change'
+  title: string
+  body: string
+  dateText?: string
+}
+
+function extractAllAdminResponses(notes: string): Array<{ body: string; dateText?: string }> {
+  const marker = '=== رد الإدارة ==='
+  if (!notes.includes(marker)) return []
+  const parts = notes.split(marker).slice(1)
+  const res: Array<{ body: string; dateText?: string }> = []
+  for (const p of parts) {
+    const chunk = (p || '').trim()
+    if (!chunk) continue
+    const dateIdx = chunk.lastIndexOf('تاريخ الرد:')
+    if (dateIdx !== -1) {
+      const body = chunk.slice(0, dateIdx).trim()
+      const dateText = chunk.slice(dateIdx).replace('تاريخ الرد:', '').trim()
+      if (body) res.push({ body, dateText })
+      continue
+    }
+    res.push({ body: chunk })
+  }
+  return res.reverse()
+}
+
+function extractUserBookingChanges(notes: string): Array<{ tripInfo?: string; stopInfo?: string; dateText?: string }> {
+  const marker = '=== تعديل الحجز ==='
+  if (!notes.includes(marker)) return []
+  const parts = notes.split(marker).slice(1)
+  const res: Array<{ tripInfo?: string; stopInfo?: string; dateText?: string }> = []
+  for (const p of parts) {
+    const chunk = (p || '').trim()
+    if (!chunk) continue
+    const mod: any = {}
+    const lines = chunk.split('\n')
+    for (const line of lines) {
+      const trimmed = line.trim()
+      if (trimmed.startsWith('نقطة النزول:') || trimmed.startsWith('نقطة التحميل:')) {
+        mod.stopInfo = trimmed.split(':')[1]?.trim()
+      } else if (trimmed.startsWith('تاريخ التعديل:')) {
+        mod.dateText = trimmed.replace('تاريخ التعديل:', '').trim()
+      } else if (trimmed && !trimmed.startsWith('تم تعديل الحجز') && !trimmed.startsWith('من قبل') && !trimmed.startsWith('الرحلة السابقة:') && !trimmed.startsWith('الرحلة الجديدة:')) {
+        if (!mod.tripInfo) mod.tripInfo = trimmed
+      }
+    }
+    if (mod.tripInfo || mod.stopInfo) res.push(mod)
+  }
+  return res.reverse()
+}
+
+function extractAdminBookings(notes: string): Array<{ tripInfo?: string; stopInfo?: string; dateText?: string; tripType?: string }> {
+  const marker = '=== حجز من الإدارة ==='
+  if (!notes.includes(marker)) return []
+  const parts = notes.split(marker).slice(1)
+  const res: Array<{ tripInfo?: string; stopInfo?: string; dateText?: string; tripType?: string }> = []
+  for (const p of parts) {
+    const chunk = (p || '').trim()
+    if (!chunk) continue
+    const out: any = {}
+    const lines = chunk.split('\n').map((x) => x.trim()).filter(Boolean)
+    for (const line of lines) {
+      if (line.startsWith('تم حجز رحلة')) out.tripType = line
+      else if (line.startsWith('نقطة النزول:') || line.startsWith('نقطة التحميل:')) out.stopInfo = line.split(':')[1]?.trim()
+      else if (line.startsWith('تاريخ الحجز:')) out.dateText = line.replace('تاريخ الحجز:', '').trim()
+      else if (!line.startsWith('تم حجز') && !line.startsWith('تاريخ')) {
+        if (!out.tripInfo) out.tripInfo = line
+      }
+    }
+    if (out.tripInfo || out.tripType) res.push(out)
+  }
+  return res.reverse()
+}
+
+function extractAdminCreated(notes: string): { adminId?: string; dateText?: string } | null {
+  const marker = '=== إنشاء من الإدارة ==='
+  const idx = notes.lastIndexOf(marker)
+  if (idx === -1) return null
+  const after = notes.slice(idx + marker.length).trim()
+  if (!after) return null
+  const adminIdLine = after.split('\n').map((x) => x.trim()).find((l) => l.startsWith('معرّف الإدمن:'))
+  const dateLine = after.split('\n').map((x) => x.trim()).find((l) => l.startsWith('تاريخ الإنشاء:'))
+  const adminId = adminIdLine ? adminIdLine.replace('معرّف الإدمن:', '').trim() : undefined
+  const dateText = dateLine ? dateLine.replace('تاريخ الإنشاء:', '').trim() : undefined
+  return { adminId, dateText }
+}
 
 export default function RequestFollow({ requestId, userId }: { requestId: string; userId: string }) {
   const supabase = createSupabaseBrowserClient()
@@ -55,13 +147,60 @@ export default function RequestFollow({ requestId, userId }: { requestId: string
   const [selectedArrivalTripId, setSelectedArrivalTripId] = useState<string | null>(null)
   const [calculatedDepartureDate, setCalculatedDepartureDate] = useState<string | null>(null)
   const [departureTrip, setDepartureTrip] = useState<any | null>(null)
+  const [selectedDropoffStop, setSelectedDropoffStop] = useState<{ id: string; name: string } | null>(null)
+  const [selectedPickupStop, setSelectedPickupStop] = useState<{ id: string; name: string } | null>(null)
+
+  const actionLog: ActionLogItem[] = useMemo(() => {
+    if (!request) return []
+    const notes = (request.admin_notes || '') as string
+    const list: ActionLogItem[] = []
+
+    const created = extractAdminCreated(notes)
+    if (created) {
+      list.push({
+        kind: 'admin_created',
+        title: 'تم إنشاء الطلب من الإدارة',
+        body: created.adminId ? `تم إنشاء الطلب لمساعدتك.\nالإدمن: ${created.adminId}` : 'تم إنشاء الطلب لمساعدتك.',
+        dateText: created.dateText,
+      })
+    }
+
+    for (const r of extractAllAdminResponses(notes)) {
+      list.push({
+        kind: 'admin_response',
+        title: 'رد من الإدارة',
+        body: r.body,
+        dateText: r.dateText,
+      })
+    }
+
+    for (const b of extractAdminBookings(notes)) {
+      list.push({
+        kind: 'admin_booking',
+        title: 'حجز من الإدارة',
+        body: `${b.tripType ? `${b.tripType}\n` : ''}${b.tripInfo || ''}${b.stopInfo ? `\nنقطة: ${b.stopInfo}` : ''}`.trim(),
+        dateText: b.dateText,
+      })
+    }
+
+    for (const m of extractUserBookingChanges(notes)) {
+      list.push({
+        kind: 'user_booking_change',
+        title: 'تعديل حجز (من المستخدم)',
+        body: `${m.tripInfo || ''}${m.stopInfo ? `\nنقطة: ${m.stopInfo}` : ''}`.trim(),
+        dateText: m.dateText,
+      })
+    }
+
+    return list.slice(0, 12)
+  }, [request])
 
   const load = async () => {
     try {
       const { data, error } = await supabase
         .from('visit_requests')
         .select(
-          'id,user_id,visitor_name,visit_type,status,arrival_date,departure_date,payment_verified,remaining_amount,trip_status,admin_notes,trip_id,selected_dropoff_stop_id,selected_pickup_stop_id,created_at,updated_at'
+          'id,user_id,visitor_name,visit_type,status,arrival_date,departure_date,payment_verified,remaining_amount,trip_status,admin_notes,trip_id,selected_dropoff_stop_id,selected_pickup_stop_id,deposit_paid,deposit_amount,city,created_at,updated_at'
         )
         .eq('id', requestId)
         .eq('user_id', userId)
@@ -102,6 +241,44 @@ export default function RequestFollow({ requestId, userId }: { requestId: string
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [requestId, userId])
+
+  // تحميل أسماء نقاط الصعود/النزول المختارة (لتظهر للمستخدم)
+  useEffect(() => {
+    const loadSelectedStops = async () => {
+      if (!request) return
+      try {
+        if ((request as any).selected_dropoff_stop_id) {
+          const { data } = await supabase
+            .from('route_trip_stop_points')
+            .select('id,name')
+            .eq('id', (request as any).selected_dropoff_stop_id)
+            .maybeSingle()
+          setSelectedDropoffStop(data ? { id: data.id, name: (data as any).name } : null)
+        } else {
+          setSelectedDropoffStop(null)
+        }
+      } catch {
+        setSelectedDropoffStop(null)
+      }
+
+      try {
+        if ((request as any).selected_pickup_stop_id) {
+          const { data } = await supabase
+            .from('route_trip_stop_points')
+            .select('id,name')
+            .eq('id', (request as any).selected_pickup_stop_id)
+            .maybeSingle()
+          setSelectedPickupStop(data ? { id: data.id, name: (data as any).name } : null)
+        } else {
+          setSelectedPickupStop(null)
+        }
+      } catch {
+        setSelectedPickupStop(null)
+      }
+    }
+
+    loadSelectedStops()
+  }, [request, supabase])
 
   const loadBookedTrip = async (tripId: string) => {
     try {
@@ -223,6 +400,7 @@ export default function RequestFollow({ requestId, userId }: { requestId: string
           trip_id: tripId,
           arrival_date: trip.trip_date,
           selected_dropoff_stop_id: selectedStopId || null,
+          trip_status: 'pending_arrival',
           updated_at: new Date().toISOString(),
         }
         
@@ -256,6 +434,7 @@ export default function RequestFollow({ requestId, userId }: { requestId: string
           trip_id: tripId,
           departure_date: trip.trip_date,
           selected_pickup_stop_id: selectedStopId || null,
+          trip_status: 'pending_arrival',
           updated_at: new Date().toISOString(),
         }
         
@@ -281,6 +460,7 @@ export default function RequestFollow({ requestId, userId }: { requestId: string
       // الكود الأصلي للأنواع الأخرى
       const updateData: any = {
         trip_id: tripId,
+        trip_status: 'pending_arrival',
         updated_at: new Date().toISOString(),
       }
       
@@ -512,33 +692,37 @@ export default function RequestFollow({ requestId, userId }: { requestId: string
   }
 
   const steps = useMemo(() => {
-    const notes = (request?.admin_notes || '') as string
+    if (!request) return []
+    
+    const notes = (request.admin_notes || '') as string
     const isDraft = notes.startsWith('[DRAFT]')
-    const isApproved = request?.status === 'approved' || request?.status === 'completed'
-    const paymentVerified = Boolean(request?.payment_verified)
-    const hasArrival = Boolean(request?.arrival_date)
-    const hasRemainingPaymentImage = notes.includes('صورة الدفع المتبقي:')
+    const isApproved = request.status === 'approved' || request.status === 'completed'
+    const hasArrival = Boolean(request.arrival_date)
+    const depositPaid = Boolean(request.deposit_paid)
+    const isUnderReview = request.status === 'under_review'
 
     return [
       {
         id: 1,
-        title: 'تم استلام و رفع الطلب',
-        done: Boolean(request) && !isDraft,
-        help: isDraft
-          ? 'يرجى دفع رسوم الطلب لإرسال الطلب للإدارة.'
-          : 'تم دفع الرسوم وإرسال الطلب للإدارة بنجاح.',
+        title: 'تم تقديم الطلب',
+        done: !isDraft,
+        help: 'قدّم طلبك وارفع صورة الجواز فقط.',
       },
       {
         id: 2,
-        title: 'بانتظار الموافقة',
+        title: 'انتظار الموافقة',
         done: isApproved,
-        help: '',
+        help: isUnderReview
+          ? 'طلبك الآن قيد المراجعة لدى الإدارة.'
+          : depositPaid
+          ? 'تم استلام الرسوم من الإدارة.'
+          : 'بانتظار استلام الطلب من الإدارة.',
       },
       {
         id: 3,
-        title: 'دفع المبلغ المتبقي و حجز الرحلة',
-        done: hasArrival || Boolean(request?.trip_id),
-        help: 'بعد الموافقة: ادفع المبلغ المتبقي (25 دينار) وارفع صورة الدفع، ثم احجز الرحلة.',
+        title: 'الحجز والتتبع',
+        done: hasArrival || Boolean(request.trip_id),
+        help: 'بعد الموافقة، يمكنك حجز الرحلة ومتابعة التتبع عند انطلاق الرحلة.',
       },
     ]
   }, [request])
@@ -617,10 +801,8 @@ export default function RequestFollow({ requestId, userId }: { requestId: string
 
   if (!request) return null
 
-  const remaining = request.remaining_amount ?? 20
   const isDraft = ((request.admin_notes || '') as string).startsWith('[DRAFT]')
-  const feesPaymentHref =
-    (request.visit_type || '') === 'visit' ? `/services/jordan-visit/payment/${request.id}` : `/dashboard/request/${request.id}`
+  const isApproved = request.status === 'approved' || request.status === 'completed'
   const trackingHref = `/#map`
 
   return (
@@ -689,56 +871,125 @@ export default function RequestFollow({ requestId, userId }: { requestId: string
                 </span>
               </div>
 
+              <div className="mt-4">
+                <HelpContactButtons
+                  message={`مرحباً، أحتاج مساعدة بخصوص متابعة طلب الزيارة رقم ${request.id.slice(0, 8).toUpperCase()}.\nالزائر: ${request.visitor_name}`}
+                />
+                <p className="mt-2 text-[11px] sm:text-xs text-gray-600">
+                  ملاحظة: عند الضغط على واتساب/اتصال سيتم فتح تطبيق التواصل فقط، ولن تتغير حالة الطلب تلقائياً.
+                </p>
+              </div>
+
+              {!!actionLog.length && (
+                <div className="mt-4">
+                  <details className="bg-white border border-gray-200 rounded-lg p-3 sm:p-4">
+                    <summary className="cursor-pointer text-sm font-extrabold text-gray-900">
+                      سجل الإجراءات (ما تم على طلبك)
+                    </summary>
+                    <div className="mt-3 space-y-2">
+                      {actionLog.map((it, idx) => (
+                        <div key={`${it.kind}-${idx}`} className="border border-gray-200 rounded-lg p-2 sm:p-3">
+                          <div className="flex items-start justify-between gap-2">
+                            <p className="text-xs sm:text-sm font-bold text-gray-900">{it.title}</p>
+                            {it.dateText && (
+                              <span className="text-[10px] sm:text-xs text-gray-500 whitespace-nowrap">{it.dateText}</span>
+                            )}
+                          </div>
+                          <p className="mt-1 text-xs sm:text-sm text-gray-700 whitespace-pre-line leading-relaxed">{it.body}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </details>
+                </div>
+              )}
+
               {/* Actions per step */}
               <div className="mt-4 space-y-2">
                 {activeStep === 1 && (
-                  <>
-                    {isDraft ? (
-                      <div className="bg-amber-50 border-2 border-amber-200 rounded-lg p-4">
-                        <div className="flex items-center gap-2 mb-2">
-                          <Clock className="w-5 h-5 text-amber-600" />
-                          <p className="font-bold text-amber-900 text-sm">الطلب معلق - بحاجة لاستكمال الطلب ودفع الرسوم</p>
-                        </div>
-                        <p className="text-sm text-amber-800 mb-3">
-                          تم رفع الجواز بنجاح. يرجى دفع الرسوم لإرسال الطلب للإدارة.
-                        </p>
-                        <Link
-                          href={feesPaymentHref}
-                          className="inline-block px-4 py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition text-sm font-semibold text-center"
-                        >
-                          دفع الرسوم وإرسال الطلب
-                        </Link>
-                      </div>
-                    ) : (
-                      <div className="text-sm text-gray-700">
-                        تم إرسال الطلب للإدارة. يمكنك الآن متابعة مرحلة موافقة الإدارة.
-                      </div>
-                    )}
-                  </>
+                  <div className="bg-blue-50 border-2 border-blue-200 rounded-lg p-4">
+                    <p className="text-sm text-gray-700 mb-4">
+                      تم تقديم الطلب بنجاح. يرجى التواصل مع الموظف المسؤول لدفع الرسوم.
+                    </p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <a
+                        href="https://wa.me/962798905595"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center justify-center gap-2 px-4 py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition font-semibold text-sm"
+                      >
+                        <MessageCircle className="w-4 h-4" />
+                        واتساب
+                      </a>
+                      <a
+                        href="tel:00962798905595"
+                        className="flex items-center justify-center gap-2 px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition font-semibold text-sm"
+                      >
+                        <Phone className="w-4 h-4" />
+                        اتصال
+                      </a>
+                    </div>
+                  </div>
                 )}
                 {activeStep === 2 && (
-                  <div className="text-sm text-gray-700">
-                    بانتظار الموافقة على الطلب تحتاج ل عمل من 7 ايام ل 14 يوم. بعد الموافقة تفتح لك حجز الرحلة ل تتبع الرحلة.
+                  <div className="bg-amber-50 border-2 border-amber-200 rounded-lg p-4">
+                    <p className="text-sm text-gray-700 mb-4">
+                      {(() => {
+                        const isApproved = request.status === 'approved' || request.status === 'completed'
+                        if (isApproved) return 'تمت الموافقة على الطلب. يمكنك الانتقال للحجز.'
+
+                        if (request.deposit_paid) {
+                          // deposit_paid يتم تفعيله عند تأكيد الإدمن لاستلام الرسوم
+                          return '✅ تم استلام الرسوم من الإدارة. طلبك الآن قيد المراجعة وبانتظار الموافقة (قد يستغرق 7 إلى 14 يوم). بعد الموافقة سيفتح الحجز مباشرة.'
+                        }
+
+                        if (request.status === 'under_review') {
+                          return '📌 تم استلام طلبك من الإدارة وهو قيد المراجعة. يمكنك دفع الرسوم الآن أو لاحقاً عبر التواصل مع الموظف المسؤول.'
+                        }
+
+                        return 'بانتظار استلام طلبك من الإدارة. إذا رغبت بدفع الرسوم الآن أو الاستفسار، تواصل مع الموظف المسؤول.'
+                      })()}
+                    </p>
+                    {!request.deposit_paid && (
+                      <div className="space-y-3">
+                        <button
+                          onClick={() => {
+                            const shortCode = request.id.slice(0, 8).toUpperCase()
+                            const message = `مرحباً، أريد استكمال طلب الزيارة رقم ${shortCode}\nالزائر: ${request.visitor_name}\nمكان الانطلاق: ${request.city || 'غير محدد'}\nتم تقديم الطلب عبر المنصة. يرجى إعلامي بكيفية دفع الرسوم.`
+                            const whatsappUrl = `https://wa.me/962798905595?text=${encodeURIComponent(message)}`
+                            window.open(whatsappUrl, '_blank')
+                          }}
+                          className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition font-semibold text-sm"
+                        >
+                          <MessageCircle className="w-4 h-4" />
+                          تواصل عبر واتساب (دفع/استفسار)
+                        </button>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          <a
+                            href="https://wa.me/962798905595"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex items-center justify-center gap-2 px-4 py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition font-semibold text-sm"
+                          >
+                            <MessageCircle className="w-4 h-4" />
+                            واتساب
+                          </a>
+                          <a
+                            href="tel:00962798905595"
+                            className="flex items-center justify-center gap-2 px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition font-semibold text-sm"
+                          >
+                            <Phone className="w-4 h-4" />
+                            اتصال
+                          </a>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
 
                 {activeStep === 3 && (
                   <div className="space-y-4">
-                    {/* دفع المبلغ المتبقي */}
-                    {request.status === 'approved' && !request.payment_verified && (
-                      <RemainingPaymentSection
-                        remaining={remaining}
-                        uploadedImageUrl={uploadedRemainingPaymentUrl}
-                        preview={remainingPaymentPreview}
-                        uploading={uploadingRemainingPayment}
-                        onFileSelect={handleRemainingPaymentUpload}
-                        onRemovePreview={removeRemainingPaymentImage}
-                        onUpload={uploadRemainingPayment}
-                      />
-                    )}
-
-                    {/* حجز الرحلة - متاح فقط بعد payment_verified */}
-                    {request.payment_verified ? (
+                    {/* حجز الرحلة - متاح مباشرة بعد الموافقة */}
+                    {isApproved ? (
                       <>
                         {request.trip_id && bookedTrip ? (
                           <BookedTripCard
@@ -849,7 +1100,7 @@ export default function RequestFollow({ requestId, userId }: { requestId: string
                     ) : (
                       <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
                         <p className="text-sm text-gray-600">
-                          بانتظار تأكيد الدفع من الإدارة لفتح الحجز.
+                          بانتظار الموافقة من الإدارة لفتح الحجز.
                         </p>
                       </div>
                     )}
@@ -869,6 +1120,24 @@ export default function RequestFollow({ requestId, userId }: { requestId: string
                         </div>
                       )}
                     </div>
+
+                    {(selectedDropoffStop || selectedPickupStop) && (
+                      <div className="bg-white border border-gray-200 rounded-lg p-4">
+                        <p className="text-sm font-extrabold text-gray-900 mb-2">نقاط الصعود/النزول</p>
+                        <div className="space-y-2 text-sm text-gray-700">
+                          {selectedDropoffStop && (
+                            <div>
+                              <span className="font-bold text-gray-900">نقطة النزول:</span> {selectedDropoffStop.name}
+                            </div>
+                          )}
+                          {selectedPickupStop && (
+                            <div>
+                              <span className="font-bold text-gray-900">نقطة الصعود:</span> {selectedPickupStop.name}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>

@@ -240,14 +240,7 @@ export default function DashboardContent({ userId }: { userId: string }) {
   }
 
   const getStatusBadge = (status: string, tripStatus: string | null, isDraft: boolean, depositPaid?: boolean) => {
-    if (isDraft) {
-      return (
-        <span className="inline-flex items-center gap-1 px-2 sm:px-3 py-0.5 sm:py-1 rounded-full text-xs sm:text-sm font-medium bg-amber-100 text-amber-900 border border-amber-200">
-          <Clock className="w-3 h-3 sm:w-4 sm:h-4" />
-          <span>مسودة (غير مُرسلة)</span>
-        </span>
-      )
-    }
+    // تم إزالة منطق Draft
     // إذا كان الطلب منتهياً، اعرض "منتهي"
     if (status === 'completed' || tripStatus === 'completed') {
       return (
@@ -365,8 +358,7 @@ export default function DashboardContent({ userId }: { userId: string }) {
                 <p className="text-gray-600 text-xs sm:text-sm mb-1">قيد المراجعة</p>
                 <p className="text-xl sm:text-2xl md:text-3xl font-bold text-yellow-600">
                   {requests.filter(r => {
-                    const isDraft = ((r.admin_notes || '') as string).startsWith('[DRAFT]')
-                    return !isDraft && (r.status === 'pending' || r.status === 'under_review')
+                    return r.status === 'pending' || r.status === 'under_review'
                   }).length}
                 </p>
               </div>
@@ -536,16 +528,11 @@ export default function DashboardContent({ userId }: { userId: string }) {
           ) : (
             <div className="divide-y divide-gray-200">
               {requests.map((request) => {
-                const isDraft = ((request.admin_notes || '') as string).startsWith('[DRAFT]')
                 const adminInfo = parseAdminNotes((request.admin_notes || '') as string) || {}
-                const tourismCompany = adminInfo.tourismCompany || 'غير محدد'
-                const transportCompany = adminInfo.transportCompany || 'شركة الرويال للنقل'
                 const shortCode = String(request.id).slice(0, 8).toUpperCase()
-                const showCompanies = request.visit_type === 'visit' && !isDraft
                 const lastAdminResponse = getLatestAdminResponseSnippet(request.admin_notes)
                 const needsPostApproval =
                   request.visit_type === 'visit' &&
-                  !isDraft &&
                   request.status === 'approved' &&
                   (!Boolean((request as any).payment_verified) ||
                     !((request.admin_notes || '') as string).includes('=== استكمال بعد الموافقة ==='))
@@ -610,12 +597,6 @@ export default function DashboardContent({ userId }: { userId: string }) {
                           <MapPin className="w-3 h-3 sm:w-4 sm:h-4 flex-shrink-0" />
                           <span className="break-words">المدينة: {request.city}</span>
                         </div>
-                        {showCompanies && (
-                          <div className="flex items-center gap-2">
-                            <Building2 className="w-3 h-3 sm:w-4 sm:h-4 flex-shrink-0 text-blue-600" />
-                            <span className="break-words">الشركة المقدّم لها: {tourismCompany}</span>
-                          </div>
-                        )}
                         {request.arrival_date && (
                           <div className="flex items-center gap-2">
                             <Plane className="w-3 h-3 sm:w-4 sm:h-4 flex-shrink-0 text-blue-600" />
@@ -628,34 +609,10 @@ export default function DashboardContent({ userId }: { userId: string }) {
                             <span className="break-words text-green-700 font-medium">تاريخ المغادرة: {formatDate(request.departure_date)}</span>
                           </div>
                         )}
-                        {showCompanies && (
-                          <div className="flex items-center gap-2">
-                            <span className="break-words">شركة النقل: {transportCompany}</span>
-                          </div>
-                        )}
                         <div className="flex items-center gap-2 sm:col-span-2 md:col-span-1">
                           <span className="break-words">تاريخ الطلب: {formatDate(request.created_at)}</span>
                         </div>
                       </div>
-                      {(isDraft || (request.status === 'pending' && !request.deposit_paid)) && (
-                        <div className="mt-3 bg-amber-50 border-2 border-amber-200 rounded-lg p-3">
-                          <div className="flex items-center gap-2 mb-2">
-                            <Clock className="w-4 h-4 text-amber-600" />
-                            <p className="font-bold text-amber-900 text-sm">الطلب معلق - بحاجة لاستكمال الطلب ودفع الرسوم</p>
-                          </div>
-                          <p className="text-xs text-amber-800 mb-2">
-                            {isDraft
-                              ? 'تم رفع الجواز بنجاح. يرجى دفع الرسوم لإرسال الطلب للإدارة.'
-                              : 'تم رفع الجواز لكن لم يتم دفع الرسوم بعد. يرجى دفع الرسوم لإرسال الطلب للإدارة.'}
-                          </p>
-                          <Link
-                            href={request.visit_type === 'visit' ? `/services/jordan-visit/payment/${request.id}` : `/dashboard/request/${request.id}`}
-                            className="inline-block px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition text-xs font-semibold"
-                          >
-                            دفع الرسوم وإرسال الطلب
-                          </Link>
-                        </div>
-                      )}
                       
                       {/* شريط التقدم */}
                       <div className="mt-4 pt-4 border-t border-gray-200">

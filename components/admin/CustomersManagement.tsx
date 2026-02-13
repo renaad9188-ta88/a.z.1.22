@@ -1,9 +1,11 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import toast from 'react-hot-toast'
 import { createSupabaseBrowserClient } from '@/lib/supabase'
-import { Download, MessageCircle, Phone, Search, Users } from 'lucide-react'
+import { Download, MessageCircle, Phone, Search, Users, FileText } from 'lucide-react'
+import CreateVisitRequestForUserModal from './CreateVisitRequestForUserModal'
 
 type ProfileRow = {
   user_id: string
@@ -34,11 +36,13 @@ function waHrefFor(digits: string, text?: string) {
 
 export default function CustomersManagement() {
   const supabase = createSupabaseBrowserClient()
+  const router = useRouter()
   const [loading, setLoading] = useState(true)
   const [rows, setRows] = useState<ProfileRow[]>([])
   const [q, setQ] = useState('')
   const [roleFilter, setRoleFilter] = useState<'all' | 'admin' | 'driver' | 'user'>('all')
   const downloadRef = useRef<HTMLAnchorElement | null>(null)
+  const [createFor, setCreateFor] = useState<ProfileRow | null>(null)
 
   const load = async () => {
     try {
@@ -281,6 +285,17 @@ export default function CustomersManagement() {
                         اتصال
                       </a>
                     )}
+                    {role === 'user' && (
+                      <button
+                        type="button"
+                        onClick={() => setCreateFor(r)}
+                        className="px-3 py-2 rounded-lg bg-blue-600 text-white text-xs sm:text-sm font-extrabold hover:bg-blue-700 transition inline-flex items-center justify-center gap-2"
+                        title="إنشاء طلب زيارة لهذا المستخدم"
+                      >
+                        <FileText className="w-4 h-4" />
+                        إنشاء طلب زيارة
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>
@@ -300,6 +315,18 @@ export default function CustomersManagement() {
           )}
         </div>
       </div>
+
+      {createFor && (
+        <CreateVisitRequestForUserModal
+          userId={createFor.user_id}
+          initialFullName={createFor.full_name}
+          onClose={() => setCreateFor(null)}
+          onCreated={(requestId) => {
+            setCreateFor(null)
+            router.push(`/admin/request/${requestId}/follow`)
+          }}
+        />
+      )}
     </div>
   )
 }

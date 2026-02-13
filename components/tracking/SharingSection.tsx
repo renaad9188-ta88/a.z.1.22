@@ -7,6 +7,8 @@ interface SharingSectionProps {
   geoError: string | null
   onShareLocation: () => void
   onCopyLink: () => void
+  onCreateShareLink?: () => void
+  creatingShareLink?: boolean
 }
 
 export default function SharingSection({
@@ -14,6 +16,8 @@ export default function SharingSection({
   geoError,
   onShareLocation,
   onCopyLink,
+  onCreateShareLink,
+  creatingShareLink,
 }: SharingSectionProps) {
   return (
     <div className="rounded-xl border border-gray-200 bg-white p-4">
@@ -22,6 +26,18 @@ export default function SharingSection({
         مشاركة
       </div>
       <div className="mt-3 space-y-2">
+        {onCreateShareLink && (
+          <button
+            type="button"
+            onClick={onCreateShareLink}
+            disabled={creatingShareLink}
+            className="w-full inline-flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg bg-purple-600 text-white hover:bg-purple-700 transition text-sm font-semibold disabled:opacity-50"
+          >
+            <Share2 className="w-4 h-4" />
+            {creatingShareLink ? 'جاري إنشاء رابط مشاركة...' : 'إنشاء رابط مشاركة للأقارب (بدون تسجيل دخول)'}
+          </button>
+        )}
+
         <button
           type="button"
           onClick={onShareLocation}
@@ -42,7 +58,7 @@ export default function SharingSection({
         </button>
       </div>
       <p className="mt-2 text-[11px] text-gray-500 leading-relaxed">
-        ملاحظة: قد يطلب المتصفح صلاحية الموقع. إذا رفضت، سنرسل رابط التتبع عبر واتساب بدل الموقع.
+        ملاحظة: رابط “الأقارب” صالح لفترة محدودة. ورابط التتبع العادي يتطلب تسجيل الدخول. قد يطلب المتصفح صلاحية الموقع؛ إذا رفضت سنرسل رابط التتبع عبر واتساب بدل الموقع.
       </p>
       {geoError && (
         <div className="mt-2 text-[11px] text-red-600 bg-red-50 border border-red-200 rounded-lg p-2 leading-relaxed">

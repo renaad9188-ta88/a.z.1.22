@@ -2,6 +2,7 @@
 
 import { ArrowRight, Bus, Calendar, Clock, Navigation, MapPin, CheckCircle } from 'lucide-react'
 import { formatDate } from '@/lib/date-utils'
+import HelpContactButtons from '@/components/HelpContactButtons'
 
 interface Trip {
   id: string
@@ -112,6 +113,12 @@ export default function AvailableTripsModal({
         )}
 
         <div className="p-4 sm:p-6">
+          <div className="mb-3">
+            <HelpContactButtons
+              title="مساعدة في الحجز؟"
+              message="مرحباً، أحتاج مساعدة في اختيار الرحلة ونقطة الصعود/النزول."
+            />
+          </div>
           {loading ? (
             <div className="text-center py-8">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-2"></div>

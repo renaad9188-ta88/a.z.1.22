@@ -18,115 +18,62 @@ interface ProgressBarProps {
 export default function ProgressBar({ request, showLabels = true, compact = false }: ProgressBarProps) {
   const notes = (request.admin_notes || '') as string
   const isDraft = notes.startsWith('[DRAFT]')
-  const isReceived = !isDraft && request.status !== 'pending'
   const isApproved = request.status === 'approved' || request.status === 'completed'
-  const paymentVerified = Boolean(request.payment_verified)
   const hasBooking = Boolean(request.arrival_date) || Boolean(request.departure_date) || Boolean(request.trip_status)
   const isArrived = request.trip_status === 'arrived'
   const isCompleted = request.status === 'completed' || request.trip_status === 'completed'
   const isRejected = request.status === 'rejected'
+  const isUnderReview = request.status === 'under_review'
 
   const stages = [
     {
       id: 1,
-      label: 'إنشاء الطلب',
-      percentage: 0,
+      label: 'تقديم الطلب',
     },
     {
       id: 2,
-      label: 'استلام الطلب',
-      percentage: 20,
+      label: 'انتظار الموافقة',
     },
     {
       id: 3,
-      label: 'الموافقة',
-      percentage: 40,
-    },
-    {
-      id: 4,
-      label: 'تأكيد الدفع',
-      percentage: 60,
-    },
-    {
-      id: 5,
-      label: 'حجز الرحلة',
-      percentage: 80,
-    },
-    {
-      id: 6,
-      label: 'وصول الرحلة',
-      percentage: 90,
-    },
-    {
-      id: 7,
-      label: 'اكتمال الرحلة',
-      percentage: 100,
+      label: 'الحجز والتتبع',
     },
   ]
 
   // تحديد المراحل المكتملة
   const getCompletedStages = () => {
-    const completed: number[] = [1] // إنشاء الطلب دائماً مكتمل
+    const completed: number[] = [1] // تقديم الطلب دائماً مكتمل
     
-    if (isReceived) completed.push(2)
-    if (isApproved || isRejected) completed.push(3)
-    if (paymentVerified) completed.push(4)
-    if (hasBooking) completed.push(5)
-    if (isArrived) completed.push(6)
-    if (isCompleted) completed.push(7)
+    if (isApproved || isRejected) completed.push(2) // الموافقة
+    if (hasBooking || isArrived || isCompleted) completed.push(3) // الحجز والتتبع
     
     return completed
   }
 
   const completedStages = getCompletedStages()
-  
-  // حساب النسبة المئوية
-  const getProgressPercentage = () => {
-    if (isRejected) return 40 // توقف عند الموافقة/الرفض
-    if (isCompleted) return 100
-    if (isArrived) return 90
-    if (hasBooking) return 80
-    if (paymentVerified) return 60
-    if (isApproved) return 40
-    if (isReceived) return 20
-    return 0
-  }
-
-  const progressPercentage = getProgressPercentage()
+  const currentStage = (() => {
+    if (isCompleted || isArrived || hasBooking) return 3
+    if (isApproved || isRejected) return 2
+    if (isUnderReview) return 2
+    return 1
+  })()
 
   return (
     <div className={`w-full ${compact ? 'space-y-1' : 'space-y-4 md:space-y-5'}`}>
-      {/* شريط التقدم الرئيسي */}
-      <div className="relative w-full">
-        <div className="h-2.5 md:h-3 lg:h-3.5 bg-gray-200 rounded-full overflow-hidden shadow-inner">
-          <div
-            className="h-full bg-gradient-to-r from-blue-500 via-green-500 to-emerald-500 transition-all duration-1000 ease-out rounded-full relative overflow-hidden"
-            style={{ width: `${progressPercentage}%` }}
-          >
-            {/* تأثير متحرك */}
-            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent animate-shimmer" />
-          </div>
-        </div>
-        {/* النسبة المئوية */}
-        <div className="absolute -top-6 md:-top-7 lg:-top-8 right-0 text-xs md:text-sm lg:text-base font-bold text-gray-700">
-          {Math.round(progressPercentage)}%
-        </div>
-      </div>
-
       {/* المراحل مع الأرقام والكتابة */}
       {showLabels && !compact && (
         <div className="relative">
           {/* خط التوصيل للشاشات الكبيرة */}
           <div className="hidden lg:block absolute top-6 left-0 right-0 h-0.5 bg-gray-200 -z-10" />
           <div 
-            className="hidden lg:block absolute top-6 left-0 h-0.5 bg-gradient-to-r from-blue-500 via-green-500 to-emerald-500 -z-10 transition-all duration-1000"
-            style={{ width: `${progressPercentage}%` }}
+            className="hidden lg:block absolute top-6 left-0 h-0.5 bg-blue-500 -z-10 transition-all duration-500"
+            style={{ width: `${Math.max(0, (currentStage - 1) / 2) * 100}%` }}
           />
           
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7 gap-3 sm:gap-4 md:gap-5 lg:gap-6">
+          <div className="grid grid-cols-3 gap-3 sm:gap-4 md:gap-5 lg:gap-6">
             {stages.map((stage, index) => {
               const isCompleted = completedStages.includes(stage.id)
-              const isCurrent = !isCompleted && (index === 0 || completedStages.includes(stages[index - 1]?.id))
+              const isCurrent = stage.id === currentStage && !isCompleted
               
               return (
                 <div
@@ -135,20 +82,13 @@ export default function ProgressBar({ request, showLabels = true, compact = fals
                     isCompleted ? 'opacity-100' : isCurrent ? 'opacity-80' : 'opacity-40'
                   }`}
                 >
-                  {/* النسبة المئوية فوق الرقم */}
-                  <div className={`
-                    text-[10px] sm:text-xs md:text-sm lg:text-base xl:text-lg font-bold mb-0.5 md:mb-1 lg:mb-1.5
-                    ${isCompleted ? 'text-green-600' : isCurrent ? 'text-blue-600' : 'text-gray-400'}
-                  `}>
-                    {stage.percentage}%
-                  </div>
                   {/* الرقم مع الأيقونة */}
-                  <div className={`relative flex items-center justify-center z-10 ${isCurrent ? 'animate-pulse' : ''}`}>
+                  <div className={`relative flex items-center justify-center z-10`}>
                     <div className={`
                       w-8 h-8 sm:w-9 sm:h-9 md:w-11 md:h-11 lg:w-14 lg:h-14 xl:w-16 xl:h-16
                       rounded-full flex items-center justify-center 
                       text-xs sm:text-sm md:text-base lg:text-lg xl:text-xl font-bold
-                      transition-all duration-300 hover:scale-110
+                      transition-all duration-300
                       ${isCompleted 
                         ? 'bg-green-500 text-white shadow-lg shadow-green-200 md:shadow-xl md:shadow-green-300' 
                         : isCurrent 
@@ -184,20 +124,14 @@ export default function ProgressBar({ request, showLabels = true, compact = fals
       {/* حالة مختصرة للوضع المدمج */}
       {compact && (
         <div className="text-xs text-gray-600 text-center font-medium">
-          {isCompleted
-            ? '✓ اكتمل'
-            : isArrived
-            ? '✓ وصل'
-            : hasBooking
+          {isCompleted || isArrived || hasBooking
             ? '✓ محجوز'
-            : paymentVerified
-            ? '✓ تم الدفع'
             : isApproved
             ? '✓ موافق عليه'
-            : isReceived
-            ? '✓ مستلم'
             : isRejected
             ? '✗ مرفوض'
+            : isUnderReview
+            ? 'قيد المراجعة'
             : 'قيد المعالجة'}
         </div>
       )}

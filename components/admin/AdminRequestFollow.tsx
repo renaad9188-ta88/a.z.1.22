@@ -9,6 +9,7 @@ import TripSchedulingModal from '@/components/admin/TripSchedulingModal'
 import { formatDate } from '@/lib/date-utils'
 import { parseAdminNotes, getSignedImageUrl } from '@/components/request-details/utils'
 import { notifyRequestApproved, notifyRequestRejected, notifyPaymentVerified, notifyCustomMessage } from '@/lib/notifications'
+import AvailableTripsModal from '@/components/request-follow/AvailableTripsModal'
 import AdminRequestFollowStepper from './AdminRequestFollowStepper'
 import AdminResponseSection from './AdminResponseSection'
 import DepositPaymentImages from './DepositPaymentImages'
@@ -37,6 +38,8 @@ type ReqRow = {
   selected_dropoff_stop_id?: string | null
   selected_pickup_stop_id?: string | null
   deposit_paid?: boolean | null
+  deposit_amount?: number | null
+  companions_count?: number | null
   created_at: string
   updated_at: string
 }
@@ -50,6 +53,8 @@ type TripLite = {
   end_location_name: string
   trip_type?: string | null
 }
+
+type AssignedDriver = { id: string; name: string; phone: string | null; vehicle_type: string | null }
 
 const POST_APPROVAL_SUBMITTED_MARK = 'حالة الاستكمال: مرسل'
 
@@ -147,6 +152,17 @@ export default function AdminRequestFollow({
   const [selectedPickupStop, setSelectedPickupStop] = useState<{ id: string; name: string } | null>(null)
   const [remainingPaymentImageUrl, setRemainingPaymentImageUrl] = useState<string | null>(null)
   const [depositPaymentImageUrls, setDepositPaymentImageUrls] = useState<string[]>([])
+  const [assignedDrivers, setAssignedDrivers] = useState<AssignedDriver[]>([])
+  // Admin-assisted booking (route trips + stop points)
+  const [showAvailableTrips, setShowAvailableTrips] = useState(false)
+  const [availableTrips, setAvailableTrips] = useState<any[]>([])
+  const [loadingTrips, setLoadingTrips] = useState(false)
+  const [tripStopsById, setTripStopsById] = useState<Record<string, any[]>>({})
+  const [loadingStopsId, setLoadingStopsId] = useState<string | null>(null)
+  const [expandedTripId, setExpandedTripId] = useState<string | null>(null)
+  const [selectedStopByTrip, setSelectedStopByTrip] = useState<Record<string, string>>({})
+  const [bookingStep, setBookingStep] = useState<'arrival' | 'departure'>('arrival')
+  const [calculatedDepartureDate, setCalculatedDepartureDate] = useState<string | null>(null)
 
   const load = async () => {
     try {
@@ -154,7 +170,7 @@ export default function AdminRequestFollow({
       const { data, error } = await supabase
         .from('visit_requests')
         .select(
-          'id,user_id,visitor_name,status,admin_notes,rejection_reason,payment_verified,remaining_amount,arrival_date,departure_date,trip_status,trip_id,assigned_to,selected_dropoff_stop_id,selected_pickup_stop_id,deposit_paid,created_at,updated_at'
+          'id,user_id,visitor_name,status,admin_notes,rejection_reason,payment_verified,remaining_amount,arrival_date,departure_date,trip_status,trip_id,assigned_to,selected_dropoff_stop_id,selected_pickup_stop_id,deposit_paid,deposit_amount,companions_count,created_at,updated_at'
         )
         .eq('id', requestId)
         .single()
@@ -180,6 +196,20 @@ export default function AdminRequestFollow({
             .maybeSingle()
           if (!tErr && t) {
             setBookedTrip(t as any)
+            // Load assigned drivers for this trip
+            try {
+              const { data: drvRows } = await supabase
+                .from('route_trip_drivers')
+                .select('drivers(id,name,phone,vehicle_type)')
+                .eq('trip_id', tripId)
+                .eq('is_active', true)
+              const list = (drvRows || [])
+                .map((x: any) => x.drivers)
+                .filter(Boolean) as AssignedDriver[]
+              setAssignedDrivers(list)
+            } catch {
+              setAssignedDrivers([])
+            }
             const { data: stops } = await supabase
               .from('route_trip_stop_points')
               .select('id,name,order_index')
@@ -213,16 +243,19 @@ export default function AdminRequestFollow({
           } else {
             setBookedTrip(null)
             setBookedStops(null)
+            setAssignedDrivers([])
             setSelectedDropoffStop(null)
             setSelectedPickupStop(null)
           }
         } catch {
           setBookedTrip(null)
           setBookedStops(null)
+          setAssignedDrivers([])
         }
       } else {
         setBookedTrip(null)
         setBookedStops(null)
+        setAssignedDrivers([])
       }
 
       // Load contact profile for WhatsApp/phone buttons
@@ -270,6 +303,7 @@ export default function AdminRequestFollow({
     const paymentVerified = Boolean(request?.payment_verified)
     const hasArrival = Boolean(request?.arrival_date)
     const isApproved = request?.status === 'approved' || request?.status === 'completed'
+    const depositPaid = Boolean(request?.deposit_paid)
     // الخطوة 1 تتفعل عندما يدفع المستخدم (!isDraft) وبعد أن يضغط الإدمن "تم استلام الطلب" (status !== 'pending')
     const isReceived = Boolean(request) && !isDraft && request?.status !== 'pending'
     const hasBooking = Boolean((request as any)?.trip_id)
@@ -278,29 +312,23 @@ export default function AdminRequestFollow({
     return [
       { 
         id: 1, 
-        title: 'استلام الطلب', 
+        title: 'تقديم الطلب', 
         done: isReceived, 
-        help: isDraft 
-          ? 'المستخدم قام برفع الجواز لكن لم يدفع الرسوم بعد. بانتظار دفع الرسوم لإرسال الطلب للإدارة.'
-          : 'المستخدم قام برفع الجواز ودفع الرسوم. اضغط "تم استلام الطلب" لإرسال رد تلقائي للمستخدم وتسجيل الاستلام.' 
+        help: depositPaid 
+          ? 'المستخدم دفع الرسوم. اضغط "تم استلام الرسوم" للمتابعة.'
+          : 'المستخدم قام برفع الجواز وتقديم الطلب. بانتظار دفع الرسوم من المستخدم.' 
       },
       { 
         id: 2, 
-        title: 'الموافقة على الطلب', 
+        title: 'الموافقة', 
         done: isApproved || request?.status === 'rejected', 
-        help: 'قم بقبول الطلب أو رفضه. بعد الموافقة، سيتم تفعيل دفع المبلغ المتبقي للمستخدم.' 
+        help: 'قم بقبول الطلب أو رفضه. بعد الموافقة، سيتم فتح الحجز للمستخدم مباشرة.' 
       },
       { 
         id: 3, 
-        title: 'تأكيد دفع المبلغ المتبقي (فتح الحجز)', 
-        done: paymentVerified, 
-        help: 'بعد أن يرفع المستخدم صورة الدفع المتبقي (25 دينار)، قم بتأكيد الدفع لفتح الحجز له.' 
-      },
-      { 
-        id: 4, 
-        title: 'الحجز/المتابعة', 
+        title: 'الحجز والمتابعة', 
         done: hasBooking || hasArrival, 
-        help: 'ستظهر هنا الرحلة التي حجزها المستخدم + يمكنك متابعة الموعد.' 
+        help: 'ستظهر هنا الرحلة التي حجزها المستخدم + يمكنك متابعة الموعد والتتبع.' 
       },
     ]
   }, [request])
@@ -309,14 +337,14 @@ export default function AdminRequestFollow({
     const notes = (request?.admin_notes || '') as string
     const isDraft = notes.startsWith('[DRAFT]')
     
-    // إذا كان الطلب draft (لم يدفع)، الخطوة 1 نشطة
+    // إذا كان الطلب draft، الخطوة 1 نشطة
     if (isDraft) {
       setActiveStep(1)
       return
     }
     
-    // بعد الدفع، نحدد الخطوة النشطة بناءً على الخطوات المكتملة
-    const firstIncomplete = steps.find((s) => !s.done)?.id || 4
+    // بعد تقديم الطلب، نحدد الخطوة النشطة بناءً على الخطوات المكتملة
+    const firstIncomplete = steps.find((s) => !s.done)?.id || 3
     setActiveStep(firstIncomplete)
   }, [request, steps])
 
@@ -394,9 +422,18 @@ export default function AdminRequestFollow({
     if (!request) return
     try {
       setSaving(true)
+      const stamp = new Date().toISOString()
+      const autoMsg = '✅ تمت الموافقة على الطلب. تم فتح الحجز ويمكنك المتابعة من صفحة متابعة الطلب.'
+      const section = `\n\n=== رد الإدارة ===\n${autoMsg}\nتاريخ الرد: ${stamp}`
+      const nextNotes = ((request.admin_notes || '') as string) + section
       const { error } = await supabase
         .from('visit_requests')
-        .update({ status: 'approved', updated_at: new Date().toISOString() } as any)
+        .update({ 
+          status: 'approved', 
+          payment_verified: true, // فتح الحجز مباشرة عند الموافقة
+          admin_notes: nextNotes,
+          updated_at: stamp 
+        } as any)
         .eq('id', request.id)
       if (error) throw error
       
@@ -433,9 +470,20 @@ export default function AdminRequestFollow({
     const reason = prompt('أدخل سبب الرفض (اختياري):') || ''
     try {
       setSaving(true)
+      const stamp = new Date().toISOString()
+      const autoMsg = reason?.trim()
+        ? `✗ تم رفض الطلب.\nسبب الرفض: ${reason.trim()}`
+        : '✗ تم رفض الطلب.'
+      const section = `\n\n=== رد الإدارة ===\n${autoMsg}\nتاريخ الرد: ${stamp}`
+      const nextNotes = ((request.admin_notes || '') as string) + section
       const { error } = await supabase
         .from('visit_requests')
-        .update({ status: 'rejected', rejection_reason: reason || null, updated_at: new Date().toISOString() } as any)
+        .update({ 
+          status: 'rejected', 
+          rejection_reason: reason || null, 
+          admin_notes: nextNotes,
+          updated_at: stamp 
+        } as any)
         .eq('id', request.id)
       if (error) throw error
       
@@ -504,7 +552,11 @@ export default function AdminRequestFollow({
     }
   }
 
-  const appendAdminResponseAndNotify = async (msg: string, alsoMarkReceived?: boolean) => {
+  const appendAdminResponseAndNotify = async (
+    msg: string,
+    alsoMarkReceived?: boolean,
+    alsoMarkDepositPaid?: boolean
+  ) => {
     if (!request) return
     const clean = (msg || '').trim()
     if (!clean) return toast.error('لا يوجد نص لإرساله')
@@ -523,6 +575,15 @@ export default function AdminRequestFollow({
       const update: any = { admin_notes: nextNotes, updated_at: new Date().toISOString() }
       if (alsoMarkReceived && request.status === 'pending') {
         update.status = 'under_review'
+        // نحدد deposit_paid فقط عند تأكيد استلام الرسوم (وليس عند استلام الطلب بدون دفع)
+        if (alsoMarkDepositPaid && !request.deposit_paid) {
+          update.deposit_paid = true
+          // حساب المبلغ بناءً على عدد الأشخاص (إذا كان موجوداً في companions_data)
+          const companionsCount = request.companions_count || 0
+          const totalPeople = companionsCount + 1 // الزائر الرئيسي + المرافقين
+          update.deposit_amount = totalPeople * 10
+          update.total_amount = totalPeople * 10
+        }
       }
       const { error } = await supabase.from('visit_requests').update(update).eq('id', request.id)
       if (error) throw error
@@ -552,9 +613,172 @@ export default function AdminRequestFollow({
   if (!request) return null
 
   const remaining = request.remaining_amount ?? 20
-  const contactRaw = String(userProfile?.whatsapp_phone || adminInfo?.syrianPhone || userProfile?.phone || adminInfo?.jordanPhone || '')
-  const waDigits = contactRaw.replace(/[^\d]/g, '')
-  const callDigits = String(userProfile?.phone || adminInfo?.syrianPhone || adminInfo?.jordanPhone || '').replace(/[^\d+]/g, '')
+  // تواصل مع المستخدم صاحب الطلب (واتساب/اتصال)
+  const userContactRaw = String(userProfile?.whatsapp_phone || userProfile?.phone || userProfile?.jordan_phone || '')
+  const userWaDigits = userContactRaw.replace(/[^\d]/g, '')
+  const userCallDigits = String(userProfile?.phone || userProfile?.whatsapp_phone || userProfile?.jordan_phone || '').replace(/[^\d+]/g, '')
+  const shortCode = request.id.slice(0, 8).toUpperCase()
+  const userDisplayName = String(userProfile?.full_name || request.visitor_name || '').trim()
+  const userWhatsAppMsg = (() => {
+    const isApproved = request.status === 'approved' || request.status === 'completed'
+    const lines: string[] = []
+    lines.push(`مرحباً ${userDisplayName || 'حضرتك'}،`)
+    lines.push(`بخصوص طلب الزيارة رقم ${shortCode}.`)
+    if (isApproved) {
+      lines.push('✅ تمت الموافقة على الطلب.')
+      lines.push('ممكن نتواصل لنرتب الحجز ونقاط التجمع/الصعود/النزول.')
+      lines.push('يرجى أيضاً تجهيز/توقيع الكفالة.')
+      // تنبيه للمبلغ المتبقي (إن وجد)
+      if ((request.remaining_amount ?? 0) > 0) {
+        lines.push(`يرجى دفع المبلغ المتبقي: ${request.remaining_amount} د.أ`)
+      } else {
+        lines.push('إذا بقي أي مبلغ، يرجى دفعه لإكمال الإجراءات.')
+      }
+    } else if (request.status === 'under_review') {
+      lines.push('📌 تم استلام طلبك وهو قيد المراجعة.')
+      lines.push('إذا احتجت مساعدة أو استفسار، راسلني هنا.')
+      if (!request.deposit_paid) {
+        lines.push('بالنسبة للرسوم: يمكنك الدفع الآن أو لاحقاً عند التواصل.')
+      }
+    } else {
+      lines.push('طلبك بانتظار المتابعة من الإدارة.')
+    }
+    return lines.join('\n')
+  })()
+
+  const loadTripStops = async (tripId: string) => {
+    if (tripStopsById[tripId]) return
+    try {
+      setLoadingStopsId(tripId)
+      const { data, error } = await supabase
+        .from('route_trip_stop_points')
+        .select('id,name,order_index')
+        .eq('trip_id', tripId)
+        .order('order_index', { ascending: true })
+      if (error) throw error
+      setTripStopsById((p) => ({ ...p, [tripId]: (data as any) || [] }))
+    } catch (e) {
+      console.error('Error loading admin trip stops:', e)
+      setTripStopsById((p) => ({ ...p, [tripId]: [] }))
+    } finally {
+      setLoadingStopsId(null)
+    }
+  }
+
+  const toggleTripStops = async (tripId: string) => {
+    const next = expandedTripId === tripId ? null : tripId
+    setExpandedTripId(next)
+    if (next) await loadTripStops(tripId)
+  }
+
+  const loadAvailableTrips = async (tripType?: 'arrival' | 'departure') => {
+    try {
+      setLoadingTrips(true)
+      const today = new Date().toISOString().split('T')[0]
+      const filterType = tripType || bookingStep
+
+      let query = supabase
+        .from('route_trips')
+        .select('id,trip_date,meeting_time,departure_time,start_location_name,end_location_name,route_id,trip_type')
+        .eq('is_active', true)
+        .gte('trip_date', today)
+        .order('trip_date', { ascending: true })
+        .order('departure_time', { ascending: true })
+        .limit(50)
+        .eq('trip_type', filterType)
+
+      // في حال المغادرة، إذا لدينا موعد قدوم، نقرّب النتائج حول موعد المغادرة المتوقع (شهر بعد القدوم)
+      if (filterType === 'departure' && request.arrival_date) {
+        const arrivalDate = new Date(request.arrival_date)
+        const expectedDeparture = new Date(arrivalDate)
+        expectedDeparture.setMonth(expectedDeparture.getMonth() + 1)
+        const expected = expectedDeparture.toISOString().split('T')[0]
+        setCalculatedDepartureDate(expected)
+
+        const weekBefore = new Date(expectedDeparture)
+        weekBefore.setDate(weekBefore.getDate() - 7)
+        const weekAfter = new Date(expectedDeparture)
+        weekAfter.setDate(weekAfter.getDate() + 7)
+        query = query
+          .gte('trip_date', weekBefore.toISOString().split('T')[0])
+          .lte('trip_date', weekAfter.toISOString().split('T')[0])
+      } else {
+        setCalculatedDepartureDate(null)
+      }
+
+      const { data, error } = await query
+      if (error) throw error
+      setAvailableTrips((data as any) || [])
+    } catch (e) {
+      console.error('Error loading admin available trips:', e)
+      toast.error('تعذر تحميل الرحلات المتاحة')
+      setAvailableTrips([])
+    } finally {
+      setLoadingTrips(false)
+    }
+  }
+
+  const openBookingModal = async (step: 'arrival' | 'departure') => {
+    setBookingStep(step)
+    setSelectedStopByTrip({})
+    setExpandedTripId(null)
+    setShowAvailableTrips(true)
+    await loadAvailableTrips(step)
+  }
+
+  const handleAdminBookTrip = async (tripId: string) => {
+    if (!request) return
+    try {
+      const trip = availableTrips.find((t) => t.id === tripId)
+      if (!trip) return toast.error('الرحلة غير موجودة')
+
+      const tripType: 'arrival' | 'departure' = (trip.trip_type as any) || bookingStep
+      const selectedStopId = selectedStopByTrip[tripId] || null
+      const stopName =
+        selectedStopId && tripStopsById[tripId]
+          ? tripStopsById[tripId].find((s: any) => s.id === selectedStopId)?.name
+          : null
+
+      const updateData: any = {
+        trip_id: tripId,
+        trip_status: 'pending_arrival',
+        updated_at: new Date().toISOString(),
+      }
+      if (tripType === 'arrival') {
+        updateData.arrival_date = trip.trip_date
+        updateData.selected_dropoff_stop_id = selectedStopId
+      } else {
+        updateData.departure_date = trip.trip_date
+        updateData.selected_pickup_stop_id = selectedStopId
+      }
+
+      const tripInfo = `${trip.start_location_name} → ${trip.end_location_name} (${formatDate(trip.trip_date)})`
+      const adminNote = `\n\n=== حجز من الإدارة ===\nتم حجز رحلة ${tripType === 'arrival' ? 'قدوم' : 'مغادرة'} بواسطة الإدارة\n${tripInfo}${stopName ? `\nنقطة ${tripType === 'arrival' ? 'النزول' : 'التحميل'}: ${stopName}` : ''}\nتاريخ الحجز: ${new Date().toISOString()}`
+      updateData.admin_notes = ((request.admin_notes || '') as string) + adminNote
+
+      const { error } = await supabase.from('visit_requests').update(updateData).eq('id', request.id)
+      if (error) throw error
+
+      toast.success('تم حجز الرحلة للمستخدم')
+      setShowAvailableTrips(false)
+      setSelectedStopByTrip({})
+      await load()
+
+      // إشعار سريع للمستخدم (اختياري)
+      try {
+        await notifyCustomMessage(
+          request.user_id,
+          request.id,
+          `تم حجز رحلة ${tripType === 'arrival' ? 'قدوم' : 'مغادرة'} لك من قبل الإدارة.\n${tripInfo}${stopName ? `\nنقطة ${tripType === 'arrival' ? 'النزول' : 'التحميل'}: ${stopName}` : ''}`
+        )
+      } catch (e) {
+        console.error('Error notifying user about admin booking:', e)
+      }
+    } catch (e: any) {
+      console.error('handleAdminBookTrip error:', e)
+      toast.error(e?.message || 'تعذر حجز الرحلة')
+    }
+  }
 
   return (
     <div className="page">
@@ -602,6 +826,88 @@ export default function AdminRequestFollow({
                 </span>
               </div>
 
+              {/* تواصل سريع مع المستخدم */}
+              {(userWaDigits || userCallDigits) && (
+                <div className="mt-4 bg-white border border-gray-200 rounded-lg p-3">
+                  <p className="text-xs sm:text-sm font-bold text-gray-900 mb-2">تواصل مع المستخدم</p>
+                  <div className="flex flex-col sm:flex-row gap-2">
+                    {userWaDigits && (
+                      <a
+                        href={`https://wa.me/${userWaDigits}?text=${encodeURIComponent(userWhatsAppMsg)}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition text-sm font-semibold"
+                        title="واتساب المستخدم"
+                      >
+                        <MessageCircle className="w-4 h-4" />
+                        واتساب المستخدم
+                      </a>
+                    )}
+                    {userCallDigits && (
+                      <a
+                        href={`tel:${userCallDigits}`}
+                        className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm font-semibold"
+                        title="اتصال المستخدم"
+                      >
+                        <Phone className="w-4 h-4" />
+                        اتصال المستخدم
+                      </a>
+                    )}
+                  </div>
+                  <p className="mt-2 text-[11px] sm:text-xs text-gray-600">
+                    سيتم فتح واتساب برسالة جاهزة (يمكنك تعديلها قبل الإرسال).
+                  </p>
+                </div>
+              )}
+
+              {/* تواصل مع السائق المعيّن (إن وجد) */}
+              {assignedDrivers.length > 0 && (
+                <div className="mt-4 bg-white border border-gray-200 rounded-lg p-3">
+                  <p className="text-xs sm:text-sm font-bold text-gray-900 mb-2">تواصل مع السائق</p>
+                  <div className="space-y-2">
+                    {assignedDrivers.map((d) => {
+                      const waDigits = String(d.phone || '').replace(/[^\d]/g, '')
+                      const callDigits = String(d.phone || '').replace(/[^\d+]/g, '')
+                      return (
+                        <div key={d.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border border-gray-200 rounded-lg p-2">
+                          <div className="min-w-0">
+                            <p className="text-sm font-extrabold text-gray-900 truncate">{d.name}</p>
+                            <p className="text-[11px] text-gray-600 truncate">
+                              {d.vehicle_type || '—'} {d.phone ? `• ${d.phone}` : ''}
+                            </p>
+                          </div>
+                          <div className="flex gap-2">
+                            {waDigits && (
+                              <a
+                                href={`https://wa.me/${waDigits}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="px-3 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition text-xs font-extrabold inline-flex items-center gap-2"
+                              >
+                                <MessageCircle className="w-4 h-4" />
+                                واتساب
+                              </a>
+                            )}
+                            {callDigits && (
+                              <a
+                                href={`tel:${callDigits}`}
+                                className="px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-xs font-extrabold inline-flex items-center gap-2"
+                              >
+                                <Phone className="w-4 h-4" />
+                                اتصال
+                              </a>
+                            )}
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                  <p className="mt-2 text-[11px] sm:text-xs text-gray-600">
+                    يظهر هنا فقط السائق/السائقين المعيّنين للرحلة الحالية.
+                  </p>
+                </div>
+              )}
+
               {/* Actions */}
               <div className="mt-4 space-y-2">
                 {activeStep === 1 && (() => {
@@ -610,159 +916,142 @@ export default function AdminRequestFollow({
                   const isPending = request?.status === 'pending'
                   const depositPaid = Boolean(request?.deposit_paid)
                   
-                  // التحقق من أن الطلب تم إرساله فعلياً وتم دفع الرسوم
-                  // يجب أن يكون: status === 'pending' وليس draft و deposit_paid === true
-                  const canReceive = isPending && !isDraft && depositPaid
+                  // التحقق من أن الطلب تم إرساله فعلياً (الإدمن يستطيع المتابعة حتى لو الدفع لاحقاً)
+                  const canReceive = isPending && !isDraft
                   
-                  // إذا لم يتم إرسال الطلب بعد أو لم يتم دفع الرسوم
+                  // إذا لم يتم إرسال الطلب بعد
                   if (!canReceive) {
                     return (
                       <div className="bg-amber-50 border-2 border-amber-200 rounded-lg p-4 space-y-3">
                         <div className="flex items-center gap-2 mb-2">
                           <Clock className="w-5 h-5 text-amber-600" />
                           <p className="font-extrabold text-amber-900 text-sm">
-                            {isDraft
-                              ? 'المستخدم رفع الجواز - بانتظار دفع الرسوم وإرسال الطلب'
-                              : !depositPaid
-                              ? 'المستخدم رفع الجواز - بانتظار دفع الرسوم'
-                              : 'بانتظار إرسال الطلب من المستخدم'
-                            }
+                            بانتظار إرسال الطلب من المستخدم
                           </p>
                         </div>
                         <p className="text-sm text-amber-800">
-                          {isDraft
-                            ? 'المستخدم قام برفع الجواز لكن لم يدفع الرسوم ولم يرسل الطلب بعد. سيتم تفعيل زر "استلام الطلب" بعد دفع الرسوم وإرسال الطلب.'
-                            : !depositPaid
-                            ? 'المستخدم قام برفع الجواز لكن لم يدفع الرسوم بعد. سيتم تفعيل زر "استلام الطلب" بعد دفع الرسوم وإرسال الطلب.'
-                            : 'المستخدم لم يرسل الطلب بعد. سيتم تفعيل زر "استلام الطلب" بعد إرسال الطلب.'
-                          }
+                          المستخدم لم يرسل الطلب بعد.
                         </p>
                         <div className="bg-white border border-amber-200 rounded-lg p-3">
                           <p className="text-xs text-gray-700">
-                            <strong>ملاحظة:</strong> لا يمكنك استلام الطلب أو الموافقة عليه قبل أن يدفع المستخدم الرسوم ويرسل الطلب.
+                            <strong>ملاحظة:</strong> بعد أن يرسل المستخدم الطلب، ستظهر أزرار المتابعة هنا.
                           </p>
                         </div>
                       </div>
                     )
                   }
                   
-                  // إذا تم إرسال الطلب ودفع الرسوم (status === 'pending' و !isDraft و deposit_paid === true) - يظهر زر استلام الطلب
+                  // الطلب وصل للإدمن (pending و ليس draft): الإدمن يختار "تم استلام الرسوم" أو "سيدفع لاحقاً"
                   return (
-                    <div className="bg-white border border-gray-200 rounded-lg p-3 space-y-3">
-                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-                        <div className="min-w-0">
-                          <p className="font-extrabold text-gray-900 text-sm">المستخدم أرسل الطلب - جاهز للاستلام</p>
-                          <p className="text-xs text-gray-600 mt-1">اضغط &quot;تم استلام الطلب&quot; لإرسال رد تلقائي للمستخدم وتسجيل الاستلام.</p>
-                        </div>
-                        <div className="flex flex-wrap gap-2">
-                          {waDigits && (
-                            <a
-                              href={`https://wa.me/${waDigits}`}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="px-3 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition text-xs font-semibold inline-flex items-center gap-2"
-                              title="واتساب"
-                            >
-                              <MessageCircle className="w-4 h-4" />
-                              واتساب
-                            </a>
-                          )}
-                          {callDigits && (
-                            <a
-                              href={`tel:${callDigits}`}
-                              className="px-3 py-2 bg-gray-800 text-white rounded-lg hover:bg-black transition text-xs font-semibold inline-flex items-center gap-2"
-                              title="اتصال"
-                            >
-                              <Phone className="w-4 h-4" />
-                              اتصال
-                            </a>
-                          )}
-                        </div>
+                    <div className={`border-2 rounded-lg p-4 sm:p-5 space-y-4 ${depositPaid ? 'bg-green-50 border-green-200' : 'bg-amber-50 border-amber-200'}`}>
+                      <div className="text-center">
+                        <p className={`font-extrabold text-base sm:text-lg mb-2 ${depositPaid ? 'text-green-900' : 'text-amber-900'}`}>
+                          {depositPaid ? '✓ تم تسجيل دفع الرسوم' : 'بانتظار قرار الدفع'}
+                        </p>
+                        <p className={`text-sm mb-4 ${depositPaid ? 'text-green-800' : 'text-amber-800'}`}>
+                          اختر الإجراء المناسب: إمّا تأكيد استلام الرسوم أو المتابعة والدفع لاحقاً.
+                        </p>
                       </div>
 
-                      {/* عرض صور الدفعة الأولية */}
-                      <DepositPaymentImages
-                        imageUrls={depositPaymentImageUrls}
-                        originalUrls={adminInfo?.paymentImages}
-                      />
+                      {/* عرض صور الدفعة (إن وُجدت) */}
+                      {depositPaymentImageUrls.length > 0 && (
+                        <DepositPaymentImages
+                          imageUrls={depositPaymentImageUrls}
+                          originalUrls={adminInfo?.paymentImages}
+                        />
+                      )}
 
-                      <div className="flex flex-col sm:flex-row gap-2">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         <button
                           type="button"
-                          onClick={() => appendAdminResponseAndNotify('تم استلام طلبك وسيتم التواصل معك قريباً.', true)}
+                          onClick={() =>
+                            appendAdminResponseAndNotify(
+                              '✅ تم استلام الرسوم وتحويل الطلب إلى مرحلة المراجعة الآن.\nالخطوة التالية: انتظار الموافقة.',
+                              true,
+                              true
+                            )
+                          }
                           disabled={saving}
-                          className="px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+                          className="w-full px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition text-base sm:text-lg font-bold disabled:opacity-50 disabled:cursor-not-allowed shadow-lg"
                         >
-                          تم استلام الطلب
+                          {saving ? 'جاري الحفظ...' : '✓ تم استلام الرسوم'}
                         </button>
+
                         <button
                           type="button"
-                          onClick={() => appendAdminResponseAndNotify('يرجى تزويدنا بصورة جواز أوضح/صالحة لإكمال الطلب.')}
+                          onClick={() =>
+                            appendAdminResponseAndNotify(
+                              '📌 تم استلام الطلب وتحويله إلى مرحلة المراجعة الآن.\nيمكنك دفع الرسوم لاحقاً عند التواصل معنا.\nالخطوة التالية: انتظار الموافقة.',
+                              true,
+                              false
+                            )
+                          }
                           disabled={saving}
-                          className="px-4 py-2.5 bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition text-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+                          className="w-full px-6 py-3 bg-gray-900 text-white rounded-lg hover:bg-black transition text-base sm:text-lg font-bold disabled:opacity-50 disabled:cursor-not-allowed shadow-lg"
                         >
-                          طلب صورة أوضح للجواز
+                          {saving ? 'جاري الحفظ...' : 'استلام الطلب (الدفع لاحقاً)'}
                         </button>
-                        <button
-                          type="button"
-                          onClick={() => appendAdminResponseAndNotify('يرجى مراجعة بيانات الطلب وإكمال النواقص ثم إعادة الإرسال.')}
-                          disabled={saving}
-                          className="px-4 py-2.5 bg-gray-800 text-white rounded-lg hover:bg-black transition text-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                          طلب إكمال النواقص
-                        </button>
+                      </div>
+
+                      <div className="flex flex-col sm:flex-row gap-2 pt-2 border-t border-gray-200">
+                        {userWaDigits && (
+                          <a
+                            href={`https://wa.me/${userWaDigits}?text=${encodeURIComponent(userWhatsAppMsg)}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition text-sm font-semibold"
+                          >
+                            <MessageCircle className="w-4 h-4" />
+                            واتساب المستخدم
+                          </a>
+                        )}
+                        {userCallDigits && (
+                          <a
+                            href={`tel:${userCallDigits}`}
+                            className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm font-semibold"
+                          >
+                            <Phone className="w-4 h-4" />
+                            اتصال المستخدم
+                          </a>
+                        )}
                       </div>
                     </div>
                   )
                 })()}
 
                 {activeStep === 2 && (
-                  <div className="flex flex-col sm:flex-row gap-2">
-                    <button
-                      type="button"
-                      onClick={approve}
-                      disabled={saving || request.status === 'approved'}
-                      className="px-4 py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition text-sm font-semibold disabled:opacity-50"
-                    >
-                      قبول الطلب
-                    </button>
-                    <button
-                      type="button"
-                      onClick={reject}
-                      disabled={saving || request.status === 'rejected'}
-                      className="px-4 py-2.5 bg-red-600 text-white rounded-lg hover:bg-red-700 transition text-sm font-semibold disabled:opacity-50"
-                    >
-                      رفض الطلب
-                    </button>
+                  <div className="bg-blue-50 border-2 border-blue-200 rounded-lg p-4 sm:p-5 space-y-4">
+                    <div className="text-center">
+                      <p className="font-extrabold text-blue-900 text-base sm:text-lg mb-2">
+                        مرحلة الموافقة على الطلب
+                      </p>
+                      <p className="text-sm text-blue-800 mb-4">
+                        قم بقبول الطلب أو رفضه. بعد الموافقة، سيتم فتح الحجز للمستخدم مباشرة.
+                      </p>
+                    </div>
+                    <div className="flex flex-col sm:flex-row gap-3">
+                      <button
+                        type="button"
+                        onClick={approve}
+                        disabled={saving || request.status === 'approved'}
+                        className="flex-1 px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition text-base sm:text-lg font-bold disabled:opacity-50 disabled:cursor-not-allowed shadow-lg"
+                      >
+                        {saving ? 'جاري الحفظ...' : '✓ قبول الطلب'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={reject}
+                        disabled={saving || request.status === 'rejected'}
+                        className="flex-1 px-6 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 transition text-base sm:text-lg font-bold disabled:opacity-50 disabled:cursor-not-allowed shadow-lg"
+                      >
+                        {saving ? 'جاري الحفظ...' : '✗ رفض الطلب'}
+                      </button>
+                    </div>
                   </div>
                 )}
 
                 {activeStep === 3 && (
-                  <div className="bg-white border border-gray-200 rounded-lg p-4 space-y-4">
-                    <div className="flex items-center gap-2 mb-3">
-                      <DollarSign className="w-5 h-5 text-blue-600" />
-                      <p className="font-extrabold text-gray-900 text-sm">تأكيد دفع المبلغ المتبقي</p>
-                    </div>
-                    
-                    {/* عرض صورة الدفع المتبقي */}
-                    <RemainingPaymentImage
-                      imageUrl={remainingPaymentImageUrl}
-                      loading={(() => {
-                        const notes = (request?.admin_notes || '') as string
-                        const match = notes.match(/صورة الدفع المتبقي:\s*([^\n]+)/)
-                        return Boolean(match?.[1]?.trim() && !remainingPaymentImageUrl)
-                      })()}
-                      remaining={remaining}
-                      paymentVerified={request.payment_verified}
-                      saving={saving}
-                      onVerify={() => setPaymentVerified(true)}
-                      onUnverify={() => setPaymentVerified(false)}
-                    />
-                  </div>
-                )}
-
-                {activeStep === 4 && (
-                  <div className="space-y-3">
+                  <div className="space-y-4">
                     <BookedTripDetails
                       bookedTrip={bookedTrip}
                       bookedStops={bookedStops}
@@ -775,44 +1064,41 @@ export default function AdminRequestFollow({
 
                     <TripModificationsHistory modifications={tripModifications} />
 
-                    <BookingActions
-                      request={request}
-                      userProfile={userProfile}
-                      saving={saving}
-                      isBookingConfirmed={(() => {
-                        const notes = (request?.admin_notes || '') as string
-                        return notes.includes('تم تأكيد الحجز')
-                      })()}
-                      onEditSchedule={() => setShowSchedule(true)}
-                      onConfirmBooking={async () => {
-                        if (!request) return
-                        try {
-                          setSaving(true)
-                          const stamp = new Date().toISOString()
-                          const section = `\n\n=== رد الإدارة ===\nتم تأكيد الحجز\nتاريخ الرد: ${stamp}`
-                          const updatedNotes = ((request.admin_notes || '') as string) + section
-                          
-                          const { error } = await supabase
-                            .from('visit_requests')
-                            .update({ 
-                              admin_notes: updatedNotes,
-                              trip_status: 'pending_arrival',
-                              updated_at: new Date().toISOString() 
-                            } as any)
-                            .eq('id', request.id)
-                          
-                          if (error) throw error
-                          await notifyCustomMessage(request.user_id, request.id, 'تم تأكيد الحجز')
-                          toast.success('تم تأكيد الحجز')
-                          await load()
-                        } catch (e: any) {
-                          console.error('confirm booking error:', e)
-                          toast.error(e?.message || 'تعذر تأكيد الحجز')
-                        } finally {
-                          setSaving(false)
-                        }
-                      }}
-                    />
+                    <div className="bg-white border border-gray-200 rounded-lg p-4 space-y-3">
+                      <p className="text-sm font-extrabold text-gray-900">حجز للمستخدم (من الإدارة)</p>
+                      <p className="text-xs text-gray-600 leading-relaxed">
+                        يمكنك اختيار رحلة للمستخدم وتحديد نقطة النزول/التحميل. سيتم حفظها وتظهر للمستخدم في صفحته تلقائياً.
+                      </p>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        <button
+                          type="button"
+                          onClick={() => openBookingModal('arrival')}
+                          disabled={saving || request.status === 'rejected'}
+                          className="px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm font-semibold disabled:opacity-50"
+                        >
+                          حجز رحلة القدوم
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => openBookingModal('departure')}
+                          disabled={saving || request.status === 'rejected'}
+                          className="px-4 py-2.5 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition text-sm font-semibold disabled:opacity-50"
+                        >
+                          حجز رحلة المغادرة
+                        </button>
+                      </div>
+
+                      <div className="pt-2 border-t border-gray-200">
+                        <button
+                          type="button"
+                          onClick={() => setShowSchedule(true)}
+                          disabled={saving || request.status === 'rejected'}
+                          className="w-full px-4 py-2.5 bg-gray-900 text-white rounded-lg hover:bg-black transition text-sm font-semibold disabled:opacity-50"
+                        >
+                          تحديد/تعديل موعد مخصص (بدون رحلة)
+                        </button>
+                      </div>
+                    </div>
                   </div>
                 )}
               </div>
@@ -864,6 +1150,29 @@ export default function AdminRequestFollow({
           isAdmin={true}
         />
       )}
+
+      <AvailableTripsModal
+        isOpen={showAvailableTrips}
+        loading={loadingTrips}
+        trips={availableTrips as any}
+        visitType={(request as any)?.visit_type}
+        bookingStep={bookingStep}
+        calculatedDepartureDate={calculatedDepartureDate}
+        expandedTripId={expandedTripId}
+        tripStopsById={tripStopsById as any}
+        loadingStopsId={loadingStopsId}
+        selectedStopByTrip={selectedStopByTrip}
+        onClose={() => setShowAvailableTrips(false)}
+        onToggleStops={toggleTripStops}
+        onSelectStop={(tripId, stopId) => {
+          setSelectedStopByTrip((p) => ({
+            ...p,
+            [tripId]: stopId,
+          }))
+        }}
+        onBookTrip={handleAdminBookTrip}
+        isBookingDisabled={saving || request.status === 'rejected'}
+      />
     </div>
   )
 }

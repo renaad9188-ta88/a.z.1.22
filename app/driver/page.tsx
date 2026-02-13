@@ -9,6 +9,7 @@ import toast from 'react-hot-toast'
 import DriverAvailabilityMap from '@/components/driver/DriverAvailabilityMap'
 import DriverAssignedTripsPanel from '@/components/driver/DriverAssignedTripsPanel'
 import NotificationsDropdown from '@/components/NotificationsDropdown'
+import { Users } from 'lucide-react'
 
 type DriverProfile = {
   user_id: string
@@ -176,6 +177,19 @@ export default function DriverDashboard() {
             selectedTripId={selectedTripId}
             onSelectTrip={setSelectedTripId}
           />
+        )}
+
+        {selectedTripId && (
+          <div className="mb-4 sm:mb-6">
+            <Link
+              href={`/driver/trip/${selectedTripId}`}
+              className="w-full inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-blue-600 text-white hover:bg-blue-700 transition text-sm sm:text-base font-extrabold shadow-md"
+              title="عرض قائمة الركاب ونقاط النزول"
+            >
+              <Users className="w-5 h-5" />
+              فتح قائمة الركاب ونقاط النزول
+            </Link>
+          </div>
         )}
         <div className="mt-4 sm:mt-6">
           <DriverAvailabilityMap selectedTripId={selectedTripId} />

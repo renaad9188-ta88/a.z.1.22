@@ -21,6 +21,7 @@ interface TripsListProps {
   onTabChange: (isArrival: boolean) => void
   passengersCount: Record<string, number>
   assignedDrivers: Record<string, Array<{ id: string; name: string }>>
+  driverLiveMap?: Record<string, { is_available: boolean; updated_at?: string | null } | null>
   availableDrivers: Array<{ id: string; name: string; vehicle_type: string }>
   onEdit: (tripId: string, routeId: string) => void
   onViewDetails: (tripId: string) => void
@@ -36,6 +37,7 @@ export default function TripsList({
   onTabChange,
   passengersCount,
   assignedDrivers,
+  driverLiveMap,
   availableDrivers,
   onEdit,
   onViewDetails,
@@ -113,6 +115,7 @@ export default function TripsList({
                 isArrival={isArrival}
                 passengersCount={passengersCount[trip.id] || 0}
                 assignedDrivers={assignedDrivers[trip.id] || []}
+                driverLiveMap={driverLiveMap}
                 availableDrivers={availableDrivers.filter(
                   d => !(assignedDrivers[trip.id] || []).find(ad => ad.id === d.id)
                 )}

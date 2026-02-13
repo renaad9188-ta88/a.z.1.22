@@ -16,6 +16,7 @@ interface TripCardProps {
   isArrival: boolean
   passengersCount: number
   assignedDrivers: Array<{ id: string; name: string }>
+  driverLiveMap?: Record<string, { is_available: boolean; updated_at?: string | null } | null>
   availableDrivers: Array<{ id: string; name: string; vehicle_type: string }>
   onEdit: (tripId: string) => void
   onViewDetails: (tripId: string) => void
@@ -30,6 +31,7 @@ export default function TripCard({
   isArrival,
   passengersCount,
   assignedDrivers,
+  driverLiveMap,
   availableDrivers,
   onEdit,
   onViewDetails,
@@ -38,6 +40,40 @@ export default function TripCard({
   onUnassignDriver,
 }: TripCardProps) {
   const tripDate = new Date(trip.arrival_date || '')
+  const todayISO = new Date().toISOString().slice(0, 10)
+  const isToday = String(trip.arrival_date || '').slice(0, 10) === todayISO
+
+  const trackingState = (() => {
+    if (!isToday) return null
+    if (!assignedDrivers || assignedDrivers.length === 0) return null
+    if (!driverLiveMap) return { kind: 'unknown' as const, text: 'حالة التتبع غير معروفة' }
+
+    const now = Date.now()
+    const FIVE_MIN = 5 * 60 * 1000
+
+    let anyOn = false
+    let anyFresh = false
+    let anyStale = false
+    let anyOff = false
+
+    for (const d of assignedDrivers) {
+      const live = driverLiveMap[d.id]
+      const on = Boolean(live?.is_available)
+      if (on) anyOn = true
+      if (!on) anyOff = true
+
+      const updatedAt = live?.updated_at ? new Date(live.updated_at).getTime() : NaN
+      const fresh = on && Number.isFinite(updatedAt) && now - updatedAt < FIVE_MIN
+      const stale = on && (!Number.isFinite(updatedAt) || now - updatedAt >= FIVE_MIN)
+      if (fresh) anyFresh = true
+      if (stale) anyStale = true
+    }
+
+    if (anyFresh) return { kind: 'live' as const, text: 'التتبع يعمل الآن' }
+    if (anyOn && anyStale) return { kind: 'stale' as const, text: '⚠️ التتبع متوقف/آخر تحديث قديم' }
+    if (anyOff && !anyOn) return { kind: 'off' as const, text: 'التتبع غير مفعل من السائق' }
+    return { kind: 'unknown' as const, text: 'حالة التتبع غير معروفة' }
+  })()
 
   return (
     <div
@@ -137,6 +173,25 @@ export default function TripCard({
             </div>
           )}
         </div>
+
+        {/* Tracking status (today only) */}
+        {trackingState && (
+          <div className="mb-3 sm:mb-4">
+            <div
+              className={`px-3 py-2 rounded-xl border-2 text-[11px] sm:text-xs font-extrabold ${
+                trackingState.kind === 'live'
+                  ? 'bg-green-50 border-green-200 text-green-900'
+                  : trackingState.kind === 'stale'
+                    ? 'bg-red-50 border-red-200 text-red-900'
+                    : trackingState.kind === 'off'
+                      ? 'bg-amber-50 border-amber-200 text-amber-900'
+                      : 'bg-gray-50 border-gray-200 text-gray-800'
+              }`}
+            >
+              {trackingState.text}
+            </div>
+          </div>
+        )}
 
         {/* Passengers Count */}
         <div className="mb-3 sm:mb-4 pt-2 sm:pt-3 border-t border-gray-100">

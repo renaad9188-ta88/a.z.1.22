@@ -134,6 +134,36 @@ export default function RouteManagement() {
     loadData()
   }, [])
 
+  const refreshDriverLive = async () => {
+    try {
+      const ids = (drivers || []).map((d: any) => d.id).filter(Boolean)
+      if (ids.length === 0) return
+      const { data: liveRows } = await supabase
+        .from('driver_live_status')
+        .select('driver_id,is_available,updated_at')
+        .in('driver_id', ids)
+      const map: Record<string, DriverLiveLite | null> = {}
+      ;(liveRows || []).forEach((r: any) => {
+        map[r.driver_id] = {
+          driver_id: r.driver_id,
+          is_available: Boolean(r.is_available),
+          updated_at: r.updated_at,
+        }
+      })
+      setDriverLiveMap((prev) => ({ ...prev, ...map }))
+    } catch {
+      // avoid toast spam
+    }
+  }
+
+  useEffect(() => {
+    const t = setInterval(() => {
+      refreshDriverLive()
+    }, 30_000)
+    return () => clearInterval(t)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [drivers.length])
+
   useEffect(() => {
     if (!showAddDriver) return
     setDriverForm({

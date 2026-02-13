@@ -3,6 +3,7 @@ import { Phone, MessageCircle } from 'lucide-react'
 import HeroCarousel from '@/components/HeroCarousel'
 import ServicesSection from '@/components/ServicesSection'
 import QRCodeShare from '@/components/QRCodeShare'
+import InvitePlatformButton from '@/components/InvitePlatformButton'
 
 export default function HomePage() {
   return (
@@ -66,7 +67,10 @@ export default function HomePage() {
                     امسح QR Code للوصول السريع
                   </p>
                 </div>
-                <QRCodeShare title="منصة خدمات السوريين" />
+                <div className="flex items-center gap-2">
+                  <InvitePlatformButton title="منصة خدمات السوريين" />
+                  <QRCodeShare title="منصة خدمات السوريين" />
+                </div>
               </div>
             </div>
           </div>

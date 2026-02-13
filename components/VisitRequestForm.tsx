@@ -6,6 +6,7 @@ import { createSupabaseBrowserClient } from '@/lib/supabase'
 import toast from 'react-hot-toast'
 import { Upload } from 'lucide-react'
 import { notifyAdminNewRequest, createNotification } from '@/lib/notifications'
+import HelpContactButtons from '@/components/HelpContactButtons'
 
 const DEPARTURE_CITIES = [
   'الشام',
@@ -198,6 +199,11 @@ export default function VisitRequestForm() {
       <div className="max-w-2xl mx-auto">
         <div className="bg-white rounded-lg shadow-xl p-4 sm:p-6 md:p-8">
           <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-center mb-6 sm:mb-8 text-gray-800">طلب زيارة جديد</h1>
+
+          <HelpContactButtons
+            className="mb-4 sm:mb-6"
+            message="مرحباً، أحتاج مساعدة في تقديم طلب زيارة (رفع الجواز)."
+          />
 
           <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-6">
             {/* الاسم الكامل */}

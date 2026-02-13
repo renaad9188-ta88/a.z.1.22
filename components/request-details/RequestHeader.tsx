@@ -1,16 +1,15 @@
 'use client'
 
 import Link from 'next/link'
-import { Clock, CheckCircle, XCircle, MapPin, Copy } from 'lucide-react'
+import { Clock, CheckCircle, XCircle, Copy } from 'lucide-react'
 import toast from 'react-hot-toast'
 
 interface RequestHeaderProps {
   requestId: string
   status: string
-  trackingHref?: string
 }
 
-export default function RequestHeader({ requestId, status, trackingHref }: RequestHeaderProps) {
+export default function RequestHeader({ requestId, status }: RequestHeaderProps) {
   const shortCode = requestId.slice(0, 8).toUpperCase()
 
   const copyText = async (text: string) => {
@@ -80,15 +79,6 @@ export default function RequestHeader({ requestId, status, trackingHref }: Reque
         >
           متابعة الطلب
         </Link>
-        {trackingHref && (
-          <Link
-            href={trackingHref}
-            className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-gray-200 bg-white hover:bg-gray-50 text-sm font-semibold text-gray-800"
-          >
-            <MapPin className="w-4 h-4 text-blue-600" />
-            تتبّع على الخريطة
-          </Link>
-        )}
         {getStatusBadge(status)}
       </div>
     </div>
