@@ -392,10 +392,10 @@ export default function RouteManagement() {
         .from('route_trips')
         .select('id,trip_type,trip_date,meeting_time,departure_time,start_location_name,start_lat,start_lng,end_location_name,end_lat,end_lng,is_active,created_at')
         .eq('route_id', routeId)
-        .eq('is_active', true)
 
       // Default for office: upcoming trips only
       if (tripListFilter === 'upcoming') {
+        q = q.eq('is_active', true)
         q = q.gte('trip_date', todayISO).order('trip_date', { ascending: true }).order('departure_time', { ascending: true })
       } else if (tripListFilter === 'ended') {
         q = q.lt('trip_date', todayISO).order('trip_date', { ascending: false }).order('departure_time', { ascending: false })
@@ -414,6 +414,7 @@ export default function RouteManagement() {
         city: trip.start_location_name,
         companions_count: 0,
         arrival_date: trip.trip_date,
+        is_active: Boolean(trip.is_active),
         trip_status: trip.is_active ? 'مجدولة' : 'ملغاة',
         created_at: trip.created_at,
         meeting_time: trip.meeting_time,
@@ -970,22 +971,11 @@ export default function RouteManagement() {
                 </select>
               )}
 
-              {routes.length > 0 && (
-                <button
-                  onClick={() => {
-                    const route = routes.find((r) => r.id === createRouteId) || routes[0]
-                    setSelectedRouteForTrip(route)
-                    setCreateTripType(activeTripType)
-                    setShowCreateTrip(true)
-                  }}
-                  className={`w-full sm:w-auto px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl transition text-sm sm:text-base font-extrabold text-white ${
-                    activeTripType === 'arrival' ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-purple-600 hover:bg-purple-700'
-                  }`}
-                >
-                  <Plus className="w-4 h-4 inline mr-2" />
-                  {activeTripType === 'arrival' ? 'إنشاء رحلة قادمين' : 'إنشاء رحلة مغادرين'}
-                </button>
-              )}
+              <div className="w-full sm:w-auto px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl border border-gray-200 bg-gray-50 text-xs sm:text-sm font-extrabold text-gray-900">
+                لإنشاء الرحلات بسرعة: افتح الخط ثم اضغط زر{' '}
+                <span className="font-extrabold">{activeTripType === 'arrival' ? 'إنشاء القادمين + محطات النزول' : 'إنشاء المغادرين + محطات الصعود'}</span>{' '}
+                داخل بطاقة الخط.
+              </div>
             </div>
           </div>
 

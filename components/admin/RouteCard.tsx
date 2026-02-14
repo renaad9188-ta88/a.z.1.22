@@ -1,15 +1,21 @@
 'use client'
 
-import { MapPin, Bus, Navigation, Copy, Eye, EyeOff, RefreshCcw, Clock, Archive, Layers } from 'lucide-react'
+import { useState } from 'react'
+import { MapPin, Bus, Navigation, Copy, Eye, EyeOff, RefreshCcw, Clock, Archive, Layers, Plus } from 'lucide-react'
 import toast from 'react-hot-toast'
 import TripsList from './TripsList'
+import RouteInlineBuilder from './route-builder/RouteInlineBuilder'
 
 interface Route {
   id: string
   name: string
   description: string | null
   start_location_name: string
+  start_lat: number
+  start_lng: number
   end_location_name: string
+  end_lat: number
+  end_lng: number
   is_active: boolean
 }
 
@@ -78,6 +84,7 @@ export default function RouteCard({
 }: RouteCardProps) {
   const allTrips = routeTrips[route.id] || []
   const visibleTrips = fixedTripType ? allTrips.filter((t: any) => (t.trip_type || 'arrival') === fixedTripType) : allTrips
+  const [showInlineBuilder, setShowInlineBuilder] = useState(false)
 
   const handleCopyReport = async () => {
     const trips = visibleTrips
@@ -201,19 +208,41 @@ export default function RouteCard({
               ))}
           </select>
 
+          {fixedTripType && (
+            <button
+              type="button"
+              onClick={() => setShowInlineBuilder((p) => !p)}
+              className={`w-full sm:w-auto px-3 py-2 rounded-lg transition text-xs sm:text-sm font-extrabold inline-flex items-center justify-center gap-2 border ${
+                fixedTripType === 'arrival'
+                  ? showInlineBuilder
+                    ? 'bg-blue-600 text-white border-blue-600'
+                    : 'bg-white text-blue-900 border-blue-200 hover:bg-blue-50'
+                  : showInlineBuilder
+                    ? 'bg-purple-600 text-white border-purple-600'
+                    : 'bg-white text-purple-900 border-purple-200 hover:bg-purple-50'
+              }`}
+              title="إنشاء رحلات + إدارة محطات هذا القسم في نفس المكان"
+            >
+              <Plus className="w-4 h-4" />
+              {fixedTripType === 'arrival' ? 'إنشاء القادمين + محطات النزول' : 'إنشاء المغادرين + محطات الصعود'}
+            </button>
+          )}
+
           {onManageRouteStops && (
             <button
               type="button"
-              onClick={() => onManageRouteStops({ 
-                id: route.id, 
-                name: route.name, 
-                start_location_name: route.start_location_name, 
-                end_location_name: route.end_location_name 
-              })}
+              onClick={() =>
+                onManageRouteStops({
+                  id: route.id,
+                  name: route.name,
+                  start_location_name: route.start_location_name,
+                  end_location_name: route.end_location_name,
+                })
+              }
               className="w-full sm:w-auto px-3 py-2 rounded-lg bg-white border border-gray-300 hover:bg-gray-50 transition text-xs sm:text-sm font-extrabold text-gray-900 inline-flex items-center justify-center gap-2"
-              title="إدارة محطات الصعود/النزول لهذا الخط"
+              title="إدارة محطات الخط (عام)"
             >
-              <MapPin className="w-4 h-4 text-blue-700" />
+              <MapPin className="w-4 h-4 text-gray-800" />
               محطات الخط
             </button>
           )}
@@ -221,6 +250,13 @@ export default function RouteCard({
 
         {/* Trips for this route */}
         <div className="mt-4 border-t border-gray-200 pt-4">
+          {fixedTripType && showInlineBuilder && (
+            <RouteInlineBuilder
+              route={route as any}
+              tripType={fixedTripType}
+              onCreatedTrips={() => onLoadTrips(route.id)}
+            />
+          )}
           <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm">
             {/* Toolbar */}
             <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border-b border-blue-200 p-3 sm:p-4">
@@ -361,6 +397,7 @@ export default function RouteCard({
                   onShowPassengers={onShowPassengers}
                   onAssignDriver={onAssignDriverToTrip}
                   onUnassignDriver={onUnassignDriverFromTrip}
+                  onReloadTrips={() => onLoadTrips(route.id)}
                 />
               ) : (
                 <div className="text-xs sm:text-sm text-gray-600 bg-gray-50 border border-gray-200 rounded-xl p-3">

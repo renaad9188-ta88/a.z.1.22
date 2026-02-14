@@ -12,6 +12,7 @@ interface Trip {
   departure_time?: string | null
   start_location_name?: string
   end_location_name?: string
+  is_active?: boolean
 }
 
 interface TripsListProps {
@@ -30,6 +31,7 @@ interface TripsListProps {
   onShowPassengers: (tripId: string) => void
   onAssignDriver: (tripId: string, driverId: string, routeId: string) => void
   onUnassignDriver: (tripId: string, driverId: string, routeId: string) => void
+  onReloadTrips?: () => void
 }
 
 export default function TripsList({
@@ -48,6 +50,7 @@ export default function TripsList({
   onShowPassengers,
   onAssignDriver,
   onUnassignDriver,
+  onReloadTrips,
 }: TripsListProps) {
   const arrivalsCount = trips.filter(t => (t.trip_type || 'arrival') === 'arrival').length
   const departuresCount = trips.filter(t => (t.trip_type || 'arrival') === 'departure').length
@@ -156,6 +159,7 @@ export default function TripsList({
                 onShowPassengers={onShowPassengers}
                 onAssignDriver={(tripId, driverId) => onAssignDriver(tripId, driverId, routeId)}
                 onUnassignDriver={(tripId, driverId) => onUnassignDriver(tripId, driverId, routeId)}
+                onReloadTrips={onReloadTrips}
               />
             )
           })}

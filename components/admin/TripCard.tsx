@@ -1,6 +1,9 @@
 'use client'
 
-import { MapPin, Navigation, Calendar, Clock, Users, Edit, Bus, X } from 'lucide-react'
+import { useState } from 'react'
+import { MapPin, Navigation, Calendar, Clock, Users, Edit, Bus, X, Trash2, Ban } from 'lucide-react'
+import toast from 'react-hot-toast'
+import { createSupabaseBrowserClient } from '@/lib/supabase'
 
 interface TripCardProps {
   trip: {
@@ -11,6 +14,7 @@ interface TripCardProps {
     departure_time?: string | null
     start_location_name?: string
     end_location_name?: string
+    is_active?: boolean
   }
   routeId: string
   isArrival: boolean
@@ -23,6 +27,7 @@ interface TripCardProps {
   onShowPassengers: (tripId: string) => void
   onAssignDriver: (tripId: string, driverId: string) => void
   onUnassignDriver: (tripId: string, driverId: string) => void
+  onReloadTrips?: () => void
 }
 
 export default function TripCard({
@@ -38,10 +43,63 @@ export default function TripCard({
   onShowPassengers,
   onAssignDriver,
   onUnassignDriver,
+  onReloadTrips,
 }: TripCardProps) {
+  const supabase = createSupabaseBrowserClient()
+  const [busy, setBusy] = useState(false)
   const tripDate = new Date(trip.arrival_date || '')
   const todayISO = new Date().toISOString().slice(0, 10)
   const isToday = String(trip.arrival_date || '').slice(0, 10) === todayISO
+  const isActive = trip.is_active !== false
+
+  const cancelTrip = async () => {
+    if (!confirm('إلغاء هذه الرحلة (تعطيلها)؟')) return
+    try {
+      setBusy(true)
+      const { error } = await supabase.from('route_trips').update({ is_active: false, updated_at: new Date().toISOString() } as any).eq('id', trip.id)
+      if (error) throw error
+      // also disable driver assignments for this trip
+      await supabase.from('route_trip_drivers').update({ is_active: false } as any).eq('trip_id', trip.id)
+      toast.success('تم إلغاء الرحلة')
+      onReloadTrips?.()
+    } catch (e: any) {
+      console.error('cancelTrip error:', e)
+      toast.error(e?.message || 'تعذر إلغاء الرحلة')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const deleteTrip = async () => {
+    if (!confirm('حذف هذه الرحلة نهائياً؟')) return
+    try {
+      setBusy(true)
+      // Guard: if any bookings exist, do not delete; offer cancel instead
+      const { count } = await supabase
+        .from('visit_requests')
+        .select('id', { count: 'exact', head: true })
+        .eq('trip_id', trip.id)
+        .neq('status', 'rejected')
+
+      if ((count || 0) > 0) {
+        toast.error('لا يمكن حذف الرحلة لأنها تحتوي على حجوزات. يمكنك إلغاء الرحلة بدلاً من ذلك.')
+        return
+      }
+
+      // Clean related rows first (safe)
+      await supabase.from('route_trip_drivers').delete().eq('trip_id', trip.id)
+      await supabase.from('route_trip_stop_points').delete().eq('trip_id', trip.id)
+      const { error } = await supabase.from('route_trips').delete().eq('id', trip.id)
+      if (error) throw error
+      toast.success('تم حذف الرحلة')
+      onReloadTrips?.()
+    } catch (e: any) {
+      console.error('deleteTrip error:', e)
+      toast.error(e?.message || 'تعذر حذف الرحلة')
+    } finally {
+      setBusy(false)
+    }
+  }
 
   const trackingState = (() => {
     if (!isToday) return null
@@ -115,8 +173,36 @@ export default function TripCard({
               <Edit className="w-3 h-3 sm:w-4 sm:h-4" />
               <span>تعديل</span>
             </button>
+            {isActive && (
+              <button
+                onClick={cancelTrip}
+                disabled={busy}
+                className="px-2 sm:px-2.5 py-1.5 bg-amber-50 text-amber-700 rounded-lg hover:bg-amber-100 transition flex items-center gap-1.5 text-[10px] sm:text-xs font-semibold disabled:opacity-50"
+                title="إلغاء الرحلة"
+              >
+                <Ban className="w-3 h-3 sm:w-4 sm:h-4" />
+                <span>إلغاء</span>
+              </button>
+            )}
+            <button
+              onClick={deleteTrip}
+              disabled={busy}
+              className="px-2 sm:px-2.5 py-1.5 bg-red-50 text-red-700 rounded-lg hover:bg-red-100 transition flex items-center gap-1.5 text-[10px] sm:text-xs font-semibold disabled:opacity-50"
+              title="حذف نهائي (بدون حجوزات)"
+            >
+              <Trash2 className="w-3 h-3 sm:w-4 sm:h-4" />
+              <span>حذف</span>
+            </button>
           </div>
         </div>
+
+        {!isActive && (
+          <div className="mb-3">
+            <span className="inline-flex items-center gap-2 px-3 py-2 rounded-xl border border-gray-300 bg-gray-50 text-gray-800 text-[11px] sm:text-xs font-extrabold">
+              ⚫ هذه الرحلة ملغاة (غير نشطة)
+            </span>
+          </div>
+        )}
 
         {/* Route Info */}
         <div className="mb-3 sm:mb-4">
@@ -248,6 +334,7 @@ export default function TripCard({
                 e.target.value = ''
               }
             }}
+            disabled={!isActive}
             className="w-full px-2 sm:px-3 py-1.5 sm:py-2 text-gray-900 bg-white border border-gray-300 rounded-lg text-[10px] sm:text-xs focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
           >
             <option value="">اختر سائق...</option>
@@ -266,6 +353,13 @@ export default function TripCard({
             className="flex-1 px-2 sm:px-3 py-1.5 sm:py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-[10px] sm:text-xs font-semibold"
           >
             عرض التفاصيل
+          </button>
+          <button
+            onClick={() => onEdit(trip.id)}
+            disabled={!isActive}
+            className="px-2 sm:px-3 py-1.5 sm:py-2 bg-white border border-gray-300 text-gray-900 rounded-lg hover:bg-gray-50 transition text-[10px] sm:text-xs font-extrabold disabled:opacity-50"
+          >
+            تعديل
           </button>
         </div>
       </div>
