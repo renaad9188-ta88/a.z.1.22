@@ -34,7 +34,6 @@ export default function AdminRequestFollow({
   const [showSchedule, setShowSchedule] = useState(false)
 
   // Request Data Hook (includes payment images)
-  const adminInfo = useMemo(() => parseAdminNotes((request?.admin_notes || '') as string) || {}, [request])
   const {
     request,
     setRequest,
@@ -43,7 +42,9 @@ export default function AdminRequestFollow({
     remainingPaymentImageUrl,
     depositPaymentImageUrls,
     reload,
-  } = useRequestData(requestId, adminUserId, role, adminInfo)
+  } = useRequestData(requestId, adminUserId, role)
+  
+  const adminInfo = useMemo(() => parseAdminNotes((request?.admin_notes || '') as string) || {}, [request])
 
   // Trip Data Hook
   const {

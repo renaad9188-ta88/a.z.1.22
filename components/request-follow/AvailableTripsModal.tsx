@@ -9,9 +9,9 @@ interface Trip {
   trip_date: string
   meeting_time?: string | null
   departure_time?: string | null
-  start_location_name: string
-  end_location_name: string
-  trip_type: 'arrival' | 'departure'
+  start_location_name?: string | null
+  end_location_name?: string | null
+  trip_type?: 'arrival' | 'departure' | null
 }
 
 interface Stop {
@@ -136,7 +136,7 @@ export default function AvailableTripsModal({
                       <div className="flex items-center gap-2 mb-2">
                         <MapPin className="w-4 h-4 text-blue-600" />
                         <span className="font-bold text-gray-900">
-                          {trip.start_location_name} → {trip.end_location_name}
+                          {trip.start_location_name || 'غير محدد'} → {trip.end_location_name || 'غير محدد'}
                         </span>
                       </div>
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm text-gray-600">

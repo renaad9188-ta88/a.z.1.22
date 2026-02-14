@@ -15,137 +15,91 @@ import TripModeSelector from './map/TripModeSelector'
 import MapHeader from './map/MapHeader'
 import MapMinimizeButtons from './map/MapMinimizeButtons'
 import { BORDER_CENTER, normalizeStops, ensureDemoStops } from './map/mapHelpers'
-
-function loadGoogleMaps(apiKey: string): Promise<void> {
-  if (typeof window === 'undefined') return Promise.resolve()
-  if ((window as any).google?.maps) return Promise.resolve()
-
-  return new Promise((resolve, reject) => {
-    const existing = document.querySelector('script[data-google-maps="1"]') as HTMLScriptElement | null
-    if (existing) {
-      existing.addEventListener('load', () => resolve())
-      existing.addEventListener('error', () => reject(new Error('Google Maps failed to load')))
-      return
-    }
-
-    const script = document.createElement('script')
-    script.dataset.googleMaps = '1'
-    // Important: use places library to avoid breaking other pages in SPA navigation.
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places,geometry&language=ar`
-    script.async = true
-    script.defer = true
-    script.onload = () => resolve()
-    script.onerror = () => reject(new Error('Google Maps failed to load'))
-    document.head.appendChild(script)
-  })
-}
-
-type LatLng = { lat: number; lng: number }
-
-type PublicTripMapRow = {
-  id?: string
-  route_id?: string
-  trip_id: string | null
-  trip_type: 'arrivals' | 'departures' | string | null
-  trip_date: string | null
-  meeting_time: string | null
-  departure_time: string | null
-  start_location_name: string | null
-  start_lat: number | null
-  start_lng: number | null
-  end_location_name: string | null
-  end_lat: number | null
-  end_lng: number | null
-  stops: Array<{ name: string; lat: number; lng: number; order_index: number }> | any
-  is_demo: boolean | null
-}
-
-type UserHint = {
-  request_id: string
-  visitor_name: string
-  trip_id: string | null
-  trip_date: string | null
-  arrival_date: string | null
-  companions_count?: number
-  city?: string
-  start_location_name?: string
-  end_location_name?: string
-  meeting_time?: string | null
-  departure_time?: string | null
-}
-
-type PassengerInfo = {
-  id: string
-  visitor_name: string
-  selected_dropoff_stop_id?: string | null
-  selected_pickup_stop_id?: string | null
-  dropoff_stop_name?: string | null
-  pickup_stop_name?: string | null
-  eta?: { durationText: string; distanceText?: string } | null
-}
+import { useMapInitialization } from './transport-map/hooks/useMapInitialization'
+import { useTripData } from './transport-map/hooks/useTripData'
+import { useUserHint } from './transport-map/hooks/useUserHint'
+import { useDriverLocation } from './transport-map/hooks/useDriverLocation'
+import { useMapUI } from './transport-map/hooks/useMapUI'
+import type { LatLng, PassengerInfo, PublicTripMapRow, UserHint } from './transport-map/types'
 
 export default function HomeTransportMap() {
   const supabase = createSupabaseBrowserClient()
   const mapElRef = useRef<HTMLDivElement | null>(null)
   const inViewRef = useRef<HTMLDivElement | null>(null)
-  const mapRef = useRef<google.maps.Map | null>(null)
-  const markersRef = useRef<google.maps.Marker[]>([])
-  const polylineRef = useRef<google.maps.Polyline | null>(null)
-  const directionsRendererRef = useRef<google.maps.DirectionsRenderer | null>(null)
-  const directionsServiceRef = useRef<google.maps.DirectionsService | null>(null)
-
-  const [ready, setReady] = useState(false)
-  const [errorText, setErrorText] = useState<string | null>(null)
-  const [shouldLoad, setShouldLoad] = useState(false)
-  const [mode, setMode] = useState<'arrivals' | 'departures'>('arrivals')
-  const [loadingTrip, setLoadingTrip] = useState(false)
-  const [tripRow, setTripRow] = useState<PublicTripMapRow | null>(null)
-  const [userHint, setUserHint] = useState<UserHint | null>(null)
-  const [loadingUserHint, setLoadingUserHint] = useState(false)
-  const [driverLocation, setDriverLocation] = useState<{ lat: number; lng: number } | null>(null)
-  const [driverLocationLoading, setDriverLocationLoading] = useState(false)
-  const [showPassengerList, setShowPassengerList] = useState(false)
+  const directionsServiceForEtaRef = useRef<google.maps.DirectionsService | null>(null)
   const [passengers, setPassengers] = useState<PassengerInfo[]>([])
   const [loadingPassengers, setLoadingPassengers] = useState(false)
   const [tripType, setTripType] = useState<'arrival' | 'departure' | null>(null)
-  const [isPassengerListMinimized, setIsPassengerListMinimized] = useState(false)
-  const [isDriverInfoMinimized, setIsDriverInfoMinimized] = useState(false)
-  const [isTripMetaHidden, setIsTripMetaHidden] = useState(false)
-  const [mapType, setMapType] = useState<'roadmap' | 'satellite'>('roadmap')
-  const directionsServiceForEtaRef = useRef<google.maps.DirectionsService | null>(null)
-  const [driverInfo, setDriverInfo] = useState<{ name: string; phone: string; company_phone?: string | null } | null>(null)
-  const [showDriverInfo, setShowDriverInfo] = useState(false)
-  const [isLoggedIn, setIsLoggedIn] = useState(false)
-  const [hasUserTrip, setHasUserTrip] = useState(false)
-  const [showStopsList, setShowStopsList] = useState(false)
-  const [isStopsListMinimized, setIsStopsListMinimized] = useState(false)
 
   const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || ''
 
-  const clearMarkers = () => {
-    markersRef.current.forEach(m => m.setMap(null))
-    markersRef.current = []
-  }
+  // Map Initialization Hook
+  const {
+    mapRef,
+    markersRef,
+    polylineRef,
+    directionsRendererRef,
+    directionsServiceRef,
+    ready,
+    errorText,
+    shouldLoad,
+    clearMap,
+    clearMarkers,
+    clearPolyline,
+    clearDirections,
+    initMap,
+  } = useMapInitialization(apiKey, inViewRef, mapElRef)
 
-  const clearPolyline = () => {
-    if (polylineRef.current) {
-      polylineRef.current.setMap(null)
-      polylineRef.current = null
-    }
-  }
+  // Trip Data Hook
+  const {
+    tripRow,
+    setTripRow,
+    loadingTrip,
+    fetchTripMap,
+    getStopsList,
+  } = useTripData()
 
-  const clearDirections = () => {
-    if (directionsRendererRef.current) {
-      directionsRendererRef.current.setMap(null)
-      directionsRendererRef.current = null
-    }
-  }
+  // User Hint Hook
+  const {
+    userHint,
+    setUserHint,
+    loadingUserHint,
+    loadUserHint,
+  } = useUserHint()
 
-  const clearMap = () => {
-    clearMarkers()
-    clearPolyline()
-    clearDirections()
-  }
+  // Map UI Hook
+  const {
+    mode,
+    setMode,
+    mapType,
+    setMapType,
+    showPassengerList,
+    setShowPassengerList,
+    isPassengerListMinimized,
+    setIsPassengerListMinimized,
+    isDriverInfoMinimized,
+    setIsDriverInfoMinimized,
+    isTripMetaHidden,
+    setIsTripMetaHidden,
+    showStopsList,
+    setShowStopsList,
+    isStopsListMinimized,
+    setIsStopsListMinimized,
+    showDriverInfo,
+    setShowDriverInfo,
+    isLoggedIn,
+    hasUserTrip,
+    toggleMapType,
+  } = useMapUI(userHint, mapRef)
+
+  // Driver Location Hook
+  const {
+    driverLocation,
+    driverLocationLoading,
+    driverInfo,
+    setDriverInfo,
+    loadDriverLocation,
+  } = useDriverLocation(isLoggedIn, hasUserTrip)
 
   const iconStop = (googleMaps: typeof google.maps) =>
     ({
@@ -157,201 +111,11 @@ export default function HomeTransportMap() {
       strokeWeight: 2,
     }) as any
 
-  const initMap = () => {
-    if (!mapElRef.current || !(window as any).google?.maps) return
-    const googleMaps = (window as any).google.maps as typeof google.maps
-
-    if (!mapRef.current) {
-      mapRef.current = new googleMaps.Map(mapElRef.current, {
-        center: BORDER_CENTER,
-        zoom: 10,
-        mapTypeId: googleMaps.MapTypeId.ROADMAP,
-        mapTypeControl: false, // تعطيل الأزرار الافتراضية - سنستخدم أزرار مخصصة
-        zoomControl: true,
-        zoomControlOptions: {
-          position: googleMaps.ControlPosition.LEFT_CENTER,
-        },
-        streetViewControl: false,
-        fullscreenControl: true,
-        gestureHandling: 'greedy', // mobile-friendly pan/zoom
-        scrollwheel: true,
-      })
-    }
-  }
-
-  const normalizeStops = (raw: any): Array<{ name: string; lat: number; lng: number; order_index: number }> => {
-    if (!raw) return []
-    if (Array.isArray(raw)) return raw
-    // sometimes comes as json string
-    try {
-      const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw
-      return Array.isArray(parsed) ? parsed : []
-    } catch {
-      return []
-    }
-  }
-
-  // Function to get stops list
-  const getStopsList = () => {
-    if (!tripRow?.stops) return []
-    return normalizeStops(tripRow.stops)
-      .sort((a, b) => (a.order_index ?? 0) - (b.order_index ?? 0))
-  }
 
   // Determine if trip is arrival or departure
   const isArrivalTrip = mode === 'arrivals' || (tripRow?.trip_type === 'arrivals' || tripRow?.trip_type === 'arrival')
 
 
-  const fetchTripMap = async (kind: 'arrivals' | 'departures') => {
-    try {
-      setLoadingTrip(true)
-      
-      // إذا كان المستخدم لديه رحلة محجوزة، حمّل رحلته بدلاً من الرحلة العامة
-      // لكن فقط إذا كانت الرحلة اليوم أو قريبة (خلال 7 أيام)
-      if (userHint?.trip_id && userHint?.trip_date) {
-        const today = new Date().toISOString().split('T')[0]
-        const tripDateStr = new Date(userHint.trip_date + 'T00:00:00').toISOString().split('T')[0]
-        const tripDate = new Date(userHint.trip_date + 'T00:00:00')
-        const todayDate = new Date()
-        todayDate.setHours(0, 0, 0, 0)
-        const daysDiff = Math.ceil((tripDate.getTime() - todayDate.getTime()) / (1000 * 60 * 60 * 24))
-        
-        // عرض رحلة المستخدم فقط إذا كانت اليوم أو خلال 7 أيام قادمة
-        const isTripActive = tripDateStr === today || (daysDiff >= 0 && daysDiff <= 7)
-        
-        if (isTripActive) {
-          const { data: tripData, error: tripError } = await supabase
-            .from('route_trips')
-            .select(`
-              id,
-              route_id,
-              trip_type,
-              trip_date,
-              meeting_time,
-              departure_time,
-              start_location_name,
-              start_lat,
-              start_lng,
-              end_location_name,
-              end_lat,
-              end_lng,
-              is_active
-            `)
-            .eq('id', userHint.trip_id)
-            .eq('is_active', true)
-            .maybeSingle()
-          
-          if (!tripError && tripData) {
-            // Load route info
-            const { data: routeData } = await supabase
-              .from('routes')
-              .select('id, name, start_location_name, start_lat, start_lng, end_location_name, end_lat, end_lng')
-              .eq('id', tripData.route_id)
-              .maybeSingle()
-            
-            // Load trip stop points
-            const { data: stopsData } = await supabase
-              .from('route_trip_stop_points')
-              .select('id, trip_id, name, lat, lng, order_index')
-              .eq('trip_id', userHint.trip_id)
-              .order('order_index', { ascending: true })
-            const tripStopsRows = (stopsData || []) as any[]
-            let stops = tripStopsRows.map((s: any) => ({
-              name: s.name,
-              lat: s.lat,
-              lng: s.lng,
-              order_index: s.order_index || 0,
-            }))
-
-            // Fallback: use route default stops if trip has no custom points
-            if (stops.length === 0 && tripData?.route_id) {
-              const tripType: 'arrival' | 'departure' | null = (tripData.trip_type as any) || null
-              const allowedKinds = tripType === 'departure' ? ['pickup', 'both'] : ['dropoff', 'both']
-              try {
-                const { data: routeStops } = await supabase
-                  .from('route_stop_points')
-                  .select('id,name,lat,lng,order_index,stop_kind')
-                  .eq('route_id', tripData.route_id)
-                  .eq('is_active', true)
-                  .in('stop_kind', allowedKinds as any)
-                  .order('order_index', { ascending: true })
-                stops = (routeStops || []).map((s: any) => ({
-              name: s.name,
-              lat: s.lat,
-              lng: s.lng,
-              order_index: s.order_index || 0,
-            }))
-              } catch {
-                const { data: routeStops } = await supabase
-                  .from('route_stop_points')
-                  .select('id,name,lat,lng,order_index')
-                  .eq('route_id', tripData.route_id)
-                  .eq('is_active', true)
-                  .order('order_index', { ascending: true })
-                stops = (routeStops || []).map((s: any) => ({
-                  name: s.name,
-                  lat: s.lat,
-                  lng: s.lng,
-                  order_index: s.order_index || 0,
-                }))
-              }
-            }
-            
-            // Create trip row format
-            const userTripRow: PublicTripMapRow = {
-              id: tripData.id,
-              route_id: tripData.route_id,
-              trip_id: tripData.id,
-              trip_type: tripData.trip_type,
-              trip_date: tripData.trip_date,
-              meeting_time: tripData.meeting_time,
-              departure_time: tripData.departure_time,
-              start_location_name: tripData.start_location_name || routeData?.start_location_name || '',
-              start_lat: tripData.start_lat || routeData?.start_lat || 0,
-              start_lng: tripData.start_lng || routeData?.start_lng || 0,
-              end_location_name: tripData.end_location_name || routeData?.end_location_name || '',
-              end_lat: tripData.end_lat || routeData?.end_lat || 0,
-              end_lng: tripData.end_lng || routeData?.end_lng || 0,
-              stops: stops,
-              is_demo: false,
-            }
-            
-            setTripRow(userTripRow)
-            return
-          }
-        }
-      }
-      
-      // Fallback to public trip map (للغير مسجلين أو إذا لم تكن رحلة المستخدم نشطة)
-      const { data, error } = await supabase.rpc('get_public_trip_map', { p_kind: kind })
-      if (error) throw error
-      const row = (Array.isArray(data) ? data[0] : data) as PublicTripMapRow | null
-      
-      // التحقق من أن الرحلة ليست بتاريخ قديم (يجب أن تكون اليوم أو في المستقبل)
-      if (row && row.trip_date) {
-        const today = new Date().toISOString().split('T')[0]
-        const tripDateStr = new Date(row.trip_date + 'T00:00:00').toISOString().split('T')[0]
-        const tripDate = new Date(row.trip_date + 'T00:00:00')
-        const todayDate = new Date()
-        todayDate.setHours(0, 0, 0, 0)
-        const daysDiff = Math.ceil((tripDate.getTime() - todayDate.getTime()) / (1000 * 60 * 60 * 24))
-        
-        // عرض الرحلة فقط إذا كانت اليوم أو في المستقبل (وليس في الماضي)
-        if (daysDiff < 0) {
-          // الرحلة قديمة، لا نعرضها
-          setTripRow(null)
-          return
-        }
-      }
-      
-      setTripRow(row || null)
-    } catch (e: any) {
-      console.error('HomeTransportMap load trip map error:', e)
-      setTripRow(null)
-    } finally {
-      setLoadingTrip(false)
-    }
-  }
 
   const renderTrip = () => {
     if (!mapRef.current || !(window as any).google?.maps) return
@@ -741,216 +505,7 @@ export default function HomeTransportMap() {
     }
   }
 
-  // Function to toggle map type
-  const toggleMapType = () => {
-    if (!mapRef.current || !(window as any).google?.maps) return
-    const googleMaps = (window as any).google.maps as typeof google.maps
-    
-    const newType = mapType === 'roadmap' ? 'satellite' : 'roadmap'
-    setMapType(newType)
-    
-    if (mapRef.current) {
-      mapRef.current.setMapTypeId(
-        newType === 'satellite' 
-          ? googleMaps.MapTypeId.SATELLITE 
-          : googleMaps.MapTypeId.ROADMAP
-      )
-    }
-  }
 
-  const loadUserHint = async () => {
-    try {
-      setLoadingUserHint(true)
-      const {
-        data: { user },
-      } = await supabase.auth.getUser()
-      if (!user) {
-        setUserHint(null)
-        return
-      }
-
-      const { data, error } = await supabase
-        .from('visit_requests')
-        .select('id, visitor_name, trip_id, arrival_date, created_at, admin_notes, companions_count, city, selected_dropoff_stop_id, selected_pickup_stop_id')
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle()
-
-      if (error) throw error
-      if (!data) {
-        setUserHint(null)
-        return
-      }
-
-      const tripId = (data as any).trip_id || null
-      let tripDate: string | null = null
-      let tripInfo: any = null
-
-      // Load trip information if trip_id exists
-      if (tripId) {
-        const { data: tripData } = await supabase
-          .from('route_trips')
-          .select('trip_date, meeting_time, departure_time, start_location_name, end_location_name')
-          .eq('id', tripId)
-          .maybeSingle()
-        if (tripData) {
-          tripDate = (tripData as any).trip_date || null
-          tripInfo = tripData
-        }
-      }
-
-      // show even if draft; but keep it safe/minimal
-      setUserHint({
-        request_id: data.id,
-        visitor_name: (data as any).visitor_name || 'الراكب',
-        trip_id: tripId,
-        trip_date: tripDate,
-        arrival_date: (data as any).arrival_date || null,
-        companions_count: (data as any).companions_count || 0,
-        city: (data as any).city || null,
-        start_location_name: tripInfo?.start_location_name || null,
-        end_location_name: tripInfo?.end_location_name || null,
-        meeting_time: tripInfo?.meeting_time || null,
-        departure_time: tripInfo?.departure_time || null,
-      })
-      
-      // Load driver location if trip is today and driver is assigned
-      if (tripId && tripDate) {
-        const today = new Date().toISOString().split('T')[0]
-        const tripDateStr = new Date(tripDate + 'T00:00:00').toISOString().split('T')[0]
-        if (tripDateStr === today) {
-          await loadDriverLocation(data.id, tripId)
-        }
-      }
-    } catch (e) {
-      console.error('HomeTransportMap load user hint error:', e)
-      setUserHint(null)
-    } finally {
-      setLoadingUserHint(false)
-    }
-  }
-
-  const loadDriverLocation = async (requestId: string, tripId: string) => {
-    // فقط للمستخدم المسجل الذي لديه رحلة
-    if (!isLoggedIn || !hasUserTrip) {
-      return
-    }
-    
-    try {
-      setDriverLocationLoading(true)
-      
-      // Get assigned driver from visit_requests
-      const { data: requestData } = await supabase
-        .from('visit_requests')
-        .select('assigned_driver_id, route_id')
-        .eq('id', requestId)
-        .maybeSingle()
-      
-      let assignedDriverId: string | null = (requestData as any)?.assigned_driver_id || null
-      
-      // Fallback: إذا لم يتم تعيين سائق داخل الطلب، جرب السائق/السائقين المعيّنين للرحلة
-      if (!assignedDriverId && tripId) {
-        const { data: tripDriverData } = await supabase
-          .from('route_trip_drivers')
-          .select('driver_id')
-          .eq('trip_id', tripId)
-          .eq('is_active', true)
-          .limit(1)
-          .maybeSingle()
-        
-        assignedDriverId = (tripDriverData as any)?.driver_id || null
-      }
-      
-      if (!assignedDriverId) {
-        setDriverLocation(null)
-        setDriverInfo(null)
-        return
-      }
-
-      // Load driver info
-      const { data: driverData } = await supabase
-        .from('drivers')
-        .select('id, name, phone')
-        .eq('id', assignedDriverId)
-        .maybeSingle()
-
-      // Load route info for company phone (if exists)
-      let companyPhone: string | null = null
-      if ((requestData as any)?.route_id) {
-        const { data: routeData } = await supabase
-          .from('routes')
-          .select('company_phone, contact_phone')
-          .eq('id', (requestData as any).route_id)
-          .maybeSingle()
-        
-        companyPhone = (routeData as any)?.company_phone || (routeData as any)?.contact_phone || null
-      }
-
-      if (driverData) {
-        setDriverInfo({
-          name: driverData.name || 'السائق',
-          phone: driverData.phone || '',
-          company_phone: companyPhone,
-        })
-      }
-      
-      // Try to get driver location from driver_live_status (live tracking)
-      const { data: liveStatus, error: liveErr } = await supabase
-        .from('driver_live_status')
-        .select('lat, lng, is_available, updated_at')
-        .eq('driver_id', assignedDriverId)
-        .eq('is_available', true)
-        .maybeSingle()
-      
-      if (!liveErr && liveStatus && liveStatus.lat && liveStatus.lng) {
-        // Check if location is recent (within last 5 minutes)
-        const updatedAt = new Date(liveStatus.updated_at).getTime()
-        const now = Date.now()
-        const FIVE_MINUTES = 5 * 60 * 1000
-        
-        if (now - updatedAt < FIVE_MINUTES) {
-          setDriverLocation({ lat: Number(liveStatus.lat), lng: Number(liveStatus.lng) })
-          
-          // Set up polling to update driver location every 30 seconds
-          const pollInterval = setInterval(async () => {
-            const { data: updatedStatus } = await supabase
-              .from('driver_live_status')
-              .select('lat, lng, is_available, updated_at')
-              .eq('driver_id', assignedDriverId)
-              .eq('is_available', true)
-              .maybeSingle()
-            
-            if (updatedStatus && updatedStatus.lat && updatedStatus.lng) {
-              const updatedAt = new Date(updatedStatus.updated_at).getTime()
-              const now = Date.now()
-              if (now - updatedAt < FIVE_MINUTES) {
-                setDriverLocation({ lat: Number(updatedStatus.lat), lng: Number(updatedStatus.lng) })
-              } else {
-                setDriverLocation(null)
-                clearInterval(pollInterval)
-              }
-            } else {
-              setDriverLocation(null)
-              clearInterval(pollInterval)
-            }
-          }, 30000) // Poll every 30 seconds
-          
-          // Store interval ID for cleanup
-          ;(window as any).__driverLocationPollInterval = pollInterval
-        } else {
-          setDriverLocation(null)
-        }
-      } else {
-        setDriverLocation(null)
-      }
-    } catch (e) {
-      console.error('Error loading driver location:', e)
-      setDriverLocation(null)
-    } finally {
-      setDriverLocationLoading(false)
-    }
-  }
 
   const loadPassengersForTrip = async (tripId: string) => {
     try {
@@ -1123,74 +678,18 @@ export default function HomeTransportMap() {
     }
   }
 
-  useEffect(() => {
-    // Lazy-load Google Maps only when the map area is in view (big perf win on slow phones)
-    if (!inViewRef.current) return
-    const el = inViewRef.current
-    const obs = new IntersectionObserver(
-      (entries) => {
-        if (entries.some((e) => e.isIntersecting)) {
-          setShouldLoad(true)
-          obs.disconnect()
-        }
-      },
-      { root: null, threshold: 0.15 }
-    )
-    obs.observe(el)
-    return () => obs.disconnect()
-  }, [])
-
-  useEffect(() => {
-    let mounted = true
-    ;(async () => {
-      try {
-        if (!apiKey) {
-          setErrorText('مفتاح Google Maps غير موجود')
-          return
-        }
-        if (!shouldLoad) return
-        await loadGoogleMaps(apiKey)
-        if (!mounted) return
-        setReady(true)
-      } catch (e) {
-        console.error(e)
-        if (!mounted) return
-        setErrorText('تعذّر تحميل الخريطة')
-      }
-    })()
-    return () => {
-      mounted = false
-    }
-  }, [apiKey, shouldLoad])
-
-  // Check if user is logged in and has a trip
-  useEffect(() => {
-    const checkUserStatus = async () => {
-      const { data: { user } } = await supabase.auth.getUser()
-      const loggedIn = !!user
-      setIsLoggedIn(loggedIn)
-      
-      if (loggedIn && userHint?.trip_id) {
-        setHasUserTrip(true)
-      } else {
-        setHasUserTrip(false)
-      }
-    }
-    
-    checkUserStatus()
-  }, [userHint?.trip_id])
 
   useEffect(() => {
     if (!ready) return
     initMap()
-    fetchTripMap(mode)
-    loadUserHint()
+    fetchTripMap(mode, userHint)
+    loadUserHint(loadDriverLocation)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready])
 
   useEffect(() => {
     if (!ready) return
-    fetchTripMap(mode)
+    fetchTripMap(mode, userHint)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode, ready, userHint?.trip_id])
 

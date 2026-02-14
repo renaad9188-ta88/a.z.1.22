@@ -6,11 +6,11 @@ import { MAX_STOP_POINTS } from '../types'
 export function useTripStops(
   editTripId?: string | null,
   copyTripData?: any,
-  useRouteDefaultStops: boolean = true
+  initialUseRouteDefaultStops: boolean = true
 ) {
   const supabase = createSupabaseBrowserClient()
   const [stopPoints, setStopPoints] = useState<StopPoint[]>([])
-  const [useRouteDefaultStops, setUseRouteDefaultStops] = useState(useRouteDefaultStops)
+  const [useRouteDefaultStops, setUseRouteDefaultStops] = useState(initialUseRouteDefaultStops)
 
   useEffect(() => {
     const loadTripStops = async () => {

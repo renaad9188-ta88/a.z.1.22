@@ -560,7 +560,7 @@ export default function RequestFollow({ requestId, userId }: { requestId: string
         <TripSchedulingModal
           request={request as any}
           onClose={() => setShowSchedule(false)}
-          onUpdate={load}
+          onUpdate={reload}
           isAdmin={false}
         />
       )}

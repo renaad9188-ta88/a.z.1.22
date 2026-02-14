@@ -7,8 +7,8 @@ interface BookedTrip {
   trip_date: string
   meeting_time?: string | null
   departure_time?: string | null
-  start_location_name: string
-  end_location_name: string
+  start_location_name?: string | null
+  end_location_name?: string | null
 }
 
 interface BookedTripCardProps {
@@ -73,7 +73,7 @@ export default function BookedTripCard({
               <MapPin className="w-4 h-4 text-orange-600" />
               <span className="text-gray-700">المسار:</span>
               <span className="font-bold text-gray-900">
-                {trip.start_location_name} → {trip.end_location_name}
+                {trip.start_location_name || 'غير محدد'} → {trip.end_location_name || 'غير محدد'}
               </span>
             </div>
           </div>

@@ -4,7 +4,7 @@ import toast from 'react-hot-toast'
 import { getSignedImageUrl } from '@/components/request-details/utils'
 import type { ReqRow, ContactProfile, Role } from '../types'
 
-export function useRequestData(requestId: string, adminUserId: string, role: Role, adminInfo?: any) {
+export function useRequestData(requestId: string, adminUserId: string, role: Role) {
   const supabase = createSupabaseBrowserClient()
   const [request, setRequest] = useState<ReqRow | null>(null)
   const [loading, setLoading] = useState(true)
@@ -104,15 +104,36 @@ export function useRequestData(requestId: string, adminUserId: string, role: Rol
   // تحميل signed URLs لصور الدفعة الأولية
   useEffect(() => {
     const loadDepositPaymentImages = async () => {
-      if (!request || !adminInfo?.paymentImages || adminInfo.paymentImages.length === 0) {
+      if (!request) {
+        setDepositPaymentImageUrls([])
+        return
+      }
+      
+      const notes = (request.admin_notes || '') as string
+      // استخراج صور الدفعة الأولية من admin_notes
+      const paymentImageMatches = notes.match(/صورة الدفعة الأولية:\s*([^\n]+)/g)
+      if (!paymentImageMatches || paymentImageMatches.length === 0) {
+        setDepositPaymentImageUrls([])
+        return
+      }
+      
+      const paymentImageUrls = paymentImageMatches.map(match => {
+        const url = match.replace(/صورة الدفعة الأولية:\s*/, '').trim()
+        return url
+      }).filter(Boolean)
+
+      if (paymentImageUrls.length === 0) {
         setDepositPaymentImageUrls([])
         return
       }
 
       try {
         const signedUrls = await Promise.all(
-          adminInfo.paymentImages.map(async (url: string) => {
+          paymentImageUrls.map(async (url: string) => {
             try {
+              if (url.includes('?token=') || url.includes('&token=')) {
+                return url
+              }
               return await getSignedImageUrl(url, supabase)
             } catch (error) {
               console.warn('Error loading payment image signed URL:', error)
@@ -123,12 +144,12 @@ export function useRequestData(requestId: string, adminUserId: string, role: Rol
         setDepositPaymentImageUrls(signedUrls.filter(Boolean))
       } catch (error) {
         console.error('Error loading deposit payment images:', error)
-        setDepositPaymentImageUrls(adminInfo.paymentImages || [])
+        setDepositPaymentImageUrls(paymentImageUrls)
       }
     }
 
     loadDepositPaymentImages()
-  }, [request, adminInfo?.paymentImages, supabase])
+  }, [request, supabase])
 
   return {
     request,

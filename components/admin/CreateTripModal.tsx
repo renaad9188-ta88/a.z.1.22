@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { createSupabaseBrowserClient } from '@/lib/supabase'
 import toast from 'react-hot-toast'
 import { X, MapPin, Plus, Trash2, Edit, ArrowUp, ArrowDown } from 'lucide-react'
-import { loadGoogleMaps } from './trip-creation/utils'
+import { loadGoogleMaps, toYmd } from './trip-creation/utils'
 import { useDateSelection } from './trip-creation/hooks/useDateSelection'
 import { useRouteStops } from './trip-creation/hooks/useRouteStops'
 import { useTripStops } from './trip-creation/hooks/useTripStops'
@@ -42,33 +42,60 @@ export default function CreateTripModal({
   const stopLabel = tripType === 'departure' ? 'محطات الصعود' : 'محطات النزول'
   const stopLabelSingular = tripType === 'departure' ? 'محطة صعود' : 'محطة نزول'
 
-  const [saving, setSaving] = useState(false)
   const [showAdvanced, setShowAdvanced] = useState(true)
-  const [useRouteDefaultStops, setUseRouteDefaultStops] = useState(true)
 
-  // Days selection
-  const [createMode, setCreateMode] = useState<'single' | 'span' | 'pick'>('span')
-  const [tripDate, setTripDate] = useState('')
-  const [spanDays, setSpanDays] = useState(7)
-  const [pickStart, setPickStart] = useState('')
-  const [pickEnd, setPickEnd] = useState('')
-  const [pickedMap, setPickedMap] = useState<Record<string, boolean>>({})
+  // Date selection hook
+  const {
+    createMode,
+    setCreateMode,
+    tripDate,
+    setTripDate,
+    spanDays,
+    setSpanDays,
+    pickStart,
+    setPickStart,
+    pickEnd,
+    setPickEnd,
+    pickedMap,
+    setPickedMap,
+    pickDatesList,
+    selectedDates,
+  } = useDateSelection(editTripId)
 
   // Trip basic info
   const [meetingTime, setMeetingTime] = useState('')
   const [departureTime, setDepartureTime] = useState('')
 
   // Locations (editable by dragging + name prompt)
-  const [startLocation, setStartLocation] = useState<{ name: string; lat: number; lng: number } | null>(defaultStart || null)
-  const [endLocation, setEndLocation] = useState<{ name: string; lat: number; lng: number } | null>(defaultEnd || null)
+  const [startLocation, setStartLocation] = useState<LocationPoint | null>(defaultStart || null)
+  const [endLocation, setEndLocation] = useState<LocationPoint | null>(defaultEnd || null)
 
-  // Per-trip custom stops
-  const [stopPoints, setStopPoints] = useState<StopPoint[]>([])
+  // Route stops hook
+  const {
+    routeStops,
+    routeStopsLoading,
+    editingRouteStops,
+    setEditingRouteStops,
+    loadRouteStops,
+    moveInList: moveRouteStop,
+    editName: editRouteStopName,
+    removeStop: removeRouteStop,
+  } = useRouteStops(routeId, tripType, stopKindForTrip)
 
-  // Route default stops (filtered by trip type)
-  const [routeStops, setRouteStops] = useState<RouteStopRow[]>([])
-  const [routeStopsLoading, setRouteStopsLoading] = useState(false)
-  const [editingRouteStops, setEditingRouteStops] = useState(false)
+  // Trip stops hook
+  const {
+    stopPoints,
+    setStopPoints,
+    useRouteDefaultStops,
+    setUseRouteDefaultStops,
+    addStopPoint,
+    removeStopPoint,
+    editStopPointName,
+    moveStopPoint,
+  } = useTripStops(editTripId, copyTripData, true)
+
+  // Save hook
+  const { saving, saveTrip } = useTripSave(routeId, tripType, onSuccess, onClose)
 
   // Map
   const [mapsReady, setMapsReady] = useState(false)
@@ -80,30 +107,6 @@ export default function CreateTripModal({
   const directionsServiceRef = useRef<google.maps.DirectionsService | null>(null)
   const directionsRendererRef = useRef<google.maps.DirectionsRenderer | null>(null)
 
-  const pickDatesList = useMemo(() => dateRangeDays(pickStart, pickEnd), [pickStart, pickEnd])
-
-  const selectedDates = useMemo(() => {
-    if (editTripId) return tripDate ? [tripDate] : []
-
-    if (createMode === 'single') return tripDate ? [tripDate] : []
-
-    if (createMode === 'span') {
-      if (!tripDate) return []
-      const start = new Date(tripDate + 'T00:00:00')
-      if (isNaN(start.getTime())) return []
-      const n = Math.max(1, Math.min(30, Number(spanDays) || 1))
-      const out: string[] = []
-      const cur = new Date(start)
-      for (let i = 0; i < n; i++) {
-        out.push(toYmd(cur))
-        cur.setDate(cur.getDate() + 1)
-      }
-      return out
-    }
-
-    // pick
-    return pickDatesList.filter((d) => pickedMap[d])
-  }, [createMode, editTripId, pickDatesList, pickedMap, spanDays, tripDate])
 
   const activeStopPoints = useMemo(() => {
     if (useRouteDefaultStops) {
@@ -119,7 +122,7 @@ export default function CreateTripModal({
     setTripDate(todayYmd)
     setPickStart(todayYmd)
     setPickEnd(toYmd(new Date(Date.now() + 6 * 24 * 60 * 60 * 1000)))
-  }, [editTripId, editTripData, copyTripData])
+  }, [editTripId, editTripData, copyTripData, setTripDate, setPickStart, setPickEnd])
 
   // Load trip data for editing/copying
   useEffect(() => {
@@ -144,22 +147,6 @@ export default function CreateTripModal({
       lat: tripData.end_lat,
       lng: tripData.end_lng,
     })
-
-    const loadTripStops = async () => {
-      const tripIdToLoad = editTripId || (copyTripData ? copyTripData.id : null)
-      if (!tripIdToLoad) return
-      const { data: stops, error } = await supabase
-        .from('route_trip_stop_points')
-        .select('name,lat,lng')
-        .eq('trip_id', tripIdToLoad)
-        .order('order_index', { ascending: true })
-      if (!error && stops) {
-        setStopPoints((stops as any[]).map((s: any) => ({ name: s.name, lat: s.lat, lng: s.lng })))
-        if ((stops as any[]).length > 0) setUseRouteDefaultStops(false)
-      }
-    }
-
-    loadTripStops()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editTripId, editTripData?.id, copyTripData?.id])
 
