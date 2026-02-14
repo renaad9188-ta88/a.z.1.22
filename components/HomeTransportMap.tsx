@@ -124,12 +124,12 @@ export default function HomeTransportMap() {
 
     clearMap()
 
-    const start: LatLng | null =
+    const rawStart: LatLng | null =
       tripRow?.start_lat != null && tripRow?.start_lng != null
         ? { lat: Number(tripRow.start_lat), lng: Number(tripRow.start_lng) }
         : null
 
-    const end: LatLng | null =
+    const rawEnd: LatLng | null =
       tripRow?.end_lat != null && tripRow?.end_lng != null
         ? { lat: Number(tripRow.end_lat), lng: Number(tripRow.end_lng) }
         : null
@@ -139,8 +139,25 @@ export default function HomeTransportMap() {
       .sort((a, b) => (a.order_index ?? 0) - (b.order_index ?? 0))
       .slice(0, 7)
 
+    // Sometimes "departures" data may come with start/end still oriented like arrivals.
+    // If user selected departures and start is شمال (lat أكبر) من end, swap for display.
+    const wantsDepartures =
+      mode === 'departures' ||
+      ['departures', 'departure'].includes(String((tripRow as any)?.trip_type || '').toLowerCase())
+    const shouldSwapForDepartures =
+      wantsDepartures && rawStart && rawEnd && Number.isFinite(rawStart.lat) && Number.isFinite(rawEnd.lat) && rawStart.lat > rawEnd.lat
+
+    const startTitle = shouldSwapForDepartures ? tripRow?.end_location_name : tripRow?.start_location_name
+    const endTitle = shouldSwapForDepartures ? tripRow?.start_location_name : tripRow?.end_location_name
+
+    const start: LatLng | null = shouldSwapForDepartures ? rawEnd : rawStart
+    const end: LatLng | null = shouldSwapForDepartures ? rawStart : rawEnd
+
+    const displayBaseStops = shouldSwapForDepartures ? baseStops.slice().reverse() : baseStops
     const stops =
-      tripRow?.is_demo && start && end ? ensureDemoStops(baseStops as any, start, end) : (baseStops as any)
+      tripRow?.is_demo && start && end
+        ? ensureDemoStops(displayBaseStops as any, start, end)
+        : (displayBaseStops as any)
 
     if (!start || !end) {
       // fallback center
@@ -158,7 +175,7 @@ export default function HomeTransportMap() {
       new googleMaps.Marker({
         position: start,
         map,
-        title: tripRow?.start_location_name || 'نقطة البداية',
+        title: startTitle || 'نقطة البداية',
         icon: { url: 'http://maps.google.com/mapfiles/ms/icons/green-dot.png' },
       })
     )
@@ -410,7 +427,7 @@ export default function HomeTransportMap() {
       new googleMaps.Marker({
         position: end,
         map,
-        title: tripRow?.end_location_name || 'نقطة النهاية',
+        title: endTitle || 'نقطة النهاية',
         icon: { url: 'http://maps.google.com/mapfiles/ms/icons/red-dot.png' },
       })
     )
@@ -480,15 +497,24 @@ export default function HomeTransportMap() {
       return
     }
 
-    const start: LatLng | null =
+    const rawStart: LatLng | null =
       tripRow?.start_lat != null && tripRow?.start_lng != null
         ? { lat: Number(tripRow.start_lat), lng: Number(tripRow.start_lng) }
         : null
 
-    const end: LatLng | null =
+    const rawEnd: LatLng | null =
       tripRow?.end_lat != null && tripRow?.end_lng != null
         ? { lat: Number(tripRow.end_lat), lng: Number(tripRow.end_lng) }
         : null
+
+    const wantsDepartures =
+      mode === 'departures' ||
+      ['departures', 'departure'].includes(String((tripRow as any)?.trip_type || '').toLowerCase())
+    const shouldSwapForDepartures =
+      wantsDepartures && rawStart && rawEnd && Number.isFinite(rawStart.lat) && Number.isFinite(rawEnd.lat) && rawStart.lat > rawEnd.lat
+
+    const start: LatLng | null = shouldSwapForDepartures ? rawEnd : rawStart
+    const end: LatLng | null = shouldSwapForDepartures ? rawStart : rawEnd
 
     if (!start || !end) {
       // إذا لم تكن هناك نقاط بداية ونهاية، ارجع إلى المركز الافتراضي
