@@ -162,14 +162,29 @@ export default function DriverTripDetailsPage() {
       } else {
         const routeId = (tripData as any)?.route_id as string | undefined
         if (routeId) {
-          const { data: routeStops, error: rsErr } = await supabase
-            .from('route_stop_points')
-            .select('id,name,lat,lng,order_index')
-            .eq('route_id', routeId)
-            .eq('is_active', true)
-            .order('order_index', { ascending: true })
-          if (rsErr) throw rsErr
-          setStopPoints(((routeStops || []) as any) as StopPointRow[])
+          const tripType: 'arrival' | 'departure' | null = ((tripData as any)?.trip_type as any) || null
+          const allowedKinds = tripType === 'departure' ? ['pickup', 'both'] : ['dropoff', 'both']
+          try {
+            const { data: routeStops, error: rsErr } = await supabase
+              .from('route_stop_points')
+              .select('id,name,lat,lng,order_index,stop_kind')
+              .eq('route_id', routeId)
+              .eq('is_active', true)
+              .in('stop_kind', allowedKinds as any)
+              .order('order_index', { ascending: true })
+            if (rsErr) throw rsErr
+            setStopPoints(((routeStops || []) as any) as StopPointRow[])
+          } catch {
+            // Backward compatibility if stop_kind is not migrated yet
+            const { data: routeStops, error: rsErr } = await supabase
+              .from('route_stop_points')
+              .select('id,name,lat,lng,order_index')
+              .eq('route_id', routeId)
+              .eq('is_active', true)
+              .order('order_index', { ascending: true })
+            if (rsErr) throw rsErr
+            setStopPoints(((routeStops || []) as any) as StopPointRow[])
+          }
         } else {
           setStopPoints([])
         }
@@ -207,8 +222,17 @@ export default function DriverTripDetailsPage() {
           .from('route_trip_stop_points')
           .select('id,name')
           .in('id', stopIds)
-        if (stopsData) {
-          stopsData.forEach((s: any) => {
+        ;(stopsData || []).forEach((s: any) => {
+          stopsMap[s.id] = { name: s.name }
+        })
+
+        const missing = stopIds.filter((id) => !stopsMap[id])
+        if (missing.length > 0) {
+          const { data: routeStopsData } = await supabase
+            .from('route_stop_points')
+            .select('id,name')
+            .in('id', missing)
+          ;(routeStopsData || []).forEach((s: any) => {
             stopsMap[s.id] = { name: s.name }
           })
         }

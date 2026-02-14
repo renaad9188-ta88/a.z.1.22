@@ -46,6 +46,7 @@ type RouteStopPoint = {
   lat: number
   lng: number
   order_index: number
+  stop_kind?: 'pickup' | 'dropoff' | 'both' | null
 }
 
 type Route = {
@@ -657,15 +658,22 @@ export default function RequestTracking({ requestId, userId }: { requestId: stri
               : (req as any)?.selected_pickup_stop_id
             
             if (selectedStopId) {
-              const { data: stopData } = await supabase
+              // 1) Try trip stop points
+              let { data: stopData } = await supabase
                 .from('route_trip_stop_points')
                 .select('name')
                 .eq('id', selectedStopId)
                 .maybeSingle()
-              
-              if (stopData) {
-                setSelectedStopPoint({ name: stopData.name })
+              // 2) Fallback: route default stops
+              if (!stopData) {
+                const res = await supabase
+                  .from('route_stop_points')
+                  .select('name')
+                  .eq('id', selectedStopId)
+                  .maybeSingle()
+                stopData = (res as any)?.data || null
               }
+              if (stopData) setSelectedStopPoint({ name: (stopData as any).name })
             }
           }
         } catch (e) {
@@ -697,15 +705,26 @@ export default function RequestTracking({ requestId, userId }: { requestId: stri
           setRoute(routeData as any)
           
           // Load route stop points
-          const { data: routeStopsData } = await supabase
-            .from('route_stop_points')
-            .select('id,route_id,name,description,lat,lng,order_index')
-            .eq('route_id', routeData.id)
-            .eq('is_active', true)
-            .order('order_index', { ascending: true })
-          
-          if (routeStopsData) {
-            setRouteStops(routeStopsData as any)
+          try {
+            const tripType: 'arrival' | 'departure' | null = (tripInfo as any)?.trip_type || null
+            const allowedKinds = tripType === 'departure' ? ['pickup', 'both'] : tripType === 'arrival' ? ['dropoff', 'both'] : ['pickup', 'dropoff', 'both']
+            const { data: routeStopsData } = await supabase
+              .from('route_stop_points')
+              .select('id,route_id,name,description,lat,lng,order_index,stop_kind')
+              .eq('route_id', routeData.id)
+              .eq('is_active', true)
+              .in('stop_kind', allowedKinds as any)
+              .order('order_index', { ascending: true })
+            if (routeStopsData) setRouteStops(routeStopsData as any)
+          } catch {
+            // Backward compatibility if stop_kind is not migrated yet
+            const { data: routeStopsData } = await supabase
+              .from('route_stop_points')
+              .select('id,route_id,name,description,lat,lng,order_index')
+              .eq('route_id', routeData.id)
+              .eq('is_active', true)
+              .order('order_index', { ascending: true })
+            if (routeStopsData) setRouteStops(routeStopsData as any)
           }
         }
       }

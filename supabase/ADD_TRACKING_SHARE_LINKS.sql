@@ -183,15 +183,41 @@ begin
       limit 1
     ),
     'stops', (
-      select coalesce(jsonb_agg(jsonb_build_object(
-        'id', s.id,
-        'name', s.name,
-        'lat', s.lat,
-        'lng', s.lng,
-        'order_index', s.order_index
-      ) order by s.order_index), '[]'::jsonb)
-      from public.route_trip_stop_points s
-      where s.trip_id = v_trip_id
+      select coalesce(
+        (
+          select jsonb_agg(jsonb_build_object(
+            'id', s.id,
+            'name', s.name,
+            'lat', s.lat,
+            'lng', s.lng,
+            'order_index', s.order_index
+          ) order by s.order_index)
+          from public.route_trip_stop_points s
+          where s.trip_id = v_trip_id
+        ),
+        (
+          -- Fallback to route default stops if trip has no specific stops
+          select jsonb_agg(jsonb_build_object(
+            'id', sp.id,
+            'name', sp.name,
+            'lat', sp.lat,
+            'lng', sp.lng,
+            'order_index', sp.order_index
+          ) order by sp.order_index)
+          from public.route_trips rt
+          join public.route_stop_points sp on sp.route_id = rt.route_id
+          where rt.id = v_trip_id
+            and sp.is_active = true
+            and (
+              -- Filter by stop_kind based on trip_type (if stop_kind exists)
+              sp.stop_kind is null
+              or sp.stop_kind = 'both'
+              or (rt.trip_type = 'arrival' and sp.stop_kind = 'dropoff')
+              or (rt.trip_type = 'departure' and sp.stop_kind = 'pickup')
+            )
+        ),
+        '[]'::jsonb
+      )
     ),
     'driver', (
       select jsonb_build_object(

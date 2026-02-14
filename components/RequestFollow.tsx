@@ -248,11 +248,22 @@ export default function RequestFollow({ requestId, userId }: { requestId: string
       if (!request) return
       try {
         if ((request as any).selected_dropoff_stop_id) {
-          const { data } = await supabase
+          const stopId = (request as any).selected_dropoff_stop_id
+          // 1) Try trip stop points
+          let { data } = await supabase
             .from('route_trip_stop_points')
             .select('id,name')
-            .eq('id', (request as any).selected_dropoff_stop_id)
+            .eq('id', stopId)
             .maybeSingle()
+          // 2) Fallback: route default stops
+          if (!data) {
+            const res = await supabase
+              .from('route_stop_points')
+              .select('id,name')
+              .eq('id', stopId)
+              .maybeSingle()
+            data = (res as any)?.data || null
+          }
           setSelectedDropoffStop(data ? { id: data.id, name: (data as any).name } : null)
         } else {
           setSelectedDropoffStop(null)
@@ -263,11 +274,22 @@ export default function RequestFollow({ requestId, userId }: { requestId: string
 
       try {
         if ((request as any).selected_pickup_stop_id) {
-          const { data } = await supabase
+          const stopId = (request as any).selected_pickup_stop_id
+          // 1) Try trip stop points
+          let { data } = await supabase
             .from('route_trip_stop_points')
             .select('id,name')
-            .eq('id', (request as any).selected_pickup_stop_id)
+            .eq('id', stopId)
             .maybeSingle()
+          // 2) Fallback: route default stops
+          if (!data) {
+            const res = await supabase
+              .from('route_stop_points')
+              .select('id,name')
+              .eq('id', stopId)
+              .maybeSingle()
+            data = (res as any)?.data || null
+          }
           setSelectedPickupStop(data ? { id: data.id, name: (data as any).name } : null)
         } else {
           setSelectedPickupStop(null)
@@ -352,13 +374,50 @@ export default function RequestFollow({ requestId, userId }: { requestId: string
   const loadTripStops = async (tripId: string) => {
     if (tripStopsById[tripId]) return
     try {
+      const trip = (availableTrips || []).find((t: any) => t.id === tripId) || null
+      const tripType: 'arrival' | 'departure' = (trip?.trip_type as any) || bookingStep
+
       const { data, error } = await supabase
         .from('route_trip_stop_points')
         .select('id,name,order_index,lat,lng')
         .eq('trip_id', tripId)
         .order('order_index', { ascending: true })
       if (error) throw error
-      setTripStopsById((p) => ({ ...p, [tripId]: data || [] }))
+
+      const tripStops = (data || []) as any[]
+      if (tripStops.length > 0) {
+        setTripStopsById((p) => ({ ...p, [tripId]: tripStops }))
+        return
+      }
+
+      // Fallback: route default stops (pickup/dropoff/both)
+      const routeId = trip?.route_id as string | undefined
+      if (!routeId) {
+        setTripStopsById((p) => ({ ...p, [tripId]: [] }))
+        return
+      }
+
+      const allowedKinds = tripType === 'departure' ? ['pickup', 'both'] : ['dropoff', 'both']
+      try {
+        const { data: routeStops, error: rsErr } = await supabase
+          .from('route_stop_points')
+          .select('id,name,order_index,lat,lng,stop_kind')
+          .eq('route_id', routeId)
+          .eq('is_active', true)
+          .in('stop_kind', allowedKinds as any)
+          .order('order_index', { ascending: true })
+        if (rsErr) throw rsErr
+        setTripStopsById((p) => ({ ...p, [tripId]: (routeStops as any) || [] }))
+      } catch (e: any) {
+        // Backward compatibility if stop_kind is not migrated yet
+        const { data: routeStops } = await supabase
+          .from('route_stop_points')
+          .select('id,name,order_index,lat,lng')
+          .eq('route_id', routeId)
+          .eq('is_active', true)
+          .order('order_index', { ascending: true })
+        setTripStopsById((p) => ({ ...p, [tripId]: (routeStops as any) || [] }))
+      }
     } catch (e: any) {
       console.error('Error loading stop points:', e)
       setTripStopsById((p) => ({ ...p, [tripId]: [] }))

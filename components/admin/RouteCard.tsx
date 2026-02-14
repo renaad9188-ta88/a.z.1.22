@@ -13,6 +13,13 @@ interface Route {
   is_active: boolean
 }
 
+type RouteLite = {
+  id: string
+  name: string
+  start_location_name?: string
+  end_location_name?: string
+}
+
 interface Driver {
   id: string
   name: string
@@ -42,6 +49,7 @@ interface RouteCardProps {
   onAssignDriverToTrip: (tripId: string, driverId: string, routeId: string) => void
   onUnassignDriverFromTrip: (tripId: string, driverId: string, routeId: string) => void
   onTabChange: (routeId: string, isArrival: boolean) => void
+  onManageRouteStops?: (route: RouteLite) => void
 }
 
 export default function RouteCard({
@@ -66,6 +74,7 @@ export default function RouteCard({
   onAssignDriverToTrip,
   onUnassignDriverFromTrip,
   onTabChange,
+  onManageRouteStops,
 }: RouteCardProps) {
   const allTrips = routeTrips[route.id] || []
   const visibleTrips = fixedTripType ? allTrips.filter((t: any) => (t.trip_type || 'arrival') === fixedTripType) : allTrips
@@ -171,8 +180,8 @@ export default function RouteCard({
           <p className="text-xs sm:text-sm text-gray-500 mb-3">لا يوجد سائقون مربوطون</p>
         )}
 
-        {/* Assign Driver Dropdown */}
-        <div>
+        {/* Assign Driver + Manage route stops */}
+        <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
           <select
             onChange={(e) => {
               if (e.target.value) {
@@ -191,6 +200,23 @@ export default function RouteCard({
                 </option>
               ))}
           </select>
+
+          {onManageRouteStops && (
+            <button
+              type="button"
+              onClick={() => onManageRouteStops({ 
+                id: route.id, 
+                name: route.name, 
+                start_location_name: route.start_location_name, 
+                end_location_name: route.end_location_name 
+              })}
+              className="w-full sm:w-auto px-3 py-2 rounded-lg bg-white border border-gray-300 hover:bg-gray-50 transition text-xs sm:text-sm font-extrabold text-gray-900 inline-flex items-center justify-center gap-2"
+              title="إدارة محطات الصعود/النزول لهذا الخط"
+            >
+              <MapPin className="w-4 h-4 text-blue-700" />
+              محطات الخط
+            </button>
+          )}
         </div>
 
         {/* Trips for this route */}

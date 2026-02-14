@@ -15,6 +15,7 @@ import RouteCard from './RouteCard'
 import PassengersModal from './PassengersModal'
 import DriverHistoryModal from './DriverHistoryModal'
 import AddDriverModal from './AddDriverModal'
+import RouteStopsManagerModal from './RouteStopsManagerModal'
 import type { VisitRequest } from './types'
 
 type Route = {
@@ -125,6 +126,7 @@ export default function RouteManagement() {
   const [schedulingRequest, setSchedulingRequest] = useState<VisitRequest | null>(null)
   const [assignDriverModal, setAssignDriverModal] = useState<{ driver: Driver; tripType: 'arrival' | 'departure' } | null>(null)
   const [activeSection, setActiveSection] = useState<'arrivals' | 'departures' | 'drivers'>('arrivals')
+  const [routeStopsModal, setRouteStopsModal] = useState<{ route: { id: string; name: string; start_location_name?: string; end_location_name?: string }; initialTab: 'pickup' | 'dropoff' | 'both' } | null>(null)
   const [driverForm, setDriverForm] = useState({
     user_id: '',
     name: '',
@@ -1055,6 +1057,10 @@ export default function RouteManagement() {
                 tripAssignedDrivers={tripAssignedDrivers}
                 tripListFilter={tripListFilter}
                 fixedTripType={activeTripType}
+                onManageRouteStops={(r) => {
+                  const initialTab = activeTripType === 'departure' ? 'pickup' : 'dropoff'
+                  setRouteStopsModal({ route: r, initialTab })
+                }}
                 onTripListFilterChange={(next) => setTripListFilter(next)}
                 onToggleTrips={(routeId) => {
                   setExpandedRouteTrips((p) => ({ ...p, [routeId]: !p[routeId] }))
@@ -1236,6 +1242,14 @@ export default function RouteManagement() {
           passengers={showPassengersModal.passengers}
           onClose={() => setShowPassengersModal(null)}
           normalizePhoneForWhatsApp={normalizePhoneForWhatsApp}
+        />
+      )}
+
+      {routeStopsModal && (
+        <RouteStopsManagerModal
+          route={routeStopsModal.route as any}
+          initialTab={routeStopsModal.initialTab}
+          onClose={() => setRouteStopsModal(null)}
         />
       )}
     </div>

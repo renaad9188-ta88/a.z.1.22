@@ -384,14 +384,29 @@ export default function DriverAvailabilityMap({ selectedTripId }: { selectedTrip
     if ((stops || []).length > 0) return (stops || []) as any
 
     // fallback to route fixed points
-    const { data: routeStops, error: rsErr } = await supabase
-      .from('route_stop_points')
-      .select('id,name,lat,lng,order_index')
-      .eq('route_id', t.route_id)
-      .eq('is_active', true)
-      .order('order_index', { ascending: true })
-    if (rsErr) throw rsErr
-    return ((routeStops || []) as any[]).map((x) => ({ ...x, trip_id: t.id }))
+    const tripType: 'arrival' | 'departure' | null = (t.trip_type as any) || null
+    const allowedKinds = tripType === 'departure' ? ['pickup', 'both'] : ['dropoff', 'both']
+    try {
+      const { data: routeStops, error: rsErr } = await supabase
+        .from('route_stop_points')
+        .select('id,name,lat,lng,order_index,stop_kind')
+        .eq('route_id', t.route_id)
+        .eq('is_active', true)
+        .in('stop_kind', allowedKinds as any)
+        .order('order_index', { ascending: true })
+      if (rsErr) throw rsErr
+      return ((routeStops || []) as any[]).map((x) => ({ ...x, trip_id: t.id }))
+    } catch {
+      // Backward compatibility if stop_kind is not migrated yet
+      const { data: routeStops, error: rsErr } = await supabase
+        .from('route_stop_points')
+        .select('id,name,lat,lng,order_index')
+        .eq('route_id', t.route_id)
+        .eq('is_active', true)
+        .order('order_index', { ascending: true })
+      if (rsErr) throw rsErr
+      return ((routeStops || []) as any[]).map((x) => ({ ...x, trip_id: t.id }))
+    }
   }
 
   const load = async () => {

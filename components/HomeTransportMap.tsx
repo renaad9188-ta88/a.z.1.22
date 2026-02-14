@@ -255,13 +255,47 @@ export default function HomeTransportMap() {
               .select('id, trip_id, name, lat, lng, order_index')
               .eq('trip_id', userHint.trip_id)
               .order('order_index', { ascending: true })
-            
-            const stops = (stopsData || []).map((s: any) => ({
+            const tripStopsRows = (stopsData || []) as any[]
+            let stops = tripStopsRows.map((s: any) => ({
               name: s.name,
               lat: s.lat,
               lng: s.lng,
               order_index: s.order_index || 0,
             }))
+
+            // Fallback: use route default stops if trip has no custom points
+            if (stops.length === 0 && tripData?.route_id) {
+              const tripType: 'arrival' | 'departure' | null = (tripData.trip_type as any) || null
+              const allowedKinds = tripType === 'departure' ? ['pickup', 'both'] : ['dropoff', 'both']
+              try {
+                const { data: routeStops } = await supabase
+                  .from('route_stop_points')
+                  .select('id,name,lat,lng,order_index,stop_kind')
+                  .eq('route_id', tripData.route_id)
+                  .eq('is_active', true)
+                  .in('stop_kind', allowedKinds as any)
+                  .order('order_index', { ascending: true })
+                stops = (routeStops || []).map((s: any) => ({
+                  name: s.name,
+                  lat: s.lat,
+                  lng: s.lng,
+                  order_index: s.order_index || 0,
+                }))
+              } catch {
+                const { data: routeStops } = await supabase
+                  .from('route_stop_points')
+                  .select('id,name,lat,lng,order_index')
+                  .eq('route_id', tripData.route_id)
+                  .eq('is_active', true)
+                  .order('order_index', { ascending: true })
+                stops = (routeStops || []).map((s: any) => ({
+                  name: s.name,
+                  lat: s.lat,
+                  lng: s.lng,
+                  order_index: s.order_index || 0,
+                }))
+              }
+            }
             
             // Create trip row format
             const userTripRow: PublicTripMapRow = {
@@ -961,8 +995,17 @@ export default function HomeTransportMap() {
           .select('id, name, lat, lng')
           .in('id', stopIds)
         
-        if (stopsData) {
-          stopsData.forEach((s: any) => {
+        ;(stopsData || []).forEach((s: any) => {
+          stopsMap[s.id] = { name: s.name, lat: s.lat, lng: s.lng }
+        })
+
+        const missing = stopIds.filter((id) => !stopsMap[id])
+        if (missing.length > 0) {
+          const { data: routeStopsData } = await supabase
+            .from('route_stop_points')
+            .select('id, name, lat, lng')
+            .in('id', missing)
+          ;(routeStopsData || []).forEach((s: any) => {
             stopsMap[s.id] = { name: s.name, lat: s.lat, lng: s.lng }
           })
         }
@@ -1166,20 +1209,33 @@ export default function HomeTransportMap() {
         .filter(Boolean) as string[]
 
       if (stopIds.length > 0) {
-        // Load stop locations
-        supabase
-          .from('route_trip_stop_points')
-          .select('id, name, lat, lng')
-          .in('id', stopIds)
-          .then(({ data: stopsData }) => {
-            if (stopsData) {
-              const stopsMap: Record<string, { name: string; lat: number; lng: number }> = {}
-              stopsData.forEach((s: any) => {
+        ;(async () => {
+          try {
+            const stopsMap: Record<string, { name: string; lat: number; lng: number }> = {}
+            const { data: tripStops } = await supabase
+              .from('route_trip_stop_points')
+              .select('id, name, lat, lng')
+              .in('id', stopIds)
+            ;(tripStops || []).forEach((s: any) => {
+              stopsMap[s.id] = { name: s.name, lat: s.lat, lng: s.lng }
+            })
+
+            const missing = stopIds.filter((id) => !stopsMap[id])
+            if (missing.length > 0) {
+              const { data: routeStops } = await supabase
+                .from('route_stop_points')
+                .select('id, name, lat, lng')
+                .in('id', missing)
+              ;(routeStops || []).forEach((s: any) => {
                 stopsMap[s.id] = { name: s.name, lat: s.lat, lng: s.lng }
               })
-              calculatePassengerETAs(passengers, stopsMap, tripType)
             }
-          })
+
+            calculatePassengerETAs(passengers, stopsMap, tripType)
+          } catch (e) {
+            console.error('ETA stops load error:', e)
+          }
+        })()
       }
     }
   }, [driverLocation, showPassengerList, isLoggedIn, hasUserTrip])

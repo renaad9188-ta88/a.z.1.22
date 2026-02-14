@@ -256,8 +256,17 @@ export default function TripDetailsModal({
             .from('route_trip_stop_points')
             .select('id,name')
             .in('id', stopIds)
-          if (stopsData) {
-            stopsData.forEach((s: any) => {
+          ;(stopsData || []).forEach((s: any) => {
+            stopsMap[s.id] = { name: s.name }
+          })
+
+          const missing = stopIds.filter((id) => !stopsMap[id])
+          if (missing.length > 0) {
+            const { data: routeStopsData } = await supabase
+              .from('route_stop_points')
+              .select('id,name')
+              .in('id', missing)
+            ;(routeStopsData || []).forEach((s: any) => {
               stopsMap[s.id] = { name: s.name }
             })
           }
