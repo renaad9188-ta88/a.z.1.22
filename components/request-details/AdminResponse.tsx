@@ -217,9 +217,9 @@ export default function AdminResponse({
           </div>
         )}
         {responseText && (
-          <p className="text-sm sm:text-base text-gray-800 whitespace-pre-wrap leading-relaxed">
-            {responseText}
-          </p>
+        <p className="text-sm sm:text-base text-gray-800 whitespace-pre-wrap leading-relaxed">
+          {responseText}
+        </p>
         )}
       </div>
     </div>

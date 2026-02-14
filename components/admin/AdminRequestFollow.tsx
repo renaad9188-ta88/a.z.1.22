@@ -1040,10 +1040,10 @@ export default function AdminRequestFollow({
 
                       {/* عرض صور الدفعة (إن وُجدت) */}
                       {depositPaymentImageUrls.length > 0 && (
-                        <DepositPaymentImages
-                          imageUrls={depositPaymentImageUrls}
-                          originalUrls={adminInfo?.paymentImages}
-                        />
+                      <DepositPaymentImages
+                        imageUrls={depositPaymentImageUrls}
+                        originalUrls={adminInfo?.paymentImages}
+                      />
                       )}
 
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -1115,23 +1115,23 @@ export default function AdminRequestFollow({
                       </p>
                     </div>
                     <div className="flex flex-col sm:flex-row gap-3">
-                      <button
-                        type="button"
-                        onClick={approve}
-                        disabled={saving || request.status === 'approved'}
+                    <button
+                      type="button"
+                      onClick={approve}
+                      disabled={saving || request.status === 'approved'}
                         className="flex-1 px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition text-base sm:text-lg font-bold disabled:opacity-50 disabled:cursor-not-allowed shadow-lg"
-                      >
+                    >
                         {saving ? 'جاري الحفظ...' : '✓ قبول الطلب'}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={reject}
-                        disabled={saving || request.status === 'rejected'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={reject}
+                      disabled={saving || request.status === 'rejected'}
                         className="flex-1 px-6 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 transition text-base sm:text-lg font-bold disabled:opacity-50 disabled:cursor-not-allowed shadow-lg"
-                      >
+                    >
                         {saving ? 'جاري الحفظ...' : '✗ رفض الطلب'}
-                      </button>
-                    </div>
+                    </button>
+                  </div>
                   </div>
                 )}
 

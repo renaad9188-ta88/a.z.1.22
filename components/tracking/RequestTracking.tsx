@@ -718,12 +718,12 @@ export default function RequestTracking({ requestId, userId }: { requestId: stri
             if (routeStopsData) setRouteStops(routeStopsData as any)
           } catch {
             // Backward compatibility if stop_kind is not migrated yet
-            const { data: routeStopsData } = await supabase
-              .from('route_stop_points')
-              .select('id,route_id,name,description,lat,lng,order_index')
-              .eq('route_id', routeData.id)
-              .eq('is_active', true)
-              .order('order_index', { ascending: true })
+          const { data: routeStopsData } = await supabase
+            .from('route_stop_points')
+            .select('id,route_id,name,description,lat,lng,order_index')
+            .eq('route_id', routeData.id)
+            .eq('is_active', true)
+            .order('order_index', { ascending: true })
             if (routeStopsData) setRouteStops(routeStopsData as any)
           }
         }

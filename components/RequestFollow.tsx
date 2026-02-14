@@ -982,12 +982,12 @@ export default function RequestFollow({ requestId, userId }: { requestId: string
                       <a
                         href="tel:00962798905595"
                         className="flex items-center justify-center gap-2 px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition font-semibold text-sm"
-                      >
+                        >
                         <Phone className="w-4 h-4" />
                         اتصال
                       </a>
-                    </div>
-                  </div>
+                      </div>
+                      </div>
                 )}
                 {activeStep === 2 && (
                   <div className="bg-amber-50 border-2 border-amber-200 rounded-lg p-4">
@@ -1187,8 +1187,8 @@ export default function RequestFollow({ requestId, userId }: { requestId: string
                           {selectedDropoffStop && (
                             <div>
                               <span className="font-bold text-gray-900">نقطة النزول:</span> {selectedDropoffStop.name}
-                            </div>
-                          )}
+                  </div>
+                )}
                           {selectedPickupStop && (
                             <div>
                               <span className="font-bold text-gray-900">نقطة الصعود:</span> {selectedPickupStop.name}

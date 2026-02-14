@@ -276,11 +276,11 @@ export default function HomeTransportMap() {
                   .in('stop_kind', allowedKinds as any)
                   .order('order_index', { ascending: true })
                 stops = (routeStops || []).map((s: any) => ({
-                  name: s.name,
-                  lat: s.lat,
-                  lng: s.lng,
-                  order_index: s.order_index || 0,
-                }))
+              name: s.name,
+              lat: s.lat,
+              lng: s.lng,
+              order_index: s.order_index || 0,
+            }))
               } catch {
                 const { data: routeStops } = await supabase
                   .from('route_stop_points')
@@ -1213,12 +1213,12 @@ export default function HomeTransportMap() {
           try {
             const stopsMap: Record<string, { name: string; lat: number; lng: number }> = {}
             const { data: tripStops } = await supabase
-              .from('route_trip_stop_points')
-              .select('id, name, lat, lng')
-              .in('id', stopIds)
+          .from('route_trip_stop_points')
+          .select('id, name, lat, lng')
+          .in('id', stopIds)
             ;(tripStops || []).forEach((s: any) => {
-              stopsMap[s.id] = { name: s.name, lat: s.lat, lng: s.lng }
-            })
+                stopsMap[s.id] = { name: s.name, lat: s.lat, lng: s.lng }
+              })
 
             const missing = stopIds.filter((id) => !stopsMap[id])
             if (missing.length > 0) {
@@ -1231,10 +1231,10 @@ export default function HomeTransportMap() {
               })
             }
 
-            calculatePassengerETAs(passengers, stopsMap, tripType)
+              calculatePassengerETAs(passengers, stopsMap, tripType)
           } catch (e) {
             console.error('ETA stops load error:', e)
-          }
+            }
         })()
       }
     }

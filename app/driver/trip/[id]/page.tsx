@@ -176,14 +176,14 @@ export default function DriverTripDetailsPage() {
             setStopPoints(((routeStops || []) as any) as StopPointRow[])
           } catch {
             // Backward compatibility if stop_kind is not migrated yet
-            const { data: routeStops, error: rsErr } = await supabase
-              .from('route_stop_points')
-              .select('id,name,lat,lng,order_index')
-              .eq('route_id', routeId)
-              .eq('is_active', true)
-              .order('order_index', { ascending: true })
-            if (rsErr) throw rsErr
-            setStopPoints(((routeStops || []) as any) as StopPointRow[])
+          const { data: routeStops, error: rsErr } = await supabase
+            .from('route_stop_points')
+            .select('id,name,lat,lng,order_index')
+            .eq('route_id', routeId)
+            .eq('is_active', true)
+            .order('order_index', { ascending: true })
+          if (rsErr) throw rsErr
+          setStopPoints(((routeStops || []) as any) as StopPointRow[])
           }
         } else {
           setStopPoints([])
@@ -574,7 +574,7 @@ export default function DriverTripDetailsPage() {
                       <div className="p-3 space-y-2 bg-white">
                         {list.map((p) => (
                           <div key={p.id} className="border-2 border-blue-200 rounded-xl p-3 bg-blue-50">
-                            <div className="flex items-start justify-between gap-3">
+                      <div className="flex items-start justify-between gap-3">
                               <div className="min-w-0 flex-1">
                                 <p className="text-base sm:text-lg font-extrabold text-gray-900 truncate">{p.visitor_name}</p>
                                 <div className="mt-1 grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs sm:text-sm text-gray-700">
@@ -586,12 +586,12 @@ export default function DriverTripDetailsPage() {
                                     <div className="inline-flex items-center gap-2">
                                       <Phone className="w-4 h-4 text-blue-700" />
                                       {p.profile.phone}
-                                    </div>
+                            </div>
                                   )}
                                   <div className={`inline-flex items-center gap-2 sm:col-span-2 ${stopName.includes('لم يحدد') ? 'text-amber-800' : 'text-blue-800'} font-extrabold`}>
                                     <MapPin className="w-4 h-4" />
                                     {trip?.trip_type === 'departure' ? 'نقطة التحميل:' : 'نقطة النزول:'} {stopName}
-                                  </div>
+                              </div>
                                 </div>
                               </div>
                               <Link
@@ -604,9 +604,9 @@ export default function DriverTripDetailsPage() {
                           </div>
                         ))}
                       </div>
-                    </div>
+                              </div>
                   ))}
-                </div>
+                            </div>
               ) : (
                 <div className="space-y-2">
                   {visiblePassengers.map((p) => {
@@ -625,22 +625,22 @@ export default function DriverTripDetailsPage() {
                                 <div className="inline-flex items-center gap-2">
                                   <Phone className="w-4 h-4 text-blue-700" />
                                   {p.profile.phone}
-                                </div>
-                              )}
+                              </div>
+                            )}
                               <div className={`inline-flex items-center gap-2 sm:col-span-2 ${stopName.includes('لم يحدد') ? 'text-amber-800' : 'text-blue-800'} font-extrabold`}>
                                 <MapPin className="w-4 h-4" />
                                 {trip?.trip_type === 'departure' ? 'نقطة التحميل:' : 'نقطة النزول:'} {stopName}
                               </div>
-                            </div>
                           </div>
-                          <Link
-                            href={`/driver/passenger/${p.id}`}
-                            className="px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-xs sm:text-sm font-semibold whitespace-nowrap self-start"
-                          >
-                            تفاصيل
-                          </Link>
                         </div>
+                        <Link
+                          href={`/driver/passenger/${p.id}`}
+                          className="px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-xs sm:text-sm font-semibold whitespace-nowrap self-start"
+                        >
+                            تفاصيل
+                        </Link>
                       </div>
+                    </div>
                     )
                   })}
                 </div>
