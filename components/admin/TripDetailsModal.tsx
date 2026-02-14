@@ -235,8 +235,7 @@ export default function TripDetailsModal({
           city,
           user_id,
           selected_dropoff_stop_id,
-          selected_pickup_stop_id,
-          profiles!inner(phone, full_name)
+          selected_pickup_stop_id
         `)
         .eq('trip_id', tripId)
         .neq('status', 'rejected')
@@ -244,6 +243,26 @@ export default function TripDetailsModal({
       if (passengersErr) {
         console.error('Error loading passengers:', passengersErr)
       } else {
+        // Load profiles separately
+        const userIds = Array.from(new Set((passengersData || []).map((p: any) => p.user_id).filter(Boolean)))
+        let profilesMap: Record<string, { phone: string | null; full_name: string | null }> = {}
+        
+        if (userIds.length > 0) {
+          const { data: profiles, error: profErr } = await supabase
+            .from('profiles')
+            .select('user_id, phone, full_name')
+            .in('user_id', userIds)
+          
+          if (!profErr && profiles) {
+            profiles.forEach((p: any) => {
+              profilesMap[p.user_id] = {
+                phone: p.phone || null,
+                full_name: p.full_name || null,
+              }
+            })
+          }
+        }
+        
         // Load stop points for selected stops
         const stopIds = (passengersData || [])
           .map((p: any) => [p.selected_dropoff_stop_id, p.selected_pickup_stop_id])
@@ -277,8 +296,8 @@ export default function TripDetailsModal({
           visitor_name: p.visitor_name,
           companions_count: p.companions_count,
           city: p.city,
-          phone: p.profiles?.phone || null,
-          full_name: p.profiles?.full_name || null,
+          phone: profilesMap[p.user_id]?.phone || null,
+          full_name: profilesMap[p.user_id]?.full_name || null,
           selected_dropoff_stop_id: p.selected_dropoff_stop_id,
           selected_pickup_stop_id: p.selected_pickup_stop_id,
           selectedDropoffStop: p.selected_dropoff_stop_id ? stopsMap[p.selected_dropoff_stop_id] : null,
