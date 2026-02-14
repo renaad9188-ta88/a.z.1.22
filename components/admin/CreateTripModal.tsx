@@ -1,10 +1,9 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { createSupabaseBrowserClient } from '@/lib/supabase'
 import toast from 'react-hot-toast'
-import { X, MapPin, Plus, Trash2 } from 'lucide-react'
-import LocationSelector from '@/components/driver/LocationSelector'
+import { X, MapPin, Plus, Trash2, Edit, ArrowUp, ArrowDown, GripVertical } from 'lucide-react'
 
 type Route = {
   id: string
@@ -18,6 +17,29 @@ type StopPoint = {
 }
 
 const MAX_STOP_POINTS = 7
+
+function loadGoogleMaps(apiKey: string): Promise<void> {
+  if (typeof window === 'undefined') return Promise.resolve()
+  if ((window as any).google?.maps) return Promise.resolve()
+
+  return new Promise((resolve, reject) => {
+    const existing = document.querySelector('script[data-google-maps="1"]') as HTMLScriptElement | null
+    if (existing) {
+      existing.addEventListener('load', () => resolve())
+      existing.addEventListener('error', () => reject(new Error('Google Maps failed to load')))
+      return
+    }
+
+    const script = document.createElement('script')
+    script.dataset.googleMaps = '1'
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places,geometry&language=ar`
+    script.async = true
+    script.defer = true
+    script.onload = () => resolve()
+    script.onerror = () => reject(new Error('Google Maps failed to load'))
+    document.head.appendChild(script)
+  })
+}
 
 export default function CreateTripModal({
   routeId,
@@ -43,9 +65,14 @@ export default function CreateTripModal({
   copyTripData?: any
 }) {
   const supabase = createSupabaseBrowserClient()
+  const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || ''
+  
   const [saving, setSaving] = useState(false)
   const [showAdvanced, setShowAdvanced] = useState(false)
   const [useRouteDefaultStops, setUseRouteDefaultStops] = useState(true)
+  const [mapsReady, setMapsReady] = useState(false)
+  const [addingStopFromMap, setAddingStopFromMap] = useState(false)
+  const [editingLocation, setEditingLocation] = useState<'start' | 'end' | number | null>(null)
   
   // Trip basic info
   const [tripDate, setTripDate] = useState('')
@@ -57,31 +84,38 @@ export default function CreateTripModal({
   const [endLocation, setEndLocation] = useState<{ name: string; lat: number; lng: number } | null>(defaultEnd || null)
   const [stopPoints, setStopPoints] = useState<StopPoint[]>([])
   
-  // Location selector modals
-  const [showStartSelector, setShowStartSelector] = useState(false)
-  const [showEndSelector, setShowEndSelector] = useState(false)
-  const [showStopSelector, setShowStopSelector] = useState(false)
-  const [editingStopIndex, setEditingStopIndex] = useState<number | null>(null)
-  
   // Recurring trips
   const [createRecurring, setCreateRecurring] = useState(false)
   const [recurringDays, setRecurringDays] = useState(7)
   const [recurringEndDate, setRecurringEndDate] = useState('')
 
-  const buildPreviewPoints = (override?: { selection?: 'start' | 'stop' | 'end'; editingIdx?: number | null }) => {
-    const pts: Array<{ lat: number; lng: number; kind: 'start' | 'stop' | 'end'; label?: string }> = []
-    if (startLocation) pts.push({ lat: startLocation.lat, lng: startLocation.lng, kind: 'start', label: 'بداية' })
-    stopPoints.forEach((s, idx) => {
-      // If editing a stop, keep its position too (initial is already placed); label is index+1
-      if (override?.editingIdx != null && idx === override.editingIdx) {
-        pts.push({ lat: s.lat, lng: s.lng, kind: 'stop', label: String(idx + 1) })
-        return
+  // Map refs
+  const mapRef = useRef<HTMLDivElement | null>(null)
+  const mapObjRef = useRef<google.maps.Map | null>(null)
+  const markersRef = useRef<google.maps.Marker[]>([])
+  const polylineRef = useRef<google.maps.Polyline | null>(null)
+  const directionsServiceRef = useRef<google.maps.DirectionsService | null>(null)
+  const directionsRendererRef = useRef<google.maps.DirectionsRenderer | null>(null)
+  const infoWindowRef = useRef<google.maps.InfoWindow | null>(null)
+
+  // Load Google Maps
+  useEffect(() => {
+    let mounted = true
+    ;(async () => {
+      try {
+        if (!apiKey) return
+        await loadGoogleMaps(apiKey)
+        if (!mounted) return
+        setMapsReady(true)
+      } catch (e) {
+        console.error('Maps load error:', e)
+        toast.error('تعذر تحميل Google Maps')
       }
-      pts.push({ lat: s.lat, lng: s.lng, kind: 'stop', label: String(idx + 1) })
-    })
-    if (endLocation) pts.push({ lat: endLocation.lat, lng: endLocation.lng, kind: 'end', label: 'نهاية' })
-    return pts
-  }
+    })()
+    return () => {
+      mounted = false
+    }
+  }, [apiKey])
 
   // Set default date to today (only if not editing/copying)
   const editTripDataId = editTripData?.id
@@ -102,7 +136,6 @@ export default function CreateTripModal({
     if (editTripData || copyTripData) {
       const tripData = editTripData || copyTripData
       
-      // If copying, set date to today; if editing, use existing date
       if (copyTripData) {
         const today = new Date()
         const yyyy = today.getFullYear()
@@ -126,7 +159,6 @@ export default function CreateTripModal({
         lng: tripData.end_lng,
       })
       
-      // Load stop points
       const loadStopPoints = async () => {
         const tripIdToLoad = editTripId || (copyTripData ? copyTripData.id : null)
         if (!tripIdToLoad) return
@@ -143,7 +175,6 @@ export default function CreateTripModal({
             lat: s.lat,
             lng: s.lng,
           })))
-          // If trip already has custom stop points, default to custom mode
           if (stops.length > 0) {
             setUseRouteDefaultStops(false)
             setShowAdvanced(true)
@@ -157,7 +188,6 @@ export default function CreateTripModal({
         loadStopPoints()
       }
     } else {
-      // Reset form when not editing/copying
       setStopPoints([])
       setMeetingTime('')
       setDepartureTime('')
@@ -169,26 +199,245 @@ export default function CreateTripModal({
     }
   }, [editTripId, editTripDataId, copyTripDataId, editTripData, copyTripData, supabase])
 
+  // Initialize map
+  useEffect(() => {
+    if (!mapsReady || !mapRef.current || !(window as any).google?.maps) return
+    const googleMaps = (window as any).google.maps as typeof google.maps
+
+    if (!mapObjRef.current) {
+      const center = startLocation 
+        ? { lat: startLocation.lat, lng: startLocation.lng }
+        : { lat: 32.5456, lng: 35.825 }
+      
+      mapObjRef.current = new googleMaps.Map(mapRef.current!, {
+        center,
+        zoom: 9,
+        mapTypeId: googleMaps.MapTypeId.ROADMAP,
+        mapTypeControl: true,
+        zoomControl: true,
+        fullscreenControl: true,
+        streetViewControl: false,
+        gestureHandling: 'greedy',
+      })
+
+      directionsServiceRef.current = new googleMaps.DirectionsService()
+      directionsRendererRef.current = new googleMaps.DirectionsRenderer({
+        suppressMarkers: true,
+        polylineOptions: {
+          strokeColor: '#2563eb',
+          strokeWeight: 4,
+          strokeOpacity: 0.8,
+        },
+      })
+      directionsRendererRef.current.setMap(mapObjRef.current)
+
+      infoWindowRef.current = new googleMaps.InfoWindow()
+
+      // Click handler for adding stops
+      mapObjRef.current.addListener('click', (e: google.maps.MapMouseEvent) => {
+        if (!addingStopFromMap || !e.latLng) return
+        if (stopPoints.length >= MAX_STOP_POINTS) {
+          toast.error(`يمكنك إضافة ${MAX_STOP_POINTS} محطات كحد أقصى`)
+          setAddingStopFromMap(false)
+          return
+        }
+
+        const lat = e.latLng.lat()
+        const lng = e.latLng.lng()
+        
+        // Use Geocoder to get address
+        const geocoder = new googleMaps.Geocoder()
+        geocoder.geocode({ location: { lat, lng } }, (results, status) => {
+          if (status === 'OK' && results && results[0]) {
+            const name = results[0].formatted_address || `محطة ${stopPoints.length + 1}`
+            handleAddStop({ name, lat, lng })
+            setAddingStopFromMap(false)
+            toast.success('تم إضافة المحطة')
+          } else {
+            const name = `محطة ${stopPoints.length + 1}`
+            handleAddStop({ name, lat, lng })
+            setAddingStopFromMap(false)
+            toast.success('تم إضافة المحطة')
+          }
+        })
+      })
+    }
+  }, [mapsReady, addingStopFromMap, stopPoints.length])
+
+  // Render map markers and route
+  useEffect(() => {
+    if (!mapsReady || !mapObjRef.current || !(window as any).google?.maps) return
+    const googleMaps = (window as any).google.maps as typeof google.maps
+    const map = mapObjRef.current
+
+    // Clear existing markers
+    markersRef.current.forEach((m) => m.setMap(null))
+    markersRef.current = []
+    if (polylineRef.current) {
+      polylineRef.current.setMap(null)
+      polylineRef.current = null
+    }
+
+    const allPoints: Array<{ lat: number; lng: number; name: string; type: 'start' | 'stop' | 'end'; index?: number }> = []
+
+    // Start marker
+    if (startLocation) {
+      allPoints.push({ ...startLocation, type: 'start' })
+      const marker = new googleMaps.Marker({
+        position: { lat: startLocation.lat, lng: startLocation.lng },
+        map,
+        title: `الانطلاق: ${startLocation.name}`,
+        icon: { url: 'http://maps.google.com/mapfiles/ms/icons/green-dot.png' },
+        draggable: true,
+      })
+      marker.addListener('dragend', (e: google.maps.MapMouseEvent) => {
+        if (!e.latLng) return
+        const latLng = e.latLng
+        const geocoder = new googleMaps.Geocoder()
+        geocoder.geocode({ location: latLng }, (results) => {
+          const name = results && results[0] ? results[0].formatted_address : startLocation.name
+          setStartLocation({ name, lat: latLng.lat(), lng: latLng.lng() })
+        })
+      })
+      marker.addListener('click', () => {
+        setEditingLocation('start')
+      })
+      markersRef.current.push(marker)
+    }
+
+    // Stop markers
+    stopPoints.forEach((stop, idx) => {
+      allPoints.push({ ...stop, type: 'stop', index: idx })
+      const marker = new googleMaps.Marker({
+        position: { lat: stop.lat, lng: stop.lng },
+        map,
+        title: `محطة ${idx + 1}: ${stop.name}`,
+        label: {
+          text: String(idx + 1),
+          color: 'white',
+          fontWeight: 'bold',
+          fontSize: '12px',
+        },
+        icon: {
+          path: googleMaps.SymbolPath.CIRCLE,
+          scale: 10,
+          fillColor: '#2563eb',
+          fillOpacity: 1,
+          strokeColor: '#ffffff',
+          strokeWeight: 2,
+        },
+        draggable: true,
+      })
+      marker.addListener('dragend', (e: google.maps.MapMouseEvent) => {
+        if (!e.latLng) return
+        const latLng = e.latLng
+        const geocoder = new googleMaps.Geocoder()
+        geocoder.geocode({ location: latLng }, (results) => {
+          const name = results && results[0] ? results[0].formatted_address : stop.name
+          const newStops = [...stopPoints]
+          newStops[idx] = { name, lat: latLng.lat(), lng: latLng.lng() }
+          setStopPoints(newStops)
+        })
+      })
+      marker.addListener('click', () => {
+        setEditingLocation(idx)
+      })
+      markersRef.current.push(marker)
+    })
+
+    // End marker
+    if (endLocation) {
+      allPoints.push({ ...endLocation, type: 'end' })
+      const marker = new googleMaps.Marker({
+        position: { lat: endLocation.lat, lng: endLocation.lng },
+        map,
+        title: `الوصول: ${endLocation.name}`,
+        icon: { url: 'http://maps.google.com/mapfiles/ms/icons/red-dot.png' },
+        draggable: true,
+      })
+      marker.addListener('dragend', (e: google.maps.MapMouseEvent) => {
+        if (!e.latLng) return
+        const latLng = e.latLng
+        const geocoder = new googleMaps.Geocoder()
+        geocoder.geocode({ location: latLng }, (results) => {
+          const name = results && results[0] ? results[0].formatted_address : endLocation.name
+          setEndLocation({ name, lat: latLng.lat(), lng: latLng.lng() })
+        })
+      })
+      marker.addListener('click', () => {
+        setEditingLocation('end')
+      })
+      markersRef.current.push(marker)
+    }
+
+    // Draw route with Directions API if we have start and end
+    if (startLocation && endLocation && directionsServiceRef.current && directionsRendererRef.current) {
+      const waypoints: google.maps.DirectionsWaypoint[] = stopPoints.map((stop) => ({
+        location: { lat: stop.lat, lng: stop.lng },
+        stopover: true,
+      }))
+
+      directionsServiceRef.current.route(
+        {
+          origin: { lat: startLocation.lat, lng: startLocation.lng },
+          destination: { lat: endLocation.lat, lng: endLocation.lng },
+          waypoints: waypoints.length > 0 ? waypoints : undefined,
+          travelMode: googleMaps.TravelMode.DRIVING,
+        },
+        (result, status) => {
+          if (status === 'OK' && directionsRendererRef.current) {
+            directionsRendererRef.current.setDirections(result)
+          }
+        }
+      )
+    } else if (allPoints.length > 1) {
+      // Fallback: simple polyline
+      const path = allPoints.map((p) => ({ lat: p.lat, lng: p.lng }))
+      polylineRef.current = new googleMaps.Polyline({
+        path,
+        geodesic: true,
+        strokeColor: '#2563eb',
+        strokeOpacity: 0.8,
+        strokeWeight: 4,
+      })
+      polylineRef.current.setMap(map)
+    }
+
+    // Fit bounds
+    if (allPoints.length > 0) {
+      const bounds = new googleMaps.LatLngBounds()
+      allPoints.forEach((p) => bounds.extend({ lat: p.lat, lng: p.lng }))
+      map.fitBounds(bounds, 50)
+    }
+  }, [mapsReady, startLocation, endLocation, stopPoints, showAdvanced])
+
   const handleAddStop = (point: StopPoint) => {
-    if (editingStopIndex !== null) {
-      // Edit existing stop
+    if (typeof editingLocation === 'number') {
       const newStops = [...stopPoints]
-      newStops[editingStopIndex] = point
+      newStops[editingLocation] = point
       setStopPoints(newStops)
-      setEditingStopIndex(null)
+      setEditingLocation(null)
     } else {
-      // Add new stop
       if (stopPoints.length >= MAX_STOP_POINTS) {
-        toast.error(`يمكنك إضافة ${MAX_STOP_POINTS} محطات توقف كحد أقصى`)
+        toast.error(`يمكنك إضافة ${MAX_STOP_POINTS} محطات كحد أقصى`)
         return
       }
       setStopPoints([...stopPoints, point])
     }
-    setShowStopSelector(false)
   }
 
   const handleRemoveStop = (index: number) => {
     setStopPoints(stopPoints.filter((_, i) => i !== index))
+  }
+
+  const handleMoveStop = (index: number, direction: 'up' | 'down') => {
+    if (direction === 'up' && index === 0) return
+    if (direction === 'down' && index === stopPoints.length - 1) return
+    
+    const newStops = [...stopPoints]
+    const targetIndex = direction === 'up' ? index - 1 : index + 1
+    ;[newStops[index], newStops[targetIndex]] = [newStops[targetIndex], newStops[index]]
+    setStopPoints(newStops)
   }
 
   const handleSave = async () => {
@@ -211,14 +460,10 @@ export default function CreateTripModal({
 
     try {
       setSaving(true)
-
-      // Normalize trip type to DB canonical values (singular: 'arrival' or 'departure')
       const tripTypeDb = tripType === 'departure' ? 'departure' : 'arrival'
       const stopsToSave = useRouteDefaultStops ? [] : stopPoints
 
-      // If editing, update existing trip
       if (editTripId) {
-        // ✅ التحقق من وجود طلبات مرتبطة بالرحلة
         const { data: linkedRequests, error: checkErr } = await supabase
           .from('visit_requests')
           .select('id, visitor_name')
@@ -231,9 +476,7 @@ export default function CreateTripModal({
           const count = linkedRequests.length
           const names = linkedRequests.slice(0, 3).map((r: any) => r.visitor_name).join('، ')
           const moreText = count > 3 ? ` و${count - 3} طلب آخر` : ''
-          const confirmMessage = `⚠️ تحذير: هذه الرحلة مرتبطة بـ ${count} طلب/طلبات (${names}${moreText}).\n\nتعديل الرحلة قد يؤثر على الحجوزات المرتبطة.\n\nهل أنت متأكد من المتابعة؟`
-          
-          if (!confirm(confirmMessage)) {
+          if (!confirm(`⚠️ تحذير: هذه الرحلة مرتبطة بـ ${count} طلب/طلبات (${names}${moreText}).\n\nتعديل الرحلة قد يؤثر على الحجوزات المرتبطة.\n\nهل أنت متأكد من المتابعة؟`)) {
             setSaving(false)
             return
           }
@@ -257,7 +500,6 @@ export default function CreateTripModal({
 
         if (updateErr) throw updateErr
 
-        // ✅ Logging: تسجيل تحديث الرحلة
         try {
           const { logTripUpdated } = await import('@/lib/audit')
           await logTripUpdated(editTripId, editTripData || {}, {
@@ -269,10 +511,8 @@ export default function CreateTripModal({
           })
         } catch (logErr) {
           console.error('Error logging trip update:', logErr)
-          // لا نوقف العملية إذا فشل الـ logging
         }
 
-        // Update stop points: delete old and insert new
         const { error: delErr } = await supabase
           .from('route_trip_stop_points')
           .delete()
@@ -302,12 +542,9 @@ export default function CreateTripModal({
         return
       }
 
-      // Create new trip(s)
-      // Determine dates to create trips for
       const datesToCreate: string[] = []
 
       if (createRecurring) {
-        // Create recurring trips
         const startDate = new Date(tripDate)
         const endDate = recurringEndDate
           ? new Date(recurringEndDate)
@@ -320,15 +557,12 @@ export default function CreateTripModal({
           currentDate.setDate(currentDate.getDate() + 1)
         }
       } else {
-        // Single trip
         datesToCreate.push(tripDate)
       }
 
-      // Create trips
       const createdTrips: string[] = []
 
       for (const dateStr of datesToCreate) {
-        // 1) Create trip
         const { data: trip, error: tripErr } = await supabase
           .from('route_trips')
           .insert({
@@ -351,7 +585,6 @@ export default function CreateTripModal({
         if (tripErr) throw tripErr
         createdTrips.push(trip.id)
 
-        // ✅ Logging: تسجيل إنشاء رحلة جديدة
         try {
           const { logTripCreated } = await import('@/lib/audit')
           await logTripCreated(trip.id, {
@@ -363,10 +596,8 @@ export default function CreateTripModal({
           })
         } catch (logErr) {
           console.error('Error logging trip creation:', logErr)
-          // لا نوقف العملية إذا فشل الـ logging
         }
 
-        // 2) Create stop points
         if (stopsToSave.length > 0) {
           const stopsData = stopsToSave.map((stop, idx) => ({
             trip_id: trip.id,
@@ -396,8 +627,8 @@ export default function CreateTripModal({
   }
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-3 sm:p-4 overflow-y-auto">
-      <div className="bg-white rounded-lg max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-2 sm:p-4 overflow-y-auto">
+      <div className="bg-white rounded-lg max-w-7xl w-full mx-2 sm:mx-4 max-h-[95vh] overflow-hidden flex flex-col">
         {/* Header */}
         <div className="sticky top-0 bg-white border-b border-gray-200 p-4 sm:p-6 flex items-center justify-between z-10">
           <h3 className="text-lg sm:text-xl font-bold text-gray-800">
@@ -415,266 +646,295 @@ export default function CreateTripModal({
           </button>
         </div>
 
-        {/* Content */}
-        <div className="p-4 sm:p-6 space-y-4 sm:space-y-6">
-          {/* Simple vs Advanced */}
-          <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-              <div className="min-w-0">
-                <p className="text-sm font-extrabold text-gray-900">وضع المكتب</p>
-                <p className="text-[11px] sm:text-xs text-gray-600 mt-1">
-                  الافتراضي: إنشاء سريع (تاريخ + أوقات). المحطات ستؤخذ من محطات الخط تلقائياً.
-                </p>
+        {/* Content: Split layout */}
+        <div className="flex-1 overflow-hidden flex flex-col lg:flex-row">
+          {/* Left: Map (60%) */}
+          <div className="flex-1 lg:w-3/5 border-r border-gray-200 flex flex-col">
+            {showAdvanced && (
+              <div className="p-3 bg-blue-50 border-b border-blue-200">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-xs sm:text-sm font-bold text-blue-900">
+                    {addingStopFromMap 
+                      ? 'انقر على الخريطة لإضافة محطة جديدة' 
+                      : 'انقر على المحطات لتعديلها أو اسحبها لتحريكها'}
+                  </p>
+                  {!addingStopFromMap && stopPoints.length < MAX_STOP_POINTS && (
+                    <button
+                      type="button"
+                      onClick={() => setAddingStopFromMap(true)}
+                      className="px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-xs font-semibold flex items-center gap-1"
+                    >
+                      <Plus className="w-3 h-3" />
+                      إضافة من الخريطة
+                    </button>
+                  )}
+                  {addingStopFromMap && (
+                    <button
+                      type="button"
+                      onClick={() => setAddingStopFromMap(false)}
+                      className="px-3 py-1.5 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 text-xs font-semibold"
+                    >
+                      إلغاء
+                    </button>
+                  )}
+                </div>
               </div>
-              <button
-                type="button"
-                onClick={() => setShowAdvanced((p) => !p)}
-                className="px-3 py-2 rounded-lg border border-gray-300 bg-white hover:bg-gray-50 text-xs sm:text-sm font-extrabold text-gray-900"
-              >
-                {showAdvanced ? 'إخفاء الإعدادات المتقدمة' : 'إعدادات متقدمة'}
-              </button>
-            </div>
+            )}
+            <div ref={mapRef} className="flex-1 min-h-[400px] bg-gray-100" />
+            {!apiKey && (
+              <div className="p-4 bg-yellow-50 border-t border-yellow-200 text-sm text-yellow-800">
+                ⚠️ مفتاح Google Maps غير موجود. لن تعمل الخريطة.
+              </div>
+            )}
           </div>
 
-          {/* Date & Time */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
-            <div lang="en" dir="ltr">
-              <label className="block text-sm font-bold text-gray-800 mb-2">تاريخ الرحلة *</label>
-              <input
-                type="date"
-                value={tripDate}
-                onChange={(e) => setTripDate(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
-                lang="en"
-                required
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-bold text-gray-800 mb-2">وقت التجمع</label>
-              <input
-                type="time"
-                value={meetingTime}
-                onChange={(e) => setMeetingTime(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-bold text-gray-800 mb-2">وقت الانطلاق *</label>
-              <input
-                type="time"
-                value={departureTime}
-                onChange={(e) => setDepartureTime(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
-                required
-              />
-            </div>
-          </div>
-
-          {/* Recurring Trips Option (Advanced) */}
-          {showAdvanced && !editTripId && (
-            <div className="border-t border-gray-200 pt-4">
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={createRecurring}
-                  onChange={(e) => setCreateRecurring(e.target.checked)}
-                  className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
-                />
-                <span className="text-sm font-semibold text-gray-800">
-                  إنشاء رحلات متكررة يومياً
-                </span>
-              </label>
-              
-              {createRecurring && (
-                <div className="mt-3 space-y-3">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-xs font-medium text-gray-700 mb-1">
-                        عدد الأيام
-                      </label>
-                      <input
-                        type="number"
-                        min="1"
-                        max="365"
-                        value={recurringDays}
-                        onChange={(e) => setRecurringDays(parseInt(e.target.value) || 7)}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
-                      />
-                    </div>
-                    <div lang="en" dir="ltr">
-                      <label className="block text-xs font-medium text-gray-700 mb-1">
-                        أو تاريخ النهاية
-                      </label>
-                      <input
-                        type="date"
-                        value={recurringEndDate}
-                        onChange={(e) => setRecurringEndDate(e.target.value)}
-                        min={tripDate}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
-                        lang="en"
-                      />
-                    </div>
+          {/* Right: Details Panel (40%) */}
+          <div className="lg:w-2/5 overflow-y-auto">
+            <div className="p-4 sm:p-6 space-y-4 sm:space-y-6">
+              {/* Simple vs Advanced */}
+              <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="text-sm font-extrabold text-gray-900">وضع المكتب</p>
+                    <p className="text-[11px] sm:text-xs text-gray-600 mt-1">
+                      الافتراضي: إنشاء سريع (تاريخ + أوقات). المحطات ستؤخذ من محطات الخط تلقائياً.
+                    </p>
                   </div>
-                  <p className="text-xs text-gray-600">
-                    سيتم إنشاء رحلات يومية بنفس المسار ونقاط التوقف من {tripDate} حتى{' '}
-                    {recurringEndDate || 
-                      new Date(new Date(tripDate).getTime() + (recurringDays - 1) * 24 * 60 * 60 * 1000)
-                        .toISOString().split('T')[0]}
+                  <button
+                    type="button"
+                    onClick={() => setShowAdvanced((p) => !p)}
+                    className="px-3 py-2 rounded-lg border border-gray-300 bg-white hover:bg-gray-50 text-xs sm:text-sm font-extrabold text-gray-900"
+                  >
+                    {showAdvanced ? 'إخفاء الإعدادات المتقدمة' : 'إعدادات متقدمة'}
+                  </button>
+                </div>
+              </div>
+
+              {/* Date & Time */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
+                <div lang="en" dir="ltr">
+                  <label className="block text-sm font-bold text-gray-800 mb-2">تاريخ الرحلة *</label>
+                  <input
+                    type="date"
+                    value={tripDate}
+                    onChange={(e) => setTripDate(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                    lang="en"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-bold text-gray-800 mb-2">وقت التجمع</label>
+                  <input
+                    type="time"
+                    value={meetingTime}
+                    onChange={(e) => setMeetingTime(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-bold text-gray-800 mb-2">وقت الانطلاق *</label>
+                  <input
+                    type="time"
+                    value={departureTime}
+                    onChange={(e) => setDepartureTime(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                    required
+                  />
+                </div>
+              </div>
+
+              {/* Recurring Trips */}
+              {showAdvanced && !editTripId && (
+                <div className="border-t border-gray-200 pt-4">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={createRecurring}
+                      onChange={(e) => setCreateRecurring(e.target.checked)}
+                      className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+                    />
+                    <span className="text-sm font-semibold text-gray-800">إنشاء رحلات متكررة يومياً</span>
+                  </label>
+                  
+                  {createRecurring && (
+                    <div className="mt-3 space-y-3">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-xs font-medium text-gray-700 mb-1">عدد الأيام</label>
+                          <input
+                            type="number"
+                            min="1"
+                            max="365"
+                            value={recurringDays}
+                            onChange={(e) => setRecurringDays(parseInt(e.target.value) || 7)}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                          />
+                        </div>
+                        <div lang="en" dir="ltr">
+                          <label className="block text-xs font-medium text-gray-700 mb-1">أو تاريخ النهاية</label>
+                          <input
+                            type="date"
+                            value={recurringEndDate}
+                            onChange={(e) => setRecurringEndDate(e.target.value)}
+                            min={tripDate}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                            lang="en"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Route Details (Advanced) */}
+              {showAdvanced && (
+                <>
+                  {/* Start Location */}
+                  <div>
+                    <label className="block text-sm font-bold text-gray-800 mb-2">نقطة الانطلاق *</label>
+                    {startLocation ? (
+                      <div className="flex items-center gap-2 p-3 bg-green-50 border border-green-200 rounded-lg">
+                        <MapPin className="w-4 h-4 text-green-600 flex-shrink-0" />
+                        <span className="flex-1 text-sm text-gray-800 truncate">{startLocation.name}</span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const name = prompt('اسم نقطة الانطلاق:', startLocation.name)
+                            if (name) setStartLocation({ ...startLocation, name })
+                          }}
+                          className="px-2 py-1 bg-green-600 text-white rounded-lg hover:bg-green-700 text-xs font-semibold"
+                        >
+                          <Edit className="w-3 h-3" />
+                        </button>
+                      </div>
+                    ) : (
+                      <p className="text-xs text-gray-500">اسحب المحدد الأخضر على الخريطة</p>
+                    )}
+                  </div>
+
+                  {/* Stop Points */}
+                  <div className="border-t border-gray-200 pt-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={useRouteDefaultStops}
+                          onChange={(e) => setUseRouteDefaultStops(e.target.checked)}
+                          className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+                        />
+                        <span className="text-sm font-extrabold text-gray-900">
+                          استخدم محطات الخط الافتراضية (مستحسن)
+                        </span>
+                      </label>
+                    </div>
+
+                    {!useRouteDefaultStops && (
+                      <div className="mt-3">
+                        <div className="flex items-center justify-between mb-2">
+                          <label className="block text-sm font-bold text-gray-800">
+                            {tripType === 'departure' ? 'محطات الصعود' : 'محطات النزول'} ({stopPoints.length}/{MAX_STOP_POINTS})
+                          </label>
+                        </div>
+                        <div className="space-y-2 max-h-[300px] overflow-y-auto">
+                          {stopPoints.map((stop, idx) => (
+                            <div key={idx} className="flex items-center gap-2 p-2 bg-blue-50 border border-blue-200 rounded-lg">
+                              <GripVertical className="w-4 h-4 text-gray-400 cursor-move" />
+                              <span className="w-6 h-6 bg-blue-600 text-white rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0">
+                                {idx + 1}
+                              </span>
+                              <span className="flex-1 text-xs sm:text-sm text-gray-800 truncate">{stop.name}</span>
+                              <div className="flex items-center gap-1">
+                                <button
+                                  type="button"
+                                  onClick={() => handleMoveStop(idx, 'up')}
+                                  disabled={idx === 0}
+                                  className="p-1 text-blue-600 hover:bg-blue-100 rounded disabled:opacity-30"
+                                  title="نقل لأعلى"
+                                >
+                                  <ArrowUp className="w-3 h-3" />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleMoveStop(idx, 'down')}
+                                  disabled={idx === stopPoints.length - 1}
+                                  className="p-1 text-blue-600 hover:bg-blue-100 rounded disabled:opacity-30"
+                                  title="نقل لأسفل"
+                                >
+                                  <ArrowDown className="w-3 h-3" />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const name = prompt('اسم المحطة:', stop.name)
+                                    if (name) {
+                                      const newStops = [...stopPoints]
+                                      newStops[idx] = { ...stop, name }
+                                      setStopPoints(newStops)
+                                    }
+                                  }}
+                                  className="p-1 text-blue-600 hover:bg-blue-100 rounded"
+                                  title="تعديل"
+                                >
+                                  <Edit className="w-3 h-3" />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleRemoveStop(idx)}
+                                  className="p-1 text-red-600 hover:bg-red-50 rounded"
+                                  title="حذف"
+                                >
+                                  <Trash2 className="w-3 h-3" />
+                                </button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* End Location */}
+                  <div>
+                    <label className="block text-sm font-bold text-gray-800 mb-2">نقطة الوصول *</label>
+                    {endLocation ? (
+                      <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 rounded-lg">
+                        <MapPin className="w-4 h-4 text-red-600 flex-shrink-0" />
+                        <span className="flex-1 text-sm text-gray-800 truncate">{endLocation.name}</span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const name = prompt('اسم نقطة الوصول:', endLocation.name)
+                            if (name) setEndLocation({ ...endLocation, name })
+                          }}
+                          className="px-2 py-1 bg-red-600 text-white rounded-lg hover:bg-red-700 text-xs font-semibold"
+                        >
+                          <Edit className="w-3 h-3" />
+                        </button>
+                      </div>
+                    ) : (
+                      <p className="text-xs text-gray-500">اسحب المحدد الأحمر على الخريطة</p>
+                    )}
+                  </div>
+                </>
+              )}
+
+              {/* Simple mode summary */}
+              {!showAdvanced && (
+                <div className="bg-white border border-gray-200 rounded-lg p-3">
+                  <p className="text-xs sm:text-sm font-extrabold text-gray-900 mb-2">المسار</p>
+                  <div className="text-xs sm:text-sm text-gray-700 space-y-1">
+                    <div><span className="font-bold">الانطلاق:</span> {startLocation?.name || '—'}</div>
+                    <div><span className="font-bold">الوصول:</span> {endLocation?.name || '—'}</div>
+                  </div>
+                  <p className="mt-2 text-[11px] sm:text-xs text-gray-600">
+                    لتعديل المسار أو إضافة محطات خاصة، افتح &quot;الإعدادات المتقدمة&quot;.
                   </p>
                 </div>
               )}
             </div>
-          )}
-
-          {/* Start/End summary in simple mode */}
-          {!showAdvanced && (
-            <div className="bg-white border border-gray-200 rounded-lg p-3">
-              <p className="text-xs sm:text-sm font-extrabold text-gray-900 mb-2">المسار</p>
-              <div className="text-xs sm:text-sm text-gray-700 space-y-1">
-                <div>
-                  <span className="font-bold">الانطلاق:</span> {startLocation?.name || '—'}
-                </div>
-                <div>
-                  <span className="font-bold">الوصول:</span> {endLocation?.name || '—'}
-                </div>
-              </div>
-              <p className="mt-2 text-[11px] sm:text-xs text-gray-600">
-                لتعديل المسار أو إضافة محطات خاصة، افتح &quot;الإعدادات المتقدمة&quot;.
-              </p>
-            </div>
-          )}
-
-          {/* Start Location (Advanced) */}
-          {showAdvanced && (
-            <div>
-              <label className="block text-sm font-bold text-gray-800 mb-2">نقطة الانطلاق *</label>
-              {startLocation ? (
-                <div className="flex items-center gap-2 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                  <MapPin className="w-4 h-4 text-blue-600 flex-shrink-0" />
-                  <span className="flex-1 text-sm text-gray-800">{startLocation.name}</span>
-                  <button
-                    type="button"
-                    onClick={() => setShowStartSelector(true)}
-                    className="px-3 py-1 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-xs font-semibold"
-                  >
-                    تعديل
-                  </button>
-                </div>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => setShowStartSelector(true)}
-                  className="w-full px-4 py-3 border-2 border-dashed border-gray-300 rounded-lg hover:border-blue-500 hover:bg-blue-50 transition text-sm font-semibold text-gray-700"
-                >
-                  + تحديد نقطة الانطلاق
-                </button>
-              )}
-            </div>
-          )}
-
-          {/* Stop Points (Advanced) */}
-          {showAdvanced && (
-            <div className="border-t border-gray-200 pt-4">
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={useRouteDefaultStops}
-                  onChange={(e) => setUseRouteDefaultStops(e.target.checked)}
-                  className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
-                />
-                <span className="text-sm font-extrabold text-gray-900">
-                  استخدم محطات الخط الافتراضية لهذه الرحلة (مستحسن)
-                </span>
-              </label>
-              <p className="text-[11px] sm:text-xs text-gray-600 mt-1">
-                عند التفعيل: لا تحتاج لإضافة محطات هنا، وسيتم استخدام محطات الخط تلقائياً.
-              </p>
-
-              {!useRouteDefaultStops && (
-                <div className="mt-3">
-                  <label className="block text-sm font-bold text-gray-800 mb-2">
-                    {tripType === 'departure'
-                      ? `نقاط التحميل (الصعود) (${stopPoints.length}/${MAX_STOP_POINTS}) (اختياري)`
-                      : `نقاط النزول (التوقف) (${stopPoints.length}/${MAX_STOP_POINTS}) (اختياري)`}
-                  </label>
-                  <div className="space-y-2">
-                    {stopPoints.map((stop, idx) => (
-                      <div key={idx} className="flex flex-col sm:flex-row sm:items-center gap-2 p-3 bg-gray-50 border border-gray-200 rounded-lg">
-                        <div className="flex items-center gap-2 flex-1 min-w-0">
-                          <span className="w-6 h-6 bg-blue-600 text-white rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0">
-                            {idx + 1}
-                          </span>
-                          <MapPin className="w-4 h-4 text-gray-600 flex-shrink-0" />
-                          <span className="flex-1 text-sm text-gray-800 truncate">{stop.name}</span>
-                        </div>
-                        <div className="flex items-center gap-2 flex-shrink-0">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setEditingStopIndex(idx)
-                              setShowStopSelector(true)
-                            }}
-                            className="px-2 sm:px-3 py-1.5 sm:py-1 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 text-xs font-semibold whitespace-nowrap"
-                          >
-                            تعديل
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleRemoveStop(idx)}
-                            className="p-1.5 sm:p-1 text-red-600 hover:bg-red-50 rounded-lg transition"
-                            aria-label="حذف"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                    {stopPoints.length < MAX_STOP_POINTS && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setEditingStopIndex(null)
-                          setShowStopSelector(true)
-                        }}
-                        className="w-full px-4 py-2 border-2 border-dashed border-gray-300 rounded-lg hover:border-blue-500 hover:bg-blue-50 transition text-sm font-semibold text-gray-700"
-                      >
-                        <Plus className="w-4 h-4 inline mr-2" />
-                        {tripType === 'departure' ? 'إضافة نقطة تحميل (صعود)' : 'إضافة نقطة نزول (توقف)'}
-                      </button>
-                    )}
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* End Location (Advanced) */}
-          {showAdvanced && (
-            <div>
-              <label className="block text-sm font-bold text-gray-800 mb-2">نقطة الوصول *</label>
-              {endLocation ? (
-                <div className="flex items-center gap-2 p-3 bg-green-50 border border-green-200 rounded-lg">
-                  <MapPin className="w-4 h-4 text-green-600 flex-shrink-0" />
-                  <span className="flex-1 text-sm text-gray-800">{endLocation.name}</span>
-                  <button
-                    type="button"
-                    onClick={() => setShowEndSelector(true)}
-                    className="px-3 py-1 bg-green-600 text-white rounded-lg hover:bg-green-700 text-xs font-semibold"
-                  >
-                    تعديل
-                  </button>
-                </div>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => setShowEndSelector(true)}
-                  className="w-full px-4 py-3 border-2 border-dashed border-gray-300 rounded-lg hover:border-green-500 hover:bg-green-50 transition text-sm font-semibold text-gray-700"
-                >
-                  + تحديد نقطة الوصول
-                </button>
-              )}
-            </div>
-          )}
+          </div>
         </div>
 
         {/* Footer */}
@@ -700,102 +960,7 @@ export default function CreateTripModal({
                 : 'إنشاء الرحلة'}
           </button>
         </div>
-
-        {/* Location Selector Modals */}
-        {showStartSelector && (
-          <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-[60] p-3 sm:p-4">
-            <div className="bg-white rounded-lg max-w-md w-full max-h-[90vh] overflow-y-auto">
-              <div className="p-4 sm:p-6">
-                <h4 className="text-lg font-bold text-gray-800 mb-4">تحديد نقطة الانطلاق</h4>
-                <LocationSelector
-                  title="نقطة الانطلاق"
-                  initial={startLocation}
-                  selectionKind="start"
-                  previewPoints={buildPreviewPoints()}
-                  onSelect={(loc) => {
-                    setStartLocation(loc)
-                    setShowStartSelector(false)
-                  }}
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowStartSelector(false)}
-                  className="mt-4 w-full px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 transition text-sm font-semibold"
-                >
-                  إلغاء
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {showEndSelector && (
-          <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-[60] p-3 sm:p-4">
-            <div className="bg-white rounded-lg max-w-md w-full max-h-[90vh] overflow-y-auto">
-              <div className="p-4 sm:p-6">
-                <h4 className="text-lg font-bold text-gray-800 mb-4">تحديد نقطة الوصول</h4>
-                <LocationSelector
-                  title="نقطة الوصول"
-                  initial={endLocation}
-                  selectionKind="end"
-                  previewPoints={buildPreviewPoints()}
-                  onSelect={(loc) => {
-                    setEndLocation(loc)
-                    setShowEndSelector(false)
-                  }}
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowEndSelector(false)}
-                  className="mt-4 w-full px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 transition text-sm font-semibold"
-                >
-                  إلغاء
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {showStopSelector && (
-          <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-[60] p-3 sm:p-4">
-            <div className="bg-white rounded-lg max-w-md w-full max-h-[90vh] overflow-y-auto">
-              <div className="p-4 sm:p-6">
-                <h4 className="text-lg font-bold text-gray-800 mb-4">
-                  {editingStopIndex !== null
-                    ? `${tripType === 'departure' ? 'تعديل نقطة التحميل (الصعود)' : 'تعديل نقطة النزول (التوقف)'} ${editingStopIndex + 1}`
-                    : tripType === 'departure'
-                    ? 'إضافة نقطة تحميل (صعود) جديدة'
-                    : 'إضافة نقطة نزول (توقف) جديدة'}
-                </h4>
-                <LocationSelector
-                  title={
-                    editingStopIndex !== null
-                      ? `${tripType === 'departure' ? 'نقطة التحميل (الصعود)' : 'نقطة النزول (التوقف)'} ${editingStopIndex + 1}`
-                      : tripType === 'departure'
-                      ? 'نقطة التحميل (الصعود)'
-                      : 'نقطة النزول (التوقف)'
-                  }
-                  initial={editingStopIndex !== null ? stopPoints[editingStopIndex] : null}
-                  selectionKind="stop"
-                  previewPoints={buildPreviewPoints({ editingIdx: editingStopIndex })}
-                  onSelect={handleAddStop}
-                />
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowStopSelector(false)
-                    setEditingStopIndex(null)
-                  }}
-                  className="mt-4 w-full px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 transition text-sm font-semibold"
-                >
-                  إلغاء
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
       </div>
     </div>
   )
 }
-
