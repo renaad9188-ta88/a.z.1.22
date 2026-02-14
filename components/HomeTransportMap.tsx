@@ -163,8 +163,27 @@ export default function HomeTransportMap() {
       })
     )
 
-    // Bus marker - للكل (في نقطة البداية)، لكن للمستخدم المسجل الذي لديه رحلة يظهر في موقع السائق المباشر
-    const busPosition = (isLoggedIn && hasUserTrip && driverLocation) ? driverLocation : start
+    // Bus marker - يجب أن يكون في نقطة البداية حسب نوع الرحلة
+    // للقدوم (arrivals): الباص في start (الشام)
+    // للمغادرة (departures): الباص في start (عمان)  
+    // لكن للمستخدم المسجل الذي لديه رحلة يظهر في موقع السائق المباشر
+    let busPosition: LatLng
+
+    if (isLoggedIn && hasUserTrip && driverLocation) {
+      // إذا كان هناك موقع سائق مباشر، استخدمه
+      busPosition = driverLocation
+    } else if (start) {
+      // الباص يبدأ من نقطة البداية (start) دائماً
+      // لأن fetchTripMap يجلب الرحلة الصحيحة حسب النوع (arrivals/departures)
+      // لذا start سيكون صحيحاً حسب النوع:
+      // - للقدوم: start = الشام (سوريا)
+      // - للمغادرة: start = عمان (الأردن)
+      busPosition = start
+    } else {
+      // Fallback
+      busPosition = BORDER_CENTER
+    }
+
     const busMarker = new googleMaps.Marker({
       position: busPosition,
       map,
@@ -172,6 +191,7 @@ export default function HomeTransportMap() {
       icon: {
         url: 'http://maps.google.com/mapfiles/ms/icons/bus.png',
         scaledSize: new googleMaps.Size(40, 40),
+        anchor: new googleMaps.Point(20, 40), // anchor point في أسفل منتصف الصورة (x: نصف العرض, y: كامل الارتفاع)
       },
       zIndex: 50,
     })
@@ -697,7 +717,7 @@ export default function HomeTransportMap() {
     if (!ready) return
     renderTrip()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ready, JSON.stringify(tripRow), userHint, driverLocation, isLoggedIn, hasUserTrip])
+  }, [ready, JSON.stringify(tripRow), userHint, driverLocation, isLoggedIn, hasUserTrip, mode])
 
   // Update ETAs when driver location changes and passenger list is open - فقط للمستخدم المسجل
   useEffect(() => {
