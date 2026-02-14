@@ -1,8 +1,7 @@
 'use client'
 
-import { MapPin, Bus, Navigation, X, Copy } from 'lucide-react'
+import { MapPin, Bus, Navigation, Copy, Eye, EyeOff, RefreshCcw, Clock, Archive, Layers } from 'lucide-react'
 import toast from 'react-hot-toast'
-import RouteStats from './RouteStats'
 import TripsList from './TripsList'
 
 interface Route {
@@ -18,6 +17,7 @@ interface Driver {
   id: string
   name: string
   vehicle_type: string
+  is_active?: boolean | null
 }
 
 interface RouteCardProps {
@@ -30,10 +30,13 @@ interface RouteCardProps {
   routeTripsLoading: Record<string, boolean>
   tripPassengers: Record<string, any[]>
   tripAssignedDrivers: Record<string, Driver[]>
+  tripListFilter: 'upcoming' | 'ended' | 'all'
+  fixedTripType?: 'arrival' | 'departure'
+  onTripListFilterChange: (next: 'upcoming' | 'ended' | 'all') => void
   onToggleTrips: (routeId: string) => void
   onLoadTrips: (routeId: string) => void
   onAssignDriver: (routeId: string, driverId: string) => void
-  onEdit: (trip: any) => void
+  onEdit: (tripId: string, routeId: string) => void
   onViewDetails: (tripId: string) => void
   onShowPassengers: (tripId: string) => void
   onAssignDriverToTrip: (tripId: string, driverId: string, routeId: string) => void
@@ -51,6 +54,9 @@ export default function RouteCard({
   routeTripsLoading,
   tripPassengers,
   tripAssignedDrivers,
+  tripListFilter,
+  fixedTripType,
+  onTripListFilterChange,
   onToggleTrips,
   onLoadTrips,
   onAssignDriver,
@@ -61,8 +67,11 @@ export default function RouteCard({
   onUnassignDriverFromTrip,
   onTabChange,
 }: RouteCardProps) {
+  const allTrips = routeTrips[route.id] || []
+  const visibleTrips = fixedTripType ? allTrips.filter((t: any) => (t.trip_type || 'arrival') === fixedTripType) : allTrips
+
   const handleCopyReport = async () => {
-    const trips = routeTrips[route.id] || []
+    const trips = visibleTrips
     if (trips.length === 0) {
       toast('لا يوجد رحلات للنسخ. افتح "عرض" ثم حدّث.')
       return
@@ -173,7 +182,7 @@ export default function RouteCard({
             }}
             className="w-full sm:w-auto px-3 py-2 text-gray-900 bg-white border border-gray-300 rounded-lg text-xs sm:text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
           >
-            <option value="">إضافة سائق...</option>
+            <option value="">ربط سائق بالخط...</option>
             {drivers
               .filter(d => !assignedDrivers.find(ad => ad.id === d.id))
               .map(driver => (
@@ -186,102 +195,154 @@ export default function RouteCard({
 
         {/* Trips for this route */}
         <div className="mt-4 border-t border-gray-200 pt-4">
-          <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-3 sm:p-4 border-2 border-blue-200 shadow-md">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 sm:w-12 sm:h-12 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-lg flex items-center justify-center shadow-lg">
-                  <Navigation className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
+          <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm">
+            {/* Toolbar */}
+            <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border-b border-blue-200 p-3 sm:p-4">
+              <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
+                {/* Title */}
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-2xl bg-gradient-to-br from-blue-600 to-indigo-700 text-white flex items-center justify-center shadow-lg flex-shrink-0">
+                    <Navigation className="w-5 h-5 sm:w-6 sm:h-6" />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h4 className="text-sm sm:text-base md:text-lg font-extrabold text-gray-900">
+                        {fixedTripType === 'arrival'
+                          ? 'رحلات القادمين'
+                          : fixedTripType === 'departure'
+                            ? 'رحلات المغادرين'
+                            : 'رحلات هذا الخط'}
+                      </h4>
+
+                      <span className="text-[11px] font-extrabold px-2 py-0.5 rounded-full bg-white border border-blue-200 text-blue-800">
+                        {visibleTrips.length} رحلة
+                      </span>
+                    </div>
+                    <p className="text-[11px] sm:text-xs text-gray-600 font-semibold truncate">
+                      {fixedTripType ? 'عرض وإدارة الرحلات الخاصة بهذا القسم فقط' : 'عرض وإدارة جميع الرحلات المجدولة'}
+                    </p>
+                  </div>
                 </div>
-                <div>
-                  <h4 className="text-sm sm:text-base md:text-lg font-extrabold text-gray-900 flex items-center gap-2">
-                    رحلات هذا الخط
-                  </h4>
-                  <p className="text-[10px] sm:text-xs text-gray-600 mt-0.5">
-                    عرض وإدارة جميع الرحلات المجدولة
-                  </p>
-                </div>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  onClick={() => {
-                    onToggleTrips(route.id)
-                    const willOpen = !expandedRouteTrips[route.id]
-                    if (willOpen) onLoadTrips(route.id)
-                  }}
-                  className="px-3 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition text-xs sm:text-sm font-bold flex items-center gap-1.5 shadow-md"
-                >
-                  {expandedRouteTrips[route.id] ? (
-                    <>
-                      <X className="w-3 h-3 sm:w-4 sm:h-4" />
-                      إخفاء
-                    </>
-                  ) : (
-                    <>
-                      <Navigation className="w-3 h-3 sm:w-4 sm:h-4" />
-                      عرض الرحلات
-                    </>
-                  )}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => onLoadTrips(route.id)}
-                  disabled={Boolean(routeTripsLoading[route.id])}
-                  className="px-3 py-2 rounded-lg bg-white text-gray-800 hover:bg-gray-50 border-2 border-gray-300 transition text-xs sm:text-sm font-bold disabled:opacity-50 flex items-center gap-1.5 shadow-sm"
-                >
-                  {routeTripsLoading[route.id] ? (
-                    <>
-                      <span className="animate-spin">⟳</span>
-                      جارٍ التحديث...
-                    </>
-                  ) : (
-                    <>
-                      <Navigation className="w-3 h-3 sm:w-4 sm:h-4" />
+
+                {/* Controls */}
+                <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
+                  {/* Segmented filter */}
+                  <div className="inline-flex items-center bg-white border border-gray-200 rounded-2xl p-1 w-full sm:w-auto">
+                    <button
+                      type="button"
+                      onClick={() => onTripListFilterChange('upcoming')}
+                      className={`px-3 py-2 rounded-xl text-xs sm:text-sm font-extrabold inline-flex items-center gap-2 transition ${
+                        tripListFilter === 'upcoming' ? 'bg-blue-600 text-white' : 'text-gray-800 hover:bg-gray-50'
+                      }`}
+                      title="الرحلات القادمة"
+                    >
+                      <Clock className="w-4 h-4" />
+                      القادمة
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => onTripListFilterChange('ended')}
+                      className={`px-3 py-2 rounded-xl text-xs sm:text-sm font-extrabold inline-flex items-center gap-2 transition ${
+                        tripListFilter === 'ended' ? 'bg-blue-600 text-white' : 'text-gray-800 hover:bg-gray-50'
+                      }`}
+                      title="الرحلات المنتهية"
+                    >
+                      <Archive className="w-4 h-4" />
+                      المنتهية
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => onTripListFilterChange('all')}
+                      className={`px-3 py-2 rounded-xl text-xs sm:text-sm font-extrabold inline-flex items-center gap-2 transition ${
+                        tripListFilter === 'all' ? 'bg-blue-600 text-white' : 'text-gray-800 hover:bg-gray-50'
+                      }`}
+                      title="كل الرحلات"
+                    >
+                      <Layers className="w-4 h-4" />
+                      الكل
+                    </button>
+                  </div>
+
+                  {/* Icon actions */}
+                  <div className="grid grid-cols-3 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onToggleTrips(route.id)
+                        const willOpen = !expandedRouteTrips[route.id]
+                        if (willOpen) onLoadTrips(route.id)
+                      }}
+                      className={`px-3 py-2 rounded-2xl border font-extrabold text-xs sm:text-sm inline-flex items-center justify-center gap-2 transition ${
+                        expandedRouteTrips[route.id]
+                          ? 'bg-gray-900 text-white border-gray-900 hover:bg-gray-800'
+                          : 'bg-white text-gray-900 border-gray-200 hover:bg-gray-50'
+                      }`}
+                      title={expandedRouteTrips[route.id] ? 'إخفاء الرحلات' : 'عرض الرحلات'}
+                    >
+                      {expandedRouteTrips[route.id] ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      {expandedRouteTrips[route.id] ? 'إخفاء' : 'عرض'}
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => onLoadTrips(route.id)}
+                      disabled={Boolean(routeTripsLoading[route.id])}
+                      className="px-3 py-2 rounded-2xl border border-gray-200 bg-white text-gray-900 hover:bg-gray-50 font-extrabold text-xs sm:text-sm inline-flex items-center justify-center gap-2 disabled:opacity-50 transition"
+                      title="تحديث الرحلات"
+                    >
+                      <RefreshCcw className={`w-4 h-4 ${routeTripsLoading[route.id] ? 'animate-spin' : ''}`} />
                       تحديث
-                    </>
-                  )}
-                </button>
-                <button
-                  type="button"
-                  onClick={handleCopyReport}
-                  className="px-3 py-2 rounded-lg bg-green-600 text-white hover:bg-green-700 transition text-xs sm:text-sm font-bold flex items-center gap-1.5 shadow-md"
-                  title="نسخ جميع الرحلات مع الحاجزين وأرقام الهواتف"
-                >
-                  <Copy className="w-3 h-3 sm:w-4 sm:h-4" />
-                  نسخ الكشف
-                </button>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={handleCopyReport}
+                      className="px-3 py-2 rounded-2xl border border-emerald-200 bg-emerald-600 text-white hover:bg-emerald-700 font-extrabold text-xs sm:text-sm inline-flex items-center justify-center gap-2 transition"
+                      title="نسخ الكشف"
+                    >
+                      <Copy className="w-4 h-4" />
+                      نسخ
+                    </button>
+                  </div>
+                </div>
               </div>
             </div>
-          </div>
 
-          {expandedRouteTrips[route.id] && (
-            <>
-              <RouteStats
-                trips={routeTrips[route.id] || []}
-                tripPassengers={tripPassengers}
-              />
-              <TripsList
-                trips={routeTrips[route.id] || []}
-                routeId={route.id}
-                tabIsArrival={Boolean((expandedRouteTrips as any)[`${route.id}__tab`] ?? true)}
-                onTabChange={(isArrival) => onTabChange(route.id, isArrival)}
-                passengersCount={Object.fromEntries(
-                  Object.entries(tripPassengers).map(([tripId, passengers]) => [
-                    tripId,
-                    passengers?.length || 0
-                  ])
-                )}
-                assignedDrivers={tripAssignedDrivers}
-                driverLiveMap={driverLiveMap}
-                availableDrivers={drivers.filter(d => d.is_active !== false)}
-                onEdit={onEdit}
-                onViewDetails={onViewDetails}
-                onShowPassengers={onShowPassengers}
-                onAssignDriver={onAssignDriverToTrip}
-                onUnassignDriver={onUnassignDriverFromTrip}
-              />
-            </>
-          )}
+            {/* Body */}
+            <div className="p-3 sm:p-4">
+              {expandedRouteTrips[route.id] ? (
+                <TripsList
+                  trips={visibleTrips}
+                  routeId={route.id}
+                  tabIsArrival={fixedTripType ? fixedTripType === 'arrival' : Boolean((expandedRouteTrips as any)[`${route.id}__tab`] ?? true)}
+                  onTabChange={(isArrival) => {
+                    if (fixedTripType) return
+                    onTabChange(route.id, isArrival)
+                  }}
+                  fixedTripType={fixedTripType}
+                  tripListFilter={tripListFilter}
+                  passengersCount={Object.fromEntries(
+                    Object.entries(tripPassengers).map(([tripId, passengers]) => [
+                      tripId,
+                      passengers?.length || 0
+                    ])
+                  )}
+                  assignedDrivers={tripAssignedDrivers}
+                  driverLiveMap={driverLiveMap}
+                  availableDrivers={drivers.filter(d => d.is_active !== false)}
+                  onEdit={onEdit}
+                  onViewDetails={onViewDetails}
+                  onShowPassengers={onShowPassengers}
+                  onAssignDriver={onAssignDriverToTrip}
+                  onUnassignDriver={onUnassignDriverFromTrip}
+                />
+              ) : (
+                <div className="text-xs sm:text-sm text-gray-600 bg-gray-50 border border-gray-200 rounded-xl p-3">
+                  اضغط <span className="font-extrabold">عرض</span> لفتح الرحلات، أو <span className="font-extrabold">تحديث</span> لجلب آخر البيانات.
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       </div>
     </div>

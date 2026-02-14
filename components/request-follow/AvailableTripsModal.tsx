@@ -49,12 +49,10 @@ export default function AvailableTripsModal({
   tripStopsById,
   loadingStopsId,
   selectedStopByTrip,
-  showTripMap,
   onClose,
   onToggleStops,
   onSelectStop,
   onBookTrip,
-  onShowTripMap,
   isBookingDisabled,
 }: AvailableTripsModalProps) {
   if (!isOpen) return null

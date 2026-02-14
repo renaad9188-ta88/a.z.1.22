@@ -1,6 +1,6 @@
 'use client'
 
-import { Users, Phone, Bus, MapPin, Navigation, Trash2, Copy } from 'lucide-react'
+import { Users, Phone, Bus, MapPin, Navigation, Trash2, Copy, CalendarDays } from 'lucide-react'
 import toast from 'react-hot-toast'
 
 interface Driver {
@@ -50,6 +50,7 @@ interface DriversListProps {
   onOpenHistory: (driver: Driver) => void
   toggleDriverActive: (driverId: string, nextActive: boolean) => void
   deleteDriver: (driverId: string) => void
+  onAssignToTrip: (driver: Driver, tripType: 'arrival' | 'departure') => void
 }
 
 export default function DriversList({
@@ -69,6 +70,7 @@ export default function DriversList({
   onOpenHistory,
   toggleDriverActive,
   deleteDriver,
+  onAssignToTrip,
 }: DriversListProps) {
   const filteredDrivers = drivers.filter((d) => {
     const q = driverSearch.trim()
@@ -185,90 +187,117 @@ export default function DriversList({
                   )}
                 </div>
 
-                {/* Action buttons: grid on mobile, better layout on medium/large screens */}
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2 w-full">
-                  <a
-                    href={waHref}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="w-full px-2.5 py-2 rounded-lg bg-green-600 text-white text-xs sm:text-sm font-bold hover:bg-green-700 transition inline-flex items-center justify-center gap-2"
-                    title="تواصل واتساب"
-                  >
-                    <Phone className="w-4 h-4" />
-                    واتساب
-                  </a>
-                  {telHref && (
+                {/* Actions (simplified) */}
+                <div className="w-full space-y-2">
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                     <a
-                      href={telHref}
-                      className="w-full px-2.5 py-2 rounded-lg bg-amber-50 text-amber-900 text-xs sm:text-sm font-bold hover:bg-amber-100 transition inline-flex items-center justify-center gap-2 border border-amber-200"
-                      title="اتصال مباشر"
+                      href={waHref}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="w-full px-2.5 py-2 rounded-lg bg-green-600 text-white text-xs sm:text-sm font-extrabold hover:bg-green-700 transition inline-flex items-center justify-center gap-2"
+                      title="تواصل واتساب"
                     >
                       <Phone className="w-4 h-4" />
-                      اتصال
+                      واتساب
                     </a>
-                  )}
-                  <button
-                    type="button"
-                    onClick={() => loadDriverLastLocation(d)}
-                    disabled={Boolean(driverLocLoading[d.id])}
-                    className="w-full px-2.5 py-2 rounded-lg bg-blue-600 text-white text-xs sm:text-sm font-bold hover:bg-blue-700 transition disabled:opacity-50 inline-flex items-center justify-center gap-2"
-                    title="آخر موقع مسجل"
-                  >
-                    <Navigation className="w-4 h-4" />
-                    {driverLocLoading[d.id] ? 'تحميل...' : 'آخر موقع'}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => loadDriverLocationHistory(d)}
-                    disabled={Boolean(driverLocLoading[d.id])}
-                    className="w-full px-2.5 py-2 rounded-lg bg-gray-100 text-gray-800 text-xs sm:text-sm font-bold hover:bg-gray-200 transition disabled:opacity-50 inline-flex items-center justify-center gap-2"
-                    title="سجل حركة (آخر 20 نقطة)"
-                  >
-                    <MapPin className="w-4 h-4" />
-                    سجل حركة
-                  </button>
-                  {d.user_id && (
+                    {telHref && (
+                      <a
+                        href={telHref}
+                        className="w-full px-2.5 py-2 rounded-lg bg-amber-50 text-amber-900 text-xs sm:text-sm font-extrabold hover:bg-amber-100 transition inline-flex items-center justify-center gap-2 border border-amber-200"
+                        title="اتصال مباشر"
+                      >
+                        <Phone className="w-4 h-4" />
+                        اتصال
+                      </a>
+                    )}
                     <button
                       type="button"
-                      onClick={async () => {
-                        try {
-                          await navigator.clipboard.writeText(d.user_id || '')
-                          toast.success('تم نسخ User ID')
-                        } catch {
-                          toast.error('تعذر النسخ')
-                        }
-                      }}
-                      className="w-full px-2.5 py-2 rounded-lg bg-gray-100 text-gray-800 text-xs sm:text-sm font-bold hover:bg-gray-200 transition inline-flex items-center justify-center gap-2"
-                      title="نسخ معرف الحساب (يُستخدم للربط والصلاحيات)"
+                      onClick={() => onAssignToTrip(d, 'arrival')}
+                      className="w-full px-2.5 py-2 rounded-lg bg-blue-600 text-white text-xs sm:text-sm font-extrabold hover:bg-blue-700 transition inline-flex items-center justify-center gap-2"
+                      title="تعيين السائق على رحلة (القادمون)"
                     >
-                      <Copy className="w-4 h-4" />
-                      <span className="hidden sm:inline">معرف الحساب</span>
-                      <span className="sm:hidden">المعرّف</span>
+                      <CalendarDays className="w-4 h-4" />
+                      تعيين قادمين
                     </button>
-                  )}
+                    <button
+                      type="button"
+                      onClick={() => onAssignToTrip(d, 'departure')}
+                      className="w-full px-2.5 py-2 rounded-lg bg-purple-600 text-white text-xs sm:text-sm font-extrabold hover:bg-purple-700 transition inline-flex items-center justify-center gap-2"
+                      title="تعيين السائق على رحلة (المغادرون)"
+                    >
+                      <CalendarDays className="w-4 h-4" />
+                      تعيين مغادرين
+                    </button>
+                  </div>
 
-                  <button
-                    type="button"
-                    onClick={() => toggleDriverActive(d.id, !d.is_active)}
-                    className={`w-full px-2.5 py-2 rounded-lg text-xs sm:text-sm font-bold transition ${
-                      d.is_active
-                        ? 'bg-yellow-50 text-yellow-800 hover:bg-yellow-100 border border-yellow-200'
-                        : 'bg-green-50 text-green-800 hover:bg-green-100 border border-green-200'
-                    }`}
-                    title={d.is_active ? 'تعطيل السائق (لن يظهر للحجز/التعيين)' : 'تفعيل السائق'}
-                  >
-                    {d.is_active ? 'تعطيل' : 'تفعيل'}
-                  </button>
+                  <details className="border border-gray-200 rounded-xl bg-gray-50 p-2">
+                    <summary className="cursor-pointer text-xs sm:text-sm font-extrabold text-gray-800 px-2 py-1">
+                      إجراءات إضافية
+                    </summary>
+                    <div className="mt-2 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => loadDriverLastLocation(d)}
+                        disabled={Boolean(driverLocLoading[d.id])}
+                        className="w-full px-2.5 py-2 rounded-lg bg-white text-gray-900 text-xs sm:text-sm font-bold hover:bg-gray-50 transition disabled:opacity-50 inline-flex items-center justify-center gap-2 border border-gray-200"
+                        title="آخر موقع مسجل"
+                      >
+                        <Navigation className="w-4 h-4 text-blue-700" />
+                        {driverLocLoading[d.id] ? 'تحميل...' : 'آخر موقع'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => loadDriverLocationHistory(d)}
+                        disabled={Boolean(driverLocLoading[d.id])}
+                        className="w-full px-2.5 py-2 rounded-lg bg-white text-gray-900 text-xs sm:text-sm font-bold hover:bg-gray-50 transition disabled:opacity-50 inline-flex items-center justify-center gap-2 border border-gray-200"
+                        title="سجل حركة (آخر 20 نقطة)"
+                      >
+                        <MapPin className="w-4 h-4 text-gray-700" />
+                        سجل حركة
+                      </button>
+                      {d.user_id && (
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            try {
+                              await navigator.clipboard.writeText(d.user_id || '')
+                              toast.success('تم نسخ User ID')
+                            } catch {
+                              toast.error('تعذر النسخ')
+                            }
+                          }}
+                          className="w-full px-2.5 py-2 rounded-lg bg-white text-gray-900 text-xs sm:text-sm font-bold hover:bg-gray-50 transition inline-flex items-center justify-center gap-2 border border-gray-200"
+                          title="نسخ معرف الحساب"
+                        >
+                          <Copy className="w-4 h-4 text-gray-700" />
+                          المعرّف
+                        </button>
+                      )}
 
-                  <button
-                    type="button"
-                    onClick={() => deleteDriver(d.id)}
-                    className="w-full px-2.5 py-2 rounded-lg bg-red-50 text-red-700 hover:bg-red-100 border border-red-200 text-xs sm:text-sm font-bold transition inline-flex items-center justify-center gap-2"
-                    title="حذف السائق"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                    حذف
-                  </button>
+                      <button
+                        type="button"
+                        onClick={() => toggleDriverActive(d.id, !d.is_active)}
+                        className={`w-full px-2.5 py-2 rounded-lg text-xs sm:text-sm font-bold transition ${
+                          d.is_active
+                            ? 'bg-yellow-50 text-yellow-800 hover:bg-yellow-100 border border-yellow-200'
+                            : 'bg-green-50 text-green-800 hover:bg-green-100 border border-green-200'
+                        }`}
+                        title={d.is_active ? 'تعطيل السائق' : 'تفعيل السائق'}
+                      >
+                        {d.is_active ? 'تعطيل' : 'تفعيل'}
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => deleteDriver(d.id)}
+                        className="w-full px-2.5 py-2 rounded-lg bg-red-50 text-red-700 hover:bg-red-100 border border-red-200 text-xs sm:text-sm font-bold transition inline-flex items-center justify-center gap-2"
+                        title="حذف السائق"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                        حذف
+                      </button>
+                    </div>
+                  </details>
                 </div>
               </div>
             </div>

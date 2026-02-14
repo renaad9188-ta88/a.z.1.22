@@ -44,6 +44,8 @@ export default function CreateTripModal({
 }) {
   const supabase = createSupabaseBrowserClient()
   const [saving, setSaving] = useState(false)
+  const [showAdvanced, setShowAdvanced] = useState(false)
+  const [useRouteDefaultStops, setUseRouteDefaultStops] = useState(true)
   
   // Trip basic info
   const [tripDate, setTripDate] = useState('')
@@ -141,6 +143,13 @@ export default function CreateTripModal({
             lat: s.lat,
             lng: s.lng,
           })))
+          // If trip already has custom stop points, default to custom mode
+          if (stops.length > 0) {
+            setUseRouteDefaultStops(false)
+            setShowAdvanced(true)
+          } else {
+            setUseRouteDefaultStops(true)
+          }
         }
       }
       
@@ -155,6 +164,8 @@ export default function CreateTripModal({
       setCreateRecurring(false)
       setRecurringDays(7)
       setRecurringEndDate('')
+      setShowAdvanced(false)
+      setUseRouteDefaultStops(true)
     }
   }, [editTripId, editTripDataId, copyTripDataId, editTripData, copyTripData, supabase])
 
@@ -203,6 +214,7 @@ export default function CreateTripModal({
 
       // Normalize trip type to DB canonical values (singular: 'arrival' or 'departure')
       const tripTypeDb = tripType === 'departure' ? 'departure' : 'arrival'
+      const stopsToSave = useRouteDefaultStops ? [] : stopPoints
 
       // If editing, update existing trip
       if (editTripId) {
@@ -268,8 +280,8 @@ export default function CreateTripModal({
 
         if (delErr) throw delErr
 
-        if (stopPoints.length > 0) {
-          const stopsData = stopPoints.map((stop, idx) => ({
+        if (stopsToSave.length > 0) {
+          const stopsData = stopsToSave.map((stop, idx) => ({
             trip_id: editTripId,
             name: stop.name,
             lat: stop.lat,
@@ -355,8 +367,8 @@ export default function CreateTripModal({
         }
 
         // 2) Create stop points
-        if (stopPoints.length > 0) {
-          const stopsData = stopPoints.map((stop, idx) => ({
+        if (stopsToSave.length > 0) {
+          const stopsData = stopsToSave.map((stop, idx) => ({
             trip_id: trip.id,
             name: stop.name,
             lat: stop.lat,
@@ -405,6 +417,25 @@ export default function CreateTripModal({
 
         {/* Content */}
         <div className="p-4 sm:p-6 space-y-4 sm:space-y-6">
+          {/* Simple vs Advanced */}
+          <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <div className="min-w-0">
+                <p className="text-sm font-extrabold text-gray-900">وضع المكتب</p>
+                <p className="text-[11px] sm:text-xs text-gray-600 mt-1">
+                  الافتراضي: إنشاء سريع (تاريخ + أوقات). المحطات ستؤخذ من محطات الخط تلقائياً.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowAdvanced((p) => !p)}
+                className="px-3 py-2 rounded-lg border border-gray-300 bg-white hover:bg-gray-50 text-xs sm:text-sm font-extrabold text-gray-900"
+              >
+                {showAdvanced ? 'إخفاء الإعدادات المتقدمة' : 'إعدادات متقدمة'}
+              </button>
+            </div>
+          </div>
+
           {/* Date & Time */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
             <div lang="en" dir="ltr">
@@ -439,8 +470,8 @@ export default function CreateTripModal({
             </div>
           </div>
 
-          {/* Recurring Trips Option */}
-          {!editTripId && (
+          {/* Recurring Trips Option (Advanced) */}
+          {showAdvanced && !editTripId && (
             <div className="border-t border-gray-200 pt-4">
               <label className="flex items-center gap-2 cursor-pointer">
                 <input
@@ -495,117 +526,155 @@ export default function CreateTripModal({
             </div>
           )}
 
-          {/* Start Location */}
-          <div>
-            <label className="block text-sm font-bold text-gray-800 mb-2">نقطة الانطلاق *</label>
-            {startLocation ? (
-              <div className="flex items-center gap-2 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                <MapPin className="w-4 h-4 text-blue-600 flex-shrink-0" />
-                <span className="flex-1 text-sm text-gray-800">{startLocation.name}</span>
+          {/* Start/End summary in simple mode */}
+          {!showAdvanced && (
+            <div className="bg-white border border-gray-200 rounded-lg p-3">
+              <p className="text-xs sm:text-sm font-extrabold text-gray-900 mb-2">المسار</p>
+              <div className="text-xs sm:text-sm text-gray-700 space-y-1">
+                <div>
+                  <span className="font-bold">الانطلاق:</span> {startLocation?.name || '—'}
+                </div>
+                <div>
+                  <span className="font-bold">الوصول:</span> {endLocation?.name || '—'}
+                </div>
+              </div>
+              <p className="mt-2 text-[11px] sm:text-xs text-gray-600">
+                لتعديل المسار أو إضافة محطات خاصة، افتح &quot;الإعدادات المتقدمة&quot;.
+              </p>
+            </div>
+          )}
+
+          {/* Start Location (Advanced) */}
+          {showAdvanced && (
+            <div>
+              <label className="block text-sm font-bold text-gray-800 mb-2">نقطة الانطلاق *</label>
+              {startLocation ? (
+                <div className="flex items-center gap-2 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                  <MapPin className="w-4 h-4 text-blue-600 flex-shrink-0" />
+                  <span className="flex-1 text-sm text-gray-800">{startLocation.name}</span>
+                  <button
+                    type="button"
+                    onClick={() => setShowStartSelector(true)}
+                    className="px-3 py-1 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-xs font-semibold"
+                  >
+                    تعديل
+                  </button>
+                </div>
+              ) : (
                 <button
                   type="button"
                   onClick={() => setShowStartSelector(true)}
-                  className="px-3 py-1 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-xs font-semibold"
+                  className="w-full px-4 py-3 border-2 border-dashed border-gray-300 rounded-lg hover:border-blue-500 hover:bg-blue-50 transition text-sm font-semibold text-gray-700"
                 >
-                  تعديل
-                </button>
-              </div>
-            ) : (
-              <button
-                type="button"
-                onClick={() => setShowStartSelector(true)}
-                className="w-full px-4 py-3 border-2 border-dashed border-gray-300 rounded-lg hover:border-blue-500 hover:bg-blue-50 transition text-sm font-semibold text-gray-700"
-              >
-                + تحديد نقطة الانطلاق
-              </button>
-            )}
-          </div>
-
-          {/* Stop Points */}
-          <div>
-            <label className="block text-sm font-bold text-gray-800 mb-2">
-              {tripType === 'departure' 
-                ? `نقاط التحميل (الصعود) (${stopPoints.length}/${MAX_STOP_POINTS}) (اختياري)`
-                : `نقاط النزول (التوقف) (${stopPoints.length}/${MAX_STOP_POINTS}) (اختياري)`}
-            </label>
-            <p className="text-xs text-gray-600 mb-2">
-              {tripType === 'departure' 
-                ? 'حدد نقاط التحميل التي سيركب منها الركاب عند المغادرة'
-                : 'حدد نقاط النزول التي سينزل فيها الركاب عند القدوم'}
-            </p>
-            <div className="space-y-2">
-              {stopPoints.map((stop, idx) => (
-                <div key={idx} className="flex flex-col sm:flex-row sm:items-center gap-2 p-3 bg-gray-50 border border-gray-200 rounded-lg">
-                  <div className="flex items-center gap-2 flex-1 min-w-0">
-                    <span className="w-6 h-6 bg-blue-600 text-white rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0">
-                      {idx + 1}
-                    </span>
-                    <MapPin className="w-4 h-4 text-gray-600 flex-shrink-0" />
-                    <span className="flex-1 text-sm text-gray-800 truncate">{stop.name}</span>
-                  </div>
-                  <div className="flex items-center gap-2 flex-shrink-0">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setEditingStopIndex(idx)
-                        setShowStopSelector(true)
-                      }}
-                      className="px-2 sm:px-3 py-1.5 sm:py-1 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 text-xs font-semibold whitespace-nowrap"
-                    >
-                      تعديل
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleRemoveStop(idx)}
-                      className="p-1.5 sm:p-1 text-red-600 hover:bg-red-50 rounded-lg transition"
-                      aria-label="حذف"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
-                </div>
-              ))}
-              {stopPoints.length < MAX_STOP_POINTS && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setEditingStopIndex(null)
-                    setShowStopSelector(true)
-                  }}
-                  className="w-full px-4 py-2 border-2 border-dashed border-gray-300 rounded-lg hover:border-blue-500 hover:bg-blue-50 transition text-sm font-semibold text-gray-700"
-                >
-                  <Plus className="w-4 h-4 inline mr-2" />
-                  {tripType === 'departure' ? 'إضافة نقطة تحميل (صعود)' : 'إضافة نقطة نزول (توقف)'}
+                  + تحديد نقطة الانطلاق
                 </button>
               )}
             </div>
-          </div>
+          )}
 
-          {/* End Location */}
-          <div>
-            <label className="block text-sm font-bold text-gray-800 mb-2">نقطة الوصول *</label>
-            {endLocation ? (
-              <div className="flex items-center gap-2 p-3 bg-green-50 border border-green-200 rounded-lg">
-                <MapPin className="w-4 h-4 text-green-600 flex-shrink-0" />
-                <span className="flex-1 text-sm text-gray-800">{endLocation.name}</span>
+          {/* Stop Points (Advanced) */}
+          {showAdvanced && (
+            <div className="border-t border-gray-200 pt-4">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={useRouteDefaultStops}
+                  onChange={(e) => setUseRouteDefaultStops(e.target.checked)}
+                  className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+                />
+                <span className="text-sm font-extrabold text-gray-900">
+                  استخدم محطات الخط الافتراضية لهذه الرحلة (مستحسن)
+                </span>
+              </label>
+              <p className="text-[11px] sm:text-xs text-gray-600 mt-1">
+                عند التفعيل: لا تحتاج لإضافة محطات هنا، وسيتم استخدام محطات الخط تلقائياً.
+              </p>
+
+              {!useRouteDefaultStops && (
+                <div className="mt-3">
+                  <label className="block text-sm font-bold text-gray-800 mb-2">
+                    {tripType === 'departure'
+                      ? `نقاط التحميل (الصعود) (${stopPoints.length}/${MAX_STOP_POINTS}) (اختياري)`
+                      : `نقاط النزول (التوقف) (${stopPoints.length}/${MAX_STOP_POINTS}) (اختياري)`}
+                  </label>
+                  <div className="space-y-2">
+                    {stopPoints.map((stop, idx) => (
+                      <div key={idx} className="flex flex-col sm:flex-row sm:items-center gap-2 p-3 bg-gray-50 border border-gray-200 rounded-lg">
+                        <div className="flex items-center gap-2 flex-1 min-w-0">
+                          <span className="w-6 h-6 bg-blue-600 text-white rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0">
+                            {idx + 1}
+                          </span>
+                          <MapPin className="w-4 h-4 text-gray-600 flex-shrink-0" />
+                          <span className="flex-1 text-sm text-gray-800 truncate">{stop.name}</span>
+                        </div>
+                        <div className="flex items-center gap-2 flex-shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditingStopIndex(idx)
+                              setShowStopSelector(true)
+                            }}
+                            className="px-2 sm:px-3 py-1.5 sm:py-1 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 text-xs font-semibold whitespace-nowrap"
+                          >
+                            تعديل
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveStop(idx)}
+                            className="p-1.5 sm:p-1 text-red-600 hover:bg-red-50 rounded-lg transition"
+                            aria-label="حذف"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                    {stopPoints.length < MAX_STOP_POINTS && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEditingStopIndex(null)
+                          setShowStopSelector(true)
+                        }}
+                        className="w-full px-4 py-2 border-2 border-dashed border-gray-300 rounded-lg hover:border-blue-500 hover:bg-blue-50 transition text-sm font-semibold text-gray-700"
+                      >
+                        <Plus className="w-4 h-4 inline mr-2" />
+                        {tripType === 'departure' ? 'إضافة نقطة تحميل (صعود)' : 'إضافة نقطة نزول (توقف)'}
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* End Location (Advanced) */}
+          {showAdvanced && (
+            <div>
+              <label className="block text-sm font-bold text-gray-800 mb-2">نقطة الوصول *</label>
+              {endLocation ? (
+                <div className="flex items-center gap-2 p-3 bg-green-50 border border-green-200 rounded-lg">
+                  <MapPin className="w-4 h-4 text-green-600 flex-shrink-0" />
+                  <span className="flex-1 text-sm text-gray-800">{endLocation.name}</span>
+                  <button
+                    type="button"
+                    onClick={() => setShowEndSelector(true)}
+                    className="px-3 py-1 bg-green-600 text-white rounded-lg hover:bg-green-700 text-xs font-semibold"
+                  >
+                    تعديل
+                  </button>
+                </div>
+              ) : (
                 <button
                   type="button"
                   onClick={() => setShowEndSelector(true)}
-                  className="px-3 py-1 bg-green-600 text-white rounded-lg hover:bg-green-700 text-xs font-semibold"
+                  className="w-full px-4 py-3 border-2 border-dashed border-gray-300 rounded-lg hover:border-green-500 hover:bg-green-50 transition text-sm font-semibold text-gray-700"
                 >
-                  تعديل
+                  + تحديد نقطة الوصول
                 </button>
-              </div>
-            ) : (
-              <button
-                type="button"
-                onClick={() => setShowEndSelector(true)}
-                className="w-full px-4 py-3 border-2 border-dashed border-gray-300 rounded-lg hover:border-green-500 hover:bg-green-50 transition text-sm font-semibold text-gray-700"
-              >
-                + تحديد نقطة الوصول
-              </button>
-            )}
-          </div>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Footer */}
