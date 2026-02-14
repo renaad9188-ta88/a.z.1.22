@@ -420,10 +420,18 @@ export default function TripSchedulingModal({
 
     setLoading(true)
     try {
+      const stamp = new Date().toISOString()
+      const notes = String((request as any)?.admin_notes || '')
+      const hasConfirmNote = notes.includes('تم تأكيد الحجز')
+      const confirmSection = hasConfirmNote
+        ? ''
+        : `\n\n=== تأكيد الحجز ===\nتم تأكيد الحجز\nتاريخ التأكيد: ${stamp}`
+
       const { error } = await supabase
         .from('visit_requests')
         .update({
           trip_status: 'pending_arrival',
+          admin_notes: notes + confirmSection,
           updated_at: new Date().toISOString(),
         })
         .eq('id', request.id)
@@ -467,7 +475,8 @@ export default function TripSchedulingModal({
         .update({
           arrival_date: null,
           departure_date: null,
-          trip_status: 'pending_arrival',
+          // important: clear trip_status so UI doesn't treat it as a booking indicator
+          trip_status: null,
           updated_at: new Date().toISOString(),
         })
         .eq('id', request.id)

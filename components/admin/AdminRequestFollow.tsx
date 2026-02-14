@@ -7,6 +7,9 @@ import TripSchedulingModal from '@/components/admin/TripSchedulingModal'
 import { parseAdminNotes } from '@/components/request-details/utils'
 import { formatDate } from '@/lib/date-utils'
 import AvailableTripsModal from '@/components/request-follow/AvailableTripsModal'
+import { createSupabaseBrowserClient } from '@/lib/supabase'
+import toast from 'react-hot-toast'
+import { notifyCustomMessage } from '@/lib/notifications'
 import AdminRequestFollowStepper from './AdminRequestFollowStepper'
 import AdminResponseSection from './AdminResponseSection'
 import DepositPaymentImages from './DepositPaymentImages'
@@ -32,6 +35,8 @@ export default function AdminRequestFollow({
 }) {
   const [activeStep, setActiveStep] = useState(1)
   const [showSchedule, setShowSchedule] = useState(false)
+  const [confirmingBooking, setConfirmingBooking] = useState(false)
+  const supabase = useMemo(() => createSupabaseBrowserClient(), [])
 
   // Request Data Hook (includes payment images)
   const {
@@ -91,7 +96,13 @@ export default function AdminRequestFollow({
     if (request) {
       loadTripData((request as any)?.trip_id, request)
     }
-  }, [request?.trip_id, loadTripData])
+  }, [
+    request?.trip_id,
+    request?.selected_dropoff_stop_id,
+    request?.selected_pickup_stop_id,
+    loadTripData,
+    request,
+  ])
 
   const latestResponse = useMemo(() => extractLatestAdminResponse((request?.admin_notes || '') as string), [request])
   const responseHistory = useMemo(() => extractAllAdminResponses((request?.admin_notes || '') as string), [request])
@@ -132,6 +143,57 @@ export default function AdminRequestFollow({
       },
     ]
   }, [request])
+
+  const isBookingConfirmed = useMemo(() => {
+    const notes = (request?.admin_notes || '') as string
+    return notes.includes('تم تأكيد الحجز')
+  }, [request])
+
+  const confirmBooking = async () => {
+    if (!request) return
+    try {
+      setConfirmingBooking(true)
+      const stamp = new Date().toISOString()
+      const currentNotes = ((request.admin_notes || '') as string) || ''
+      const nextNotes = currentNotes.includes('تم تأكيد الحجز')
+        ? currentNotes
+        : currentNotes + `\n\n=== تأكيد الحجز ===\nتم تأكيد الحجز\nتاريخ التأكيد: ${stamp}`
+
+      const updateData: any = {
+        admin_notes: nextNotes,
+        updated_at: stamp,
+      }
+      // If booking was waiting approval, move it to active
+      if (request.trip_status === 'scheduled_pending_approval') {
+        updateData.trip_status = 'pending_arrival'
+      }
+
+      const { error } = await supabase
+        .from('visit_requests')
+        .update(updateData)
+        .eq('id', request.id)
+      if (error) throw error
+
+      // Notify user
+      try {
+        await notifyCustomMessage(
+          request.user_id,
+          request.id,
+          '✅ تم تأكيد الحجز من الإدارة. يمكنك الآن متابعة تفاصيل الحجز والتتبع من صفحة متابعة الطلب.'
+        )
+      } catch (e) {
+        console.error('Error notifying user confirm booking:', e)
+      }
+
+      toast.success('تم تأكيد الحجز')
+      await reload()
+    } catch (e: any) {
+      console.error('confirmBooking error:', e)
+      toast.error(e?.message || 'تعذر تأكيد الحجز')
+    } finally {
+      setConfirmingBooking(false)
+    }
+  }
 
   useEffect(() => {
     const notes = (request?.admin_notes || '') as string
@@ -486,6 +548,37 @@ export default function AdminRequestFollow({
 
                     <TripModificationsHistory modifications={tripModifications} />
 
+                    {Boolean((request as any)?.trip_id) && !isBookingConfirmed && (
+                      <div className={`border-2 rounded-lg p-4 sm:p-5 ${
+                        request.trip_status === 'scheduled_pending_approval'
+                          ? 'bg-orange-50 border-orange-200'
+                          : 'bg-green-50 border-green-200'
+                      }`}>
+                        <p className={`font-extrabold text-sm sm:text-base ${
+                          request.trip_status === 'scheduled_pending_approval' ? 'text-orange-900' : 'text-green-900'
+                        }`}>
+                          {request.trip_status === 'scheduled_pending_approval'
+                            ? 'حجز بانتظار الموافقة'
+                            : 'تم تسجيل الحجز'}
+                        </p>
+                        <p className={`text-xs sm:text-sm mt-1 ${
+                          request.trip_status === 'scheduled_pending_approval' ? 'text-orange-800' : 'text-green-800'
+                        }`}>
+                          اضغط &quot;تأكيد الحجز&quot; لإرسال تأكيد للمستخدم وتثبيت الحجز.
+                        </p>
+                        <div className="mt-3">
+                          <button
+                            type="button"
+                            onClick={confirmBooking}
+                            disabled={saving || confirmingBooking}
+                            className="w-full sm:w-auto px-5 py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition text-sm font-semibold disabled:opacity-50"
+                          >
+                            {saving || confirmingBooking ? 'جاري الحفظ...' : 'تأكيد الحجز'}
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
                     <div className="bg-white border border-gray-200 rounded-lg p-4 space-y-3">
                       <p className="text-sm font-extrabold text-gray-900">حجز للمستخدم (من الإدارة)</p>
                       <p className="text-xs text-gray-600 leading-relaxed">
@@ -495,18 +588,18 @@ export default function AdminRequestFollow({
                         <button
                           type="button"
                           onClick={() => openBookingModal('arrival')}
-                          disabled={saving || request.status === 'rejected'}
+                          disabled={saving || request.status === 'rejected' || isBookingConfirmed}
                           className="px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm font-semibold disabled:opacity-50"
                         >
-                          حجز رحلة القدوم
+                          {(request as any)?.trip_id ? 'تعديل رحلة القدوم' : 'حجز رحلة القدوم'}
                         </button>
                         <button
                           type="button"
                           onClick={() => openBookingModal('departure')}
-                          disabled={saving || request.status === 'rejected'}
+                          disabled={saving || request.status === 'rejected' || isBookingConfirmed}
                           className="px-4 py-2.5 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition text-sm font-semibold disabled:opacity-50"
                         >
-                          حجز رحلة المغادرة
+                          {(request as any)?.trip_id ? 'تعديل رحلة المغادرة' : 'حجز رحلة المغادرة'}
                         </button>
                       </div>
 

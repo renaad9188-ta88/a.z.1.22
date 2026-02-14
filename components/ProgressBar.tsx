@@ -10,6 +10,7 @@ interface ProgressBarProps {
     arrival_date?: string | null
     departure_date?: string | null
     admin_notes?: string | null
+    trip_id?: string | null
   }
   showLabels?: boolean
   compact?: boolean
@@ -19,7 +20,8 @@ export default function ProgressBar({ request, showLabels = true, compact = fals
   const notes = (request.admin_notes || '') as string
   const isDraft = notes.startsWith('[DRAFT]')
   const isApproved = request.status === 'approved' || request.status === 'completed'
-  const hasBooking = Boolean(request.arrival_date) || Boolean(request.departure_date) || Boolean(request.trip_status)
+  // booking should mean an actual booking reference/date, not just a trip_status flag
+  const hasBooking = Boolean(request.trip_id) || Boolean(request.arrival_date) || Boolean(request.departure_date)
   const isArrived = request.trip_status === 'arrived'
   const isCompleted = request.status === 'completed' || request.trip_status === 'completed'
   const isRejected = request.status === 'rejected'

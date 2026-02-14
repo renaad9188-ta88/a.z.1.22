@@ -23,7 +23,7 @@ export function useAvailableTrips(request: ReqRow | null) {
       setLoadingStopsId(tripId)
       const { data: tripStops } = await supabase
         .from('route_trip_stop_points')
-        .select('id,name,order_index')
+        .select('id,name,order_index,lat,lng')
         .eq('trip_id', tripId)
         .order('order_index', { ascending: true })
       
@@ -31,29 +31,64 @@ export function useAvailableTrips(request: ReqRow | null) {
       if (stops.length > 0) {
         setTripStopsById((p) => ({ ...p, [tripId]: stops }))
       } else {
-        // Fallback: load from route_stop_points
+        // Fallback: seed from route_stop_points into route_trip_stop_points (FK expects trip stop ids)
         const trip = availableTrips.find((t) => t.id === tripId)
         if (trip?.route_id) {
           const tripType: 'arrival' | 'departure' | null = (trip.trip_type as any) || null
           const allowedKinds = tripType === 'departure' ? ['pickup', 'both'] : ['dropoff', 'both']
+
+          // If another client seeded in parallel, re-check first to avoid duplicates
+          const { data: existingStops } = await supabase
+            .from('route_trip_stop_points')
+            .select('id,name,order_index,lat,lng')
+            .eq('trip_id', tripId)
+            .order('order_index', { ascending: true })
+          const existing = (existingStops as any) || []
+          if (existing.length > 0) {
+            setTripStopsById((p) => ({ ...p, [tripId]: existing }))
+            return
+          }
+
+          // Load route stops (must include lat/lng)
+          let routeStops: any[] = []
           try {
-            const { data: routeStops } = await supabase
+            const { data } = await supabase
               .from('route_stop_points')
-              .select('id,name,order_index')
+              .select('name,order_index,lat,lng,stop_kind')
               .eq('route_id', trip.route_id)
               .eq('is_active', true)
               .in('stop_kind', allowedKinds as any)
               .order('order_index', { ascending: true })
-            setTripStopsById((p) => ({ ...p, [tripId]: (routeStops as any) || [] }))
+            routeStops = (data as any) || []
           } catch {
-            const { data: routeStops } = await supabase
+            const { data } = await supabase
               .from('route_stop_points')
-              .select('id,name,order_index')
+              .select('name,order_index,lat,lng')
               .eq('route_id', trip.route_id)
               .eq('is_active', true)
               .order('order_index', { ascending: true })
-            setTripStopsById((p) => ({ ...p, [tripId]: (routeStops as any) || [] }))
+            routeStops = (data as any) || []
           }
+
+          const seedSrc = (routeStops || []).filter((s: any) => s?.lat != null && s?.lng != null)
+          if (seedSrc.length > 0) {
+            const rows = seedSrc.map((s: any) => ({
+              trip_id: tripId,
+              name: s.name,
+              lat: s.lat,
+              lng: s.lng,
+              order_index: Number.isFinite(s.order_index) ? s.order_index : 0,
+            }))
+            // Best-effort insert; if it fails we still try to load what exists
+            await supabase.from('route_trip_stop_points').insert(rows as any)
+          }
+
+          const { data: seededStops } = await supabase
+            .from('route_trip_stop_points')
+            .select('id,name,order_index,lat,lng')
+            .eq('trip_id', tripId)
+            .order('order_index', { ascending: true })
+          setTripStopsById((p) => ({ ...p, [tripId]: (seededStops as any) || [] }))
         }
       }
     } catch (e) {
@@ -77,7 +112,7 @@ export function useAvailableTrips(request: ReqRow | null) {
 
       let query = supabase
         .from('route_trips')
-        .select('id,trip_date,meeting_time,departure_time,start_location_name,end_location_name,route_id,trip_type')
+        .select('id,trip_date,meeting_time,departure_time,start_location_name,end_location_name,route_id,trip_type,start_lat,start_lng,end_lat,end_lng')
         .eq('is_active', true)
         .gte('trip_date', today)
         .order('trip_date', { ascending: true })
@@ -107,6 +142,13 @@ export function useAvailableTrips(request: ReqRow | null) {
       const { data, error } = await query
       if (error) throw error
       setAvailableTrips((data as any) || [])
+
+      // Proactively load stops for the first trip so "عرض نقاط ..." feels instant
+      const firstId = (data as any)?.[0]?.id as string | undefined
+      if (firstId) {
+        // fire and forget
+        loadTripStops(firstId).catch(() => {})
+      }
     } catch (e) {
       console.error('Error loading admin available trips:', e)
       toast.error('تعذر تحميل الرحلات المتاحة')

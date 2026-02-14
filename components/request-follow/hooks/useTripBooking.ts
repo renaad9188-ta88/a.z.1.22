@@ -26,6 +26,12 @@ export function useTripBooking(
     if (!request) return
     
     try {
+      const notesGuard = (request.admin_notes || '') as string
+      if (notesGuard.includes('تم تأكيد الحجز')) {
+        toast.error('لا يمكن تعديل الحجز بعد تأكيده من الإدارة.')
+        return
+      }
+
       const trip = availableTrips.find((t) => t.id === tripId)
       if (!trip) {
         toast.error('الرحلة غير موجودة')
@@ -57,7 +63,8 @@ export function useTripBooking(
           trip_id: tripId,
           arrival_date: trip.trip_date,
           selected_dropoff_stop_id: selectedStopId || null,
-          trip_status: 'pending_arrival',
+          // User booking should be reviewed/confirmed by admin
+          trip_status: 'scheduled_pending_approval',
           updated_at: new Date().toISOString(),
         }
         
@@ -91,7 +98,8 @@ export function useTripBooking(
           trip_id: tripId,
           departure_date: trip.trip_date,
           selected_pickup_stop_id: selectedStopId || null,
-          trip_status: 'pending_arrival',
+          // User booking should be reviewed/confirmed by admin
+          trip_status: 'scheduled_pending_approval',
           updated_at: new Date().toISOString(),
         }
         
@@ -117,7 +125,8 @@ export function useTripBooking(
       // الكود الأصلي للأنواع الأخرى
       const updateData: any = {
         trip_id: tripId,
-        trip_status: 'pending_arrival',
+        // User booking should be reviewed/confirmed by admin
+        trip_status: 'scheduled_pending_approval',
         updated_at: new Date().toISOString(),
       }
       

@@ -34,6 +34,10 @@ export type TripLite = {
   departure_time?: string | null
   start_location_name?: string | null
   end_location_name?: string | null
+  start_lat?: number | null
+  start_lng?: number | null
+  end_lat?: number | null
+  end_lng?: number | null
   route_id?: string | null
   trip_type?: 'arrival' | 'departure' | null
 }

@@ -17,8 +17,10 @@ import InvitesManagement from './admin/InvitesManagement'
 import CustomersManagement from './admin/CustomersManagement'
 import BookingsManagement from './admin/BookingsManagement'
 import { VisitRequest, UserProfile, AdminStats as StatsType } from './admin/types'
-import { ChevronDown, Layers, Calendar } from 'lucide-react'
+import { ChevronDown, Layers, Calendar, Building2, MessageCircle, Phone, Plane, Ticket, MapPin } from 'lucide-react'
 import QRCodeShare from './QRCodeShare'
+import { parseAdminNotes } from './request-details/utils'
+import { formatDate } from '@/lib/date-utils'
 
 export default function AdminDashboard() {
   const router = useRouter()
@@ -41,10 +43,48 @@ export default function AdminDashboard() {
   const [showCustomersManagement, setShowCustomersManagement] = useState(false)
   const [showBookingsManagement, setShowBookingsManagement] = useState(false)
   const [collapsedTypes, setCollapsedTypes] = useState<Record<string, boolean>>({})
+  const [tripBookingsStats, setTripBookingsStats] = useState<Array<{
+    trip_id: string
+    trip_date: string
+    trip_type: 'arrival' | 'departure' | null
+    passengers_count: number
+    requests_count: number
+    bookings: Array<{
+      id: string
+      visitor_name: string
+      user_id: string
+      companions_count: number
+      arrival_date: string | null
+      days_count: number
+      city: string
+    }>
+    expected_departure_date?: string | null
+  }>>([])
+  const [selectedTripForDetails, setSelectedTripForDetails] = useState<{
+    trip_id: string
+    trip_date: string
+    trip_type: 'arrival' | 'departure' | null
+    bookings: Array<{
+      id: string
+      visitor_name: string
+      user_id: string
+      companions_count: number
+      arrival_date: string | null
+      days_count: number
+      city: string
+    }>
+  } | null>(null)
 
   useEffect(() => {
     loadRequests()
   }, [])
+
+  // جلب إحصائيات الرحلات
+  useEffect(() => {
+    if (!loading && currentRole === 'admin') {
+      loadTripBookingsStats()
+    }
+  }, [loading, currentRole])
 
   // فتح الطلب تلقائياً إذا جاء من إشعار داخل لوحة الإدارة
   useEffect(() => {
@@ -157,7 +197,7 @@ export default function AdminDashboard() {
       // تحميل جميع الطلبات (قائمة خفيفة لتحسين الأداء)
       const { data: requestsData, error: requestsError } = await supabase
         .from('visit_requests')
-        .select('id, user_id, visitor_name, visit_type, travel_date, status, city, days_count, arrival_date, departure_date, trip_status, created_at, updated_at, admin_notes, companions_count, deposit_paid, deposit_amount, total_amount, remaining_amount, payment_verified, assigned_to, assigned_by, assigned_at')
+        .select('id, user_id, visitor_name, visit_type, travel_date, status, city, days_count, arrival_date, departure_date, trip_status, trip_id, created_at, updated_at, admin_notes, companions_count, deposit_paid, deposit_amount, total_amount, remaining_amount, payment_verified, assigned_to, assigned_by, assigned_at')
         .order('created_at', { ascending: false })
 
       if (requestsError) {
@@ -278,7 +318,7 @@ export default function AdminDashboard() {
     const isNew = request.status === 'pending' && !isDraft && (Date.now() - new Date(request.created_at).getTime()) < 24 * 60 * 60 * 1000
     const isReceived = request.status === 'pending'
     const isInProgress = request.status === 'approved' && (request.trip_status === 'pending_arrival' || request.trip_status === 'arrived')
-    const isBooking = Boolean(request.trip_status) || Boolean(request.arrival_date) || Boolean(request.departure_date)
+    const isBooking = Boolean(request.trip_id)
 
     const matchesStatus =
       statusFilter === 'all'
@@ -306,6 +346,7 @@ export default function AdminDashboard() {
       tourism: 'السياحة',
       goethe: 'امتحان جوته',
       embassy: 'موعد سفارة',
+      visa: 'الفيز والتأشيرات والرحلات',
     }
     return map[t] || t
   }
@@ -325,7 +366,134 @@ export default function AdminDashboard() {
     return filterLabels[statusFilter] || 'الطلبات'
   }
 
-  const typeOrder = ['visit', 'goethe', 'embassy', 'umrah', 'tourism']
+  // دالة للرد السريع على طلبات السفارة
+  const handleQuickResponse = async (request: VisitRequest, responseText: string) => {
+    try {
+      const stamp = new Date().toISOString()
+      const section = `\n\n=== رد الإدارة ===\n${responseText}\nتاريخ الرد: ${stamp}`
+      const updatedNotes = ((request.admin_notes || '') as string) + section
+      
+      const { error } = await supabase
+        .from('visit_requests')
+        .update({ 
+          admin_notes: updatedNotes, 
+          updated_at: new Date().toISOString() 
+        } as any)
+        .eq('id', request.id)
+      
+      if (error) throw error
+      
+      // إرسال إشعار للمستخدم
+      try {
+        const { notifyCustomMessage } = await import('@/lib/notifications')
+        await notifyCustomMessage(request.user_id, request.id, responseText)
+      } catch (notifyErr) {
+        console.error('Error sending notification:', notifyErr)
+      }
+      
+      toast.success('تم إرسال الرد')
+      loadRequests()
+    } catch (e: any) {
+      console.error('Quick response error:', e)
+      toast.error(e?.message || 'تعذر إرسال الرد')
+    }
+  }
+
+  const loadTripBookingsStats = async () => {
+    try {
+      // جلب جميع الطلبات التي لها trip_id مع معلومات إضافية
+      const { data: bookedRequests, error: reqError } = await supabase
+        .from('visit_requests')
+        .select('id, trip_id, companions_count, visitor_name, user_id, arrival_date, days_count, city')
+        .not('trip_id', 'is', null)
+        .neq('status', 'rejected')
+
+      if (reqError) throw reqError
+
+      // تجميع حسب trip_id مع حفظ معلومات الطلبات
+      const bookingsByTrip: Record<string, { 
+        passengers: number
+        requests: number
+        bookings: Array<{
+          id: string
+          visitor_name: string
+          user_id: string
+          companions_count: number
+          arrival_date: string | null
+          days_count: number
+          city: string
+        }>
+      }> = {}
+      
+      ;(bookedRequests || []).forEach((r: any) => {
+        if (!r.trip_id) return
+        if (!bookingsByTrip[r.trip_id]) {
+          bookingsByTrip[r.trip_id] = { passengers: 0, requests: 0, bookings: [] }
+        }
+        bookingsByTrip[r.trip_id].passengers += 1 + (r.companions_count || 0)
+        bookingsByTrip[r.trip_id].requests += 1
+        bookingsByTrip[r.trip_id].bookings.push({
+          id: r.id,
+          visitor_name: r.visitor_name,
+          user_id: r.user_id,
+          companions_count: r.companions_count || 0,
+          arrival_date: r.arrival_date,
+          days_count: r.days_count,
+          city: r.city,
+        })
+      })
+
+      // جلب معلومات الرحلات
+      const tripIds = Object.keys(bookingsByTrip)
+      if (tripIds.length === 0) {
+        setTripBookingsStats([])
+        return
+      }
+
+      const { data: tripsData, error: tripsError } = await supabase
+        .from('route_trips')
+        .select('id, trip_date, trip_type')
+        .in('id', tripIds)
+        .eq('is_active', true)
+        .order('trip_date', { ascending: true })
+
+      if (tripsError) throw tripsError
+
+      const stats = (tripsData || []).map((trip: any) => {
+        const bookingData = bookingsByTrip[trip.id]
+        
+        // حساب موعد المغادرة المتوقع (arrival_date + days_count أو + شهر)
+        let expectedDepartureDate: string | null = null
+        if (trip.trip_type === 'arrival' && bookingData.bookings.length > 0) {
+          // نأخذ أول طلب كمرجع (يمكن تحسينه لاحقاً)
+          const firstBooking = bookingData.bookings[0]
+          if (firstBooking.arrival_date) {
+            const arrivalDate = new Date(firstBooking.arrival_date)
+            // إضافة days_count أو شهر (30 يوم)
+            const daysToAdd = firstBooking.days_count || 30
+            arrivalDate.setDate(arrivalDate.getDate() + daysToAdd)
+            expectedDepartureDate = arrivalDate.toISOString().split('T')[0]
+          }
+        }
+        
+        return {
+          trip_id: trip.id,
+          trip_date: trip.trip_date,
+          trip_type: (trip.trip_type || 'arrival') as 'arrival' | 'departure' | null,
+          passengers_count: bookingData.passengers,
+          requests_count: bookingData.requests,
+          bookings: bookingData.bookings,
+          expected_departure_date: expectedDepartureDate,
+        }
+      })
+
+      setTripBookingsStats(stats)
+    } catch (error: any) {
+      console.error('Error loading trip bookings stats:', error)
+    }
+  }
+
+  const typeOrder = ['visit', 'goethe', 'embassy', 'visa', 'umrah', 'tourism']
   const groupedByType = (list: VisitRequest[]) => {
     const groups: Record<string, VisitRequest[]> = {}
     for (const r of list) {
@@ -344,7 +512,7 @@ export default function AdminDashboard() {
     received: requests.filter(r => r.status === 'pending').length,
     underReview: requests.filter(r => r.status === 'under_review').length,
     inProgress: requests.filter(r => r.status === 'approved' && (r.trip_status === 'pending_arrival' || r.trip_status === 'arrived')).length,
-    bookings: requests.filter(r => Boolean(r.trip_status) || Boolean(r.arrival_date) || Boolean(r.departure_date)).length,
+    bookings: requests.filter(r => Boolean(r.trip_id)).length,
     approved: requests.filter(r => r.status === 'approved').length,
     rejected: requests.filter(r => r.status === 'rejected').length,
     completed: requests.filter(r => r.status === 'completed' || r.trip_status === 'completed').length,
@@ -518,6 +686,357 @@ export default function AdminDashboard() {
                 setStatusFilter(filterType)
               }}
             />
+
+            {/* قسم إحصائيات الرحلات */}
+            {currentRole === 'admin' && tripBookingsStats.length > 0 && (
+              <div className="bg-white rounded-xl shadow-md border border-gray-100 p-4 sm:p-6 mb-6">
+                <div className="flex items-center gap-2 mb-4">
+                  <Ticket className="w-5 h-5 sm:w-6 sm:h-6 text-teal-600" />
+                  <h2 className="text-lg sm:text-xl font-extrabold text-gray-900">
+                    إحصائيات الحجوزات حسب الرحلة
+                  </h2>
+                </div>
+                
+                {/* القادمون */}
+                {tripBookingsStats.filter(s => s.trip_type === 'arrival').length > 0 && (
+                  <div className="mb-6">
+                    <div className="flex items-center gap-2 mb-3">
+                      <MapPin className="w-5 h-5 text-emerald-600" />
+                      <h3 className="text-base sm:text-lg font-bold text-gray-800">القادمون</h3>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+                      {tripBookingsStats
+                        .filter(s => s.trip_type === 'arrival')
+                        .map((stat) => (
+                          <div
+                            key={stat.trip_id}
+                            onClick={() => setSelectedTripForDetails({
+                              trip_id: stat.trip_id,
+                              trip_date: stat.trip_date,
+                              trip_type: stat.trip_type,
+                              bookings: stat.bookings,
+                            })}
+                            className="bg-gradient-to-br from-emerald-50 to-emerald-100 rounded-lg p-3 sm:p-4 border-2 border-emerald-200 cursor-pointer hover:shadow-lg transition-all"
+                          >
+                            <div className="flex items-center justify-between mb-2">
+                              <div className="flex items-center gap-2">
+                                <MapPin className="w-4 h-4 text-emerald-600" />
+                                <span className="text-xs sm:text-sm font-semibold text-gray-700">
+                                  قادمون
+                                </span>
+                              </div>
+                            </div>
+                            <p className="text-xs text-gray-600 mb-1">
+                              {formatDate(stat.trip_date)}
+                            </p>
+                            {stat.expected_departure_date && (
+                              <div className="bg-amber-50 border border-amber-200 rounded p-2 mb-2">
+                                <p className="text-xs font-semibold text-amber-800">
+                                  ⏰ موعد المغادرة المتوقع: {formatDate(stat.expected_departure_date)}
+                                </p>
+                              </div>
+                            )}
+                            <div className="flex items-center justify-between mt-2">
+                              <div>
+                                <p className="text-xs text-gray-600">عدد الأشخاص</p>
+                                <p className="text-xl sm:text-2xl font-extrabold text-emerald-700">
+                                  {stat.passengers_count}
+                                </p>
+                              </div>
+                              <div className="text-right">
+                                <p className="text-xs text-gray-600">عدد الطلبات</p>
+                                <p className="text-lg sm:text-xl font-bold text-emerald-600">
+                                  {stat.requests_count}
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* المغادرون */}
+                {tripBookingsStats.filter(s => s.trip_type === 'departure').length > 0 && (
+                  <div>
+                    <div className="flex items-center gap-2 mb-3">
+                      <Plane className="w-5 h-5 text-blue-600" />
+                      <h3 className="text-base sm:text-lg font-bold text-gray-800">المغادرون</h3>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+                      {tripBookingsStats
+                        .filter(s => s.trip_type === 'departure')
+                        .map((stat) => (
+                          <div
+                            key={stat.trip_id}
+                            onClick={() => setSelectedTripForDetails({
+                              trip_id: stat.trip_id,
+                              trip_date: stat.trip_date,
+                              trip_type: stat.trip_type,
+                              bookings: stat.bookings,
+                            })}
+                            className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-lg p-3 sm:p-4 border-2 border-blue-200 cursor-pointer hover:shadow-lg transition-all"
+                          >
+                            <div className="flex items-center justify-between mb-2">
+                              <div className="flex items-center gap-2">
+                                <Plane className="w-4 h-4 text-blue-600" />
+                                <span className="text-xs sm:text-sm font-semibold text-gray-700">
+                                  مغادرون
+                                </span>
+                              </div>
+                            </div>
+                            <p className="text-xs text-gray-600 mb-1">
+                              {formatDate(stat.trip_date)}
+                            </p>
+                            <div className="flex items-center justify-between mt-2">
+                              <div>
+                                <p className="text-xs text-gray-600">عدد الأشخاص</p>
+                                <p className="text-xl sm:text-2xl font-extrabold text-blue-700">
+                                  {stat.passengers_count}
+                                </p>
+                              </div>
+                              <div className="text-right">
+                                <p className="text-xs text-gray-600">عدد الطلبات</p>
+                                <p className="text-lg sm:text-xl font-bold text-blue-600">
+                                  {stat.requests_count}
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Modal لعرض قائمة الركاب */}
+            {selectedTripForDetails && (
+              <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-3 sm:p-4 overflow-y-auto">
+                <div className="bg-white rounded-lg max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+                  <div className="p-4 sm:p-6">
+                    <div className="flex items-center justify-between mb-4">
+                      <div>
+                        <h3 className="text-lg sm:text-xl font-bold text-gray-900">
+                          {selectedTripForDetails.trip_type === 'arrival' ? 'قادمون' : 'مغادرون'} - {formatDate(selectedTripForDetails.trip_date)}
+                        </h3>
+                        <p className="text-sm text-gray-600 mt-1">
+                          عدد الركاب: {selectedTripForDetails.bookings.length}
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => setSelectedTripForDetails(null)}
+                        className="text-gray-500 hover:text-gray-700 text-2xl"
+                      >
+                        ×
+                      </button>
+                    </div>
+
+                    <div className="space-y-2">
+                      {selectedTripForDetails.bookings.map((booking) => (
+                        <div
+                          key={booking.id}
+                          className="bg-gray-50 border border-gray-200 rounded-lg p-3 sm:p-4 hover:bg-gray-100 transition"
+                        >
+                          <div className="flex items-center justify-between">
+                            <div className="flex-1">
+                              <h4 className="font-bold text-gray-900 mb-1">{booking.visitor_name}</h4>
+                              <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs sm:text-sm text-gray-600">
+                                <span>المدينة: {booking.city}</span>
+                                <span>الأشخاص: {1 + booking.companions_count}</span>
+                                {booking.arrival_date && (
+                                  <span>تاريخ القدوم: {formatDate(booking.arrival_date)}</span>
+                                )}
+                                {booking.days_count && (
+                                  <span>مدة الإقامة: {booking.days_count} يوم</span>
+                                )}
+                              </div>
+                            </div>
+                            <Link
+                              href={`/admin/request/${booking.id}/follow`}
+                              className="ml-4 px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-xs sm:text-sm font-semibold whitespace-nowrap"
+                              onClick={() => setSelectedTripForDetails(null)}
+                            >
+                              عرض التفاصيل
+                            </Link>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+        {/* Embassy Requests Section */}
+        {(() => {
+          const embassyRequests = requests.filter(r => r.visit_type === 'embassy')
+          if (embassyRequests.length === 0) return null
+          
+          return (
+            <div className="mb-8 bg-gradient-to-br from-green-50 to-white rounded-xl shadow-lg p-4 sm:p-6 border-2 border-green-200">
+              <div className="flex items-center gap-3 mb-4">
+                <Building2 className="w-6 h-6 text-green-600" />
+                <h2 className="text-xl font-bold text-gray-800">طلبات مواعيد السفارة</h2>
+                <span className="px-3 py-1 bg-green-600 text-white rounded-full text-sm font-bold">
+                  {embassyRequests.length}
+                </span>
+              </div>
+              
+              <div className="space-y-4">
+                {embassyRequests.map((request) => {
+                  const userProfile = userProfiles[request.user_id]
+                  const adminInfo = parseAdminNotes((request.admin_notes || '') as string) || {}
+                  
+                  // استخراج رقم الهاتف من admin_notes أو userProfile
+                  const phoneMatch = (request.admin_notes || '').match(/الهاتف:\s*([^\n]+)/)
+                  const phone = phoneMatch?.[1]?.trim() || userProfile?.phone || adminInfo.syrianPhone || adminInfo.jordanPhone || ''
+                  const waDigits = String(phone).replace(/[^\d]/g, '')
+                  const callDigits = String(phone).replace(/[^\d+]/g, '')
+                  
+                  const quickResponse = '✅ تم استلام طلبك. سنتواصل معك قريباً لإكمال الإجراءات.'
+                  
+                  return (
+                    <div key={request.id} className="bg-white rounded-lg p-4 border-2 border-green-200 hover:shadow-md transition">
+                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                        <div className="flex-1">
+                          <h3 className="font-bold text-gray-800 mb-1">{request.visitor_name}</h3>
+                          <p className="text-sm text-gray-600 mb-2">#{request.id.slice(0, 8).toUpperCase()}</p>
+                          <p className="text-xs text-gray-500 mb-2">{request.city}</p>
+                          {request.admin_notes && (
+                            <div className="text-xs text-gray-600 mt-2 whitespace-pre-line max-h-20 overflow-y-auto">
+                              {request.admin_notes.split('\n').slice(0, 5).join('\n')}
+                            </div>
+                          )}
+                        </div>
+                        
+                        <div className="flex flex-col sm:flex-row gap-2">
+                          {waDigits && (
+                            <a
+                              href={`https://wa.me/${waDigits}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition text-sm font-semibold flex items-center justify-center gap-2"
+                            >
+                              <MessageCircle className="w-4 h-4" />
+                              واتساب
+                            </a>
+                          )}
+                          {callDigits && (
+                            <a
+                              href={`tel:${callDigits}`}
+                              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm font-semibold flex items-center justify-center gap-2"
+                            >
+                              <Phone className="w-4 h-4" />
+                              اتصال
+                            </a>
+                          )}
+                          <button
+                            onClick={() => handleQuickResponse(request, quickResponse)}
+                            className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition text-sm font-semibold"
+                          >
+                            رد سريع
+                          </button>
+                          <button
+                            onClick={() => handleRequestClick(request)}
+                            className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition text-sm font-semibold"
+                          >
+                            عرض التفاصيل
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )
+        })()}
+
+        {/* Visa Services Requests Section */}
+        {(() => {
+          const visaRequests = requests.filter(r => r.visit_type === 'visa')
+          if (visaRequests.length === 0) return null
+          
+          return (
+            <div className="mb-8 bg-gradient-to-br from-red-50 to-white rounded-xl shadow-lg p-4 sm:p-6 border-2 border-red-200">
+              <div className="flex items-center gap-3 mb-4">
+                <Plane className="w-6 h-6 text-red-600" />
+                <h2 className="text-xl font-bold text-gray-800">طلبات الفيز والتأشيرات والرحلات</h2>
+                <span className="px-3 py-1 bg-red-600 text-white rounded-full text-sm font-bold">
+                  {visaRequests.length}
+                </span>
+              </div>
+              
+              <div className="space-y-4">
+                {visaRequests.map((request) => {
+                  const userProfile = userProfiles[request.user_id]
+                  const adminInfo = parseAdminNotes((request.admin_notes || '') as string) || {}
+                  
+                  // استخراج رقم الهاتف من admin_notes أو userProfile
+                  const phoneMatch = (request.admin_notes || '').match(/الهاتف:\s*([^\n]+)/)
+                  const phone = phoneMatch?.[1]?.trim() || userProfile?.phone || adminInfo.syrianPhone || adminInfo.jordanPhone || ''
+                  const waDigits = String(phone).replace(/[^\d]/g, '')
+                  const callDigits = String(phone).replace(/[^\d+]/g, '')
+                  
+                  const quickResponse = '✅ تم استلام طلبك. سنتواصل معك قريباً لإكمال الإجراءات.'
+                  
+                  return (
+                    <div key={request.id} className="bg-white rounded-lg p-4 border-2 border-red-200 hover:shadow-md transition">
+                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                        <div className="flex-1">
+                          <h3 className="font-bold text-gray-800 mb-1">{request.visitor_name}</h3>
+                          <p className="text-sm text-gray-600 mb-2">#{request.id.slice(0, 8).toUpperCase()}</p>
+                          <p className="text-xs text-gray-500 mb-2">{request.city}</p>
+                          {request.admin_notes && (
+                            <div className="text-xs text-gray-600 mt-2 whitespace-pre-line max-h-20 overflow-y-auto">
+                              {request.admin_notes.split('\n').slice(0, 5).join('\n')}
+                            </div>
+                          )}
+                        </div>
+                        
+                        <div className="flex flex-col sm:flex-row gap-2">
+                          {waDigits && (
+                            <a
+                              href={`https://wa.me/${waDigits}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition text-sm font-semibold flex items-center justify-center gap-2"
+                            >
+                              <MessageCircle className="w-4 h-4" />
+                              واتساب
+                            </a>
+                          )}
+                          {callDigits && (
+                            <a
+                              href={`tel:${callDigits}`}
+                              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm font-semibold flex items-center justify-center gap-2"
+                            >
+                              <Phone className="w-4 h-4" />
+                              اتصال
+                            </a>
+                          )}
+                          <button
+                            onClick={() => handleQuickResponse(request, quickResponse)}
+                            className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition text-sm font-semibold"
+                          >
+                            رد سريع
+                          </button>
+                          <button
+                            onClick={() => handleRequestClick(request)}
+                            className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition text-sm font-semibold"
+                          >
+                            عرض التفاصيل
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )
+        })()}
 
         {/* Filters */}
         <RequestFilters

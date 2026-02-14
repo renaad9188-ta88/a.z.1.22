@@ -3,6 +3,7 @@
 import { ArrowRight, Bus, Calendar, Clock, Navigation, MapPin, CheckCircle } from 'lucide-react'
 import { formatDate } from '@/lib/date-utils'
 import HelpContactButtons from '@/components/HelpContactButtons'
+import TripStopsMiniMap from './TripStopsMiniMap'
 
 interface Trip {
   id: string
@@ -18,6 +19,8 @@ interface Stop {
   id: string
   name: string
   order_index: number
+  lat?: number | null
+  lng?: number | null
 }
 
 interface AvailableTripsModalProps {
@@ -56,6 +59,9 @@ export default function AvailableTripsModal({
   isBookingDisabled,
 }: AvailableTripsModalProps) {
   if (!isOpen) return null
+
+  // Ensure we have stops loaded for the first trip to make UX clearer (parent loads stops on toggle)
+  // We can't trigger loading from here without props, so we only render richer layout when expanded.
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-3 sm:p-4 overflow-y-auto">
@@ -179,7 +185,10 @@ export default function AvailableTripsModal({
                               لا توجد {trip.trip_type === 'arrival' ? 'نقاط نزول' : 'نقاط تحميل'} لهذه الرحلة.
                             </p>
                           ) : (
-                            <div className="space-y-2">
+                            <div className="space-y-3">
+                              {/* Mini map preview */}
+                              <TripStopsMiniMap stops={tripStopsById[trip.id] || []} />
+
                               <p className="text-xs sm:text-sm font-semibold text-gray-800 mb-2">
                                 {trip.trip_type === 'arrival' 
                                   ? 'اختر نقطة النزول (اختياري):' 
@@ -198,7 +207,7 @@ export default function AvailableTripsModal({
                                         : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50'
                                     }`}
                                   >
-                                    <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[11px] font-bold ${
+                                    <span className={`w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-bold ${
                                       isSelected
                                         ? 'bg-blue-600 text-white'
                                         : 'bg-gray-300 text-gray-700'

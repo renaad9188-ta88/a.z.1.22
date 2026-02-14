@@ -1,22 +1,26 @@
-import { useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { createSupabaseBrowserClient } from '@/lib/supabase'
 import type { TripLite, AssignedDriver } from '../types'
 
 export function useTripData() {
-  const supabase = createSupabaseBrowserClient()
+  const supabase = useMemo(() => createSupabaseBrowserClient(), [])
   const [bookedTrip, setBookedTrip] = useState<TripLite | null>(null)
   const [bookedStops, setBookedStops] = useState<Array<{ id: string; name: string; order_index: number }> | null>(null)
   const [selectedDropoffStop, setSelectedDropoffStop] = useState<{ id: string; name: string } | null>(null)
   const [selectedPickupStop, setSelectedPickupStop] = useState<{ id: string; name: string } | null>(null)
   const [assignedDrivers, setAssignedDrivers] = useState<AssignedDriver[]>([])
 
-  const loadTripData = async (tripId: string | null | undefined, requestRow: any) => {
+  const clearTripData = useCallback(() => {
+    setBookedTrip(null)
+    setBookedStops(null)
+    setAssignedDrivers([])
+    setSelectedDropoffStop(null)
+    setSelectedPickupStop(null)
+  }, [])
+
+  const loadTripData = useCallback(async (tripId: string | null | undefined, requestRow: any) => {
     if (!tripId) {
-      setBookedTrip(null)
-      setBookedStops(null)
-      setAssignedDrivers([])
-      setSelectedDropoffStop(null)
-      setSelectedPickupStop(null)
+      clearTripData()
       return
     }
 
@@ -123,18 +127,12 @@ export function useTripData() {
           setSelectedPickupStop(null)
         }
       } else {
-        setBookedTrip(null)
-        setBookedStops(null)
-        setAssignedDrivers([])
-        setSelectedDropoffStop(null)
-        setSelectedPickupStop(null)
+        clearTripData()
       }
     } catch {
-      setBookedTrip(null)
-      setBookedStops(null)
-      setAssignedDrivers([])
+      clearTripData()
     }
-  }
+  }, [clearTripData, supabase])
 
   return {
     bookedTrip,

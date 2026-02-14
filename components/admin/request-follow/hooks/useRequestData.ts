@@ -1,18 +1,18 @@
-import { useState, useEffect } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { createSupabaseBrowserClient } from '@/lib/supabase'
 import toast from 'react-hot-toast'
 import { getSignedImageUrl } from '@/components/request-details/utils'
 import type { ReqRow, ContactProfile, Role } from '../types'
 
 export function useRequestData(requestId: string, adminUserId: string, role: Role) {
-  const supabase = createSupabaseBrowserClient()
+  const supabase = useMemo(() => createSupabaseBrowserClient(), [])
   const [request, setRequest] = useState<ReqRow | null>(null)
   const [loading, setLoading] = useState(true)
   const [userProfile, setUserProfile] = useState<ContactProfile | null>(null)
   const [remainingPaymentImageUrl, setRemainingPaymentImageUrl] = useState<string | null>(null)
   const [depositPaymentImageUrls, setDepositPaymentImageUrls] = useState<string[]>([])
 
-  const load = async () => {
+  const load = useCallback(async () => {
     try {
       setLoading(true)
       const { data, error } = await supabase
@@ -50,7 +50,7 @@ export function useRequestData(requestId: string, adminUserId: string, role: Rol
     } finally {
       setLoading(false)
     }
-  }
+  }, [adminUserId, requestId, role, supabase])
 
   useEffect(() => {
     load()
@@ -64,8 +64,7 @@ export function useRequestData(requestId: string, adminUserId: string, role: Rol
       window.removeEventListener('focus', onFocus)
       document.removeEventListener('visibilitychange', onVisible)
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [requestId])
+  }, [load])
 
   // تحميل signed URL لصورة الدفع المتبقي
   useEffect(() => {

@@ -69,6 +69,7 @@ export default function RequestFilters({
           <option value="tourism">سياحة</option>
           <option value="goethe">امتحان جوته</option>
           <option value="embassy">موعد سفارة</option>
+          <option value="visa">الفيز والتأشيرات والرحلات</option>
         </select>
 
         {/* مسح التصفية */}

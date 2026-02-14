@@ -4,13 +4,14 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createSupabaseBrowserClient } from '@/lib/supabase'
 import toast from 'react-hot-toast'
-import { Building2, Upload, Save, Edit, X, Calendar } from 'lucide-react'
+import { Building2, Upload, Save, Edit, X, Calendar, MessageCircle, Phone } from 'lucide-react'
 
 export default function EmbassyAppointmentForm() {
   const router = useRouter()
   const supabase = createSupabaseBrowserClient()
   const [loading, setLoading] = useState(false)
   const [showSummary, setShowSummary] = useState(false)
+  const [showContactInfo, setShowContactInfo] = useState(false)
   const [passportImage, setPassportImage] = useState<File | null>(null)
   const [passportImagePreview, setPassportImagePreview] = useState<string | null>(null)
 
@@ -100,13 +101,69 @@ export default function EmbassyAppointmentForm() {
 
       if (error) throw error
       toast.success('تم حفظ الطلب بنجاح!')
-      router.push('/dashboard')
-      router.refresh()
+      setShowContactInfo(true)
+      
+      // الانتقال للصفحة بعد 5 ثوانٍ
+      setTimeout(() => {
+        router.push('/dashboard')
+        router.refresh()
+      }, 5000)
     } catch (error: any) {
       toast.error(error.message || 'حدث خطأ أثناء حفظ الطلب')
     } finally {
       setLoading(false)
     }
+  }
+
+  if (showContactInfo) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-green-50 to-white py-4 sm:py-6 md:py-8 px-3 sm:px-4">
+        <div className="max-w-2xl mx-auto">
+          <div className="bg-white rounded-lg shadow-xl p-4 sm:p-6 md:p-8">
+            <div className="text-center mb-6">
+              <div className="w-16 h-16 sm:w-20 sm:h-20 bg-green-50 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                <Building2 className="w-8 h-8 sm:w-10 sm:h-10 text-green-600" />
+              </div>
+              <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-gray-800 mb-2">تم حفظ الطلب بنجاح!</h1>
+              <p className="text-sm sm:text-base text-gray-600 mb-6">سيتم التواصل معك قريباً لإكمال الإجراءات</p>
+            </div>
+            
+            <div className="bg-green-50 border-2 border-green-200 rounded-lg p-4 sm:p-6 mb-6">
+              <p className="text-sm sm:text-base font-bold text-green-900 mb-4 text-center">للتواصل بعد تقديم الطلب:</p>
+              <div className="flex flex-col sm:flex-row gap-3">
+                <a
+                  href="https://wa.me/962791234567"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition font-semibold text-sm sm:text-base"
+                >
+                  <MessageCircle className="w-5 h-5" />
+                  واتساب
+                </a>
+                <a
+                  href="tel:+962791234567"
+                  className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition font-semibold text-sm sm:text-base"
+                >
+                  <Phone className="w-5 h-5" />
+                  اتصال
+                </a>
+              </div>
+              <p className="text-xs sm:text-sm text-green-700 mt-4 text-center">سيتم تحويلك تلقائياً إلى لوحة التحكم خلال 5 ثوانٍ</p>
+            </div>
+            
+            <button
+              onClick={() => {
+                router.push('/dashboard')
+                router.refresh()
+              }}
+              className="w-full px-4 py-2.5 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition font-semibold text-sm sm:text-base"
+            >
+              الانتقال إلى لوحة التحكم الآن
+            </button>
+          </div>
+        </div>
+      </div>
+    )
   }
 
   if (showSummary) {
@@ -122,7 +179,7 @@ export default function EmbassyAppointmentForm() {
             </div>
             <div className="space-y-4 sm:space-y-6 mb-6 sm:mb-8">
               <div className="border-b border-gray-200 pb-3 sm:pb-4">
-                <label className="text-xs sm:text-sm font-medium text-gray-500 mb-1 block">الاسم الكامل</label>
+                <label className="text-xs sm:text-sm font-medium text-gray-500 mb-1 block">الاسم</label>
                 <p className="text-base sm:text-lg md:text-xl font-semibold text-gray-800">{formData.fullName}</p>
               </div>
               <div className="border-b border-gray-200 pb-3 sm:pb-4">
@@ -170,8 +227,8 @@ export default function EmbassyAppointmentForm() {
 
           <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-6">
             <div>
-              <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1.5 sm:mb-2">الاسم الكامل *</label>
-              <input type="text" required value={formData.fullName} onChange={(e) => setFormData({ ...formData, fullName: e.target.value })} className="w-full px-3 sm:px-4 py-2.5 sm:py-3 text-sm sm:text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500" placeholder="أدخل اسمك الكامل" />
+              <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1.5 sm:mb-2">الاسم *</label>
+              <input type="text" required value={formData.fullName} onChange={(e) => setFormData({ ...formData, fullName: e.target.value })} className="w-full px-3 sm:px-4 py-2.5 sm:py-3 text-sm sm:text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500" placeholder="أدخل اسمك" />
             </div>
 
             <div>

@@ -1,6 +1,6 @@
 'use client'
 
-import { FileText, Clock, CheckCircle, XCircle, Calendar, Layers } from 'lucide-react'
+import { FileText, Clock, CheckCircle, XCircle, Calendar, Layers, Ticket } from 'lucide-react'
 import { AdminStats as StatsType } from './types'
 
 interface AdminStatsProps {
@@ -72,9 +72,9 @@ export default function AdminStats({ stats, onStatClick, selectedFilter }: Admin
       filterType: 'rejected',
     },
     {
-      label: 'الحجوزات',
+      label: 'الحجوزات المؤكدة',
       value: stats.bookings,
-      icon: Calendar,
+      icon: Ticket,
       color: 'text-teal-600',
       bgColor: 'bg-teal-50',
       iconBg: 'bg-teal-100',

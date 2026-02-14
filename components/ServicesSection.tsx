@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { Calendar, Building2, GraduationCap, Plus, ArrowLeft } from 'lucide-react'
+import { Calendar, Building2, GraduationCap, Plane, ArrowLeft } from 'lucide-react'
 import HomeTransportMap from './HomeTransportMap'
 import HomeCounters from './HomeCounters'
 import HomeTripStatusRow from './HomeTripStatusRow'
@@ -41,15 +41,15 @@ const services = [
     href: '/services/goethe-exam',
   },
   {
-    id: 'other',
-    title: 'خدمات أخرى',
-    description: 'اطلب خدمة مخصصة أو تواصل معنا مباشرة',
-    icon: Plus,
-    emoji: '✨',
-    color: 'from-orange-500 to-orange-600',
-    bgColor: 'bg-orange-50',
-    iconColor: 'text-orange-600',
-    href: '/services/other',
+    id: 'visa-services',
+    title: 'خدمات الفيز والتأشيرات والرحلات',
+    description: 'فيز وتأشيرات للسعودية ودول أخرى - رحلات سياحية وعمرة',
+    icon: Plane,
+    emoji: '🛂',
+    color: 'from-red-500 to-orange-600',
+    bgColor: 'bg-red-50',
+    iconColor: 'text-red-600',
+    href: '/services/visa-services',
   },
 ]
 

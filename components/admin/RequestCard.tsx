@@ -2,7 +2,7 @@
 
 import { formatDate } from '@/lib/date-utils'
 import { VisitRequest } from './types'
-import { Clock, CheckCircle, XCircle, Eye, Calendar, MapPin, Users, DollarSign, Plane, Copy, ExternalLink, MessageCircle, Phone } from 'lucide-react'
+import { Clock, CheckCircle, XCircle, Eye, Calendar, MapPin, Users, DollarSign, Plane, Copy, ExternalLink, MessageCircle, Phone, Ticket, Bus, CheckCircle2 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { parseAdminNotes } from '../request-details/utils'
 import Link from 'next/link'
@@ -114,6 +114,7 @@ export default function RequestCard({ request, userProfile, onClick, onScheduleT
       tourism: 'سياحة',
       goethe: 'امتحان جوته',
       embassy: 'موعد سفارة',
+      visa: 'الفيز والتأشيرات والرحلات',
     }
     return types[type] || type
   }
@@ -144,8 +145,15 @@ export default function RequestCard({ request, userProfile, onClick, onScheduleT
     !Boolean((request as any)?.payment_verified) &&
     (adminInfo?.postApprovalStatus || '') === 'مرسل'
 
-  // تحديد لون الحدود حسب الحالة
+  // التحقق من حالة الحجز
+  const hasBooking = Boolean((request as any).trip_id)
+  const isBookingConfirmed = hasBooking && request.trip_status !== 'scheduled_pending_approval'
+  const isBookingPending = request.trip_status === 'scheduled_pending_approval'
+
+  // تحديد لون الحدود حسب الحالة (أولوية للحجوزات)
   const getBorderColor = () => {
+    if (isBookingConfirmed) return 'border-l-4 border-l-teal-500 shadow-teal-100 bg-gradient-to-r from-teal-50/30 to-white'
+    if (isBookingPending) return 'border-l-4 border-l-orange-500 shadow-orange-100 bg-gradient-to-r from-orange-50/30 to-white'
     if (isNewRequest) return 'border-l-4 border-l-blue-500 shadow-blue-100 bg-gradient-to-r from-blue-50/30 to-white'
     if (isApproved) return 'border-l-4 border-l-green-500 shadow-green-100 bg-gradient-to-r from-green-50/30 to-white'
     if (isUnderReview) return 'border-l-4 border-l-yellow-500 shadow-yellow-100 bg-gradient-to-r from-yellow-50/30 to-white'
@@ -153,8 +161,10 @@ export default function RequestCard({ request, userProfile, onClick, onScheduleT
     return 'border-l-4 border-l-purple-500 shadow-purple-100 bg-gradient-to-r from-purple-50/30 to-white'
   }
 
-  // تحديد لون الخلفية حسب الحالة
+  // تحديد لون الخلفية حسب الحالة (أولوية للحجوزات)
   const getBackgroundGradient = () => {
+    if (isBookingConfirmed) return 'bg-gradient-to-br from-teal-50 via-white to-white'
+    if (isBookingPending) return 'bg-gradient-to-br from-orange-50 via-white to-white'
     if (isNewRequest) return 'bg-gradient-to-br from-blue-50 via-white to-white'
     if (isApproved) return 'bg-gradient-to-br from-green-50 via-white to-white'
     if (isUnderReview) return 'bg-gradient-to-br from-yellow-50 via-white to-white'
@@ -185,11 +195,18 @@ export default function RequestCard({ request, userProfile, onClick, onScheduleT
                     #{index + 1}
                   </div>
                 )}
-                <h3 className={`text-base sm:text-lg font-bold ${
-                  isNewRequest ? 'text-blue-700' : 'text-gray-800'
-                } break-words max-w-full leading-snug`}>
-                  {request.visitor_name}
-                </h3>
+                <div className="flex items-center gap-2">
+                  {hasBooking && (
+                    <Ticket className={`w-4 h-4 sm:w-5 sm:h-5 flex-shrink-0 ${
+                      isBookingConfirmed ? 'text-teal-600' : 'text-orange-600'
+                    }`} />
+                  )}
+                  <h3 className={`text-base sm:text-lg font-bold ${
+                    isNewRequest ? 'text-blue-700' : 'text-gray-800'
+                  } break-words max-w-full leading-snug`}>
+                    {request.visitor_name}
+                  </h3>
+                </div>
                 {isNewRequest && (
                   <span className="px-2 py-0.5 bg-blue-500 text-white text-xs font-bold rounded-full animate-pulse">
                     جديد
@@ -357,10 +374,23 @@ export default function RequestCard({ request, userProfile, onClick, onScheduleT
                 {request.deposit_amount} JOD
               </span>
             )}
-            {request.trip_status === 'scheduled_pending_approval' && (
-              <span className="px-3 py-1.5 bg-gradient-to-r from-orange-100 to-orange-200 text-orange-800 rounded-lg font-bold flex items-center gap-1 border-2 border-orange-300 animate-pulse">
-                <Clock className="w-3.5 h-3.5" />
-                حجز بانتظار الموافقة
+            {hasBooking && (
+              <span className={`px-3 py-1.5 rounded-lg font-bold flex items-center gap-1 border-2 ${
+                isBookingConfirmed
+                  ? 'bg-gradient-to-r from-teal-100 to-teal-200 text-teal-800 border-teal-300'
+                  : 'bg-gradient-to-r from-orange-100 to-orange-200 text-orange-800 border-orange-300 animate-pulse'
+              }`}>
+                {isBookingConfirmed ? (
+                  <>
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                    ✓ محجوز
+                  </>
+                ) : (
+                  <>
+                    <Clock className="w-3.5 h-3.5" />
+                    حجز بانتظار الموافقة
+                  </>
+                )}
               </span>
             )}
             {needsPaymentVerifyAfterPostApproval && (
@@ -380,6 +410,22 @@ export default function RequestCard({ request, userProfile, onClick, onScheduleT
               </span>
             )}
           </div>
+
+          {/* معلومات الحجز الإضافية */}
+          {hasBooking && request.arrival_date && (
+            <div className="mt-3 p-2 bg-teal-50 border border-teal-200 rounded-lg">
+              <div className="flex items-center gap-2 text-xs text-teal-800">
+                <Bus className="w-3.5 h-3.5 flex-shrink-0" />
+                <span className="font-semibold">رحلة محجوزة</span>
+                {request.arrival_date && (
+                  <span>• قدوم: {formatDate(request.arrival_date)}</span>
+                )}
+                {request.departure_date && (
+                  <span>• مغادرة: {formatDate(request.departure_date)}</span>
+                )}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* شريط التقدم */}

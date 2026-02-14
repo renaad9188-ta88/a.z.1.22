@@ -33,7 +33,7 @@ interface VisitRequest {
   id: string
   user_id: string
   visitor_name: string
-  visit_type: 'visit' | 'umrah' | 'tourism' | 'goethe' | 'embassy'
+  visit_type: 'visit' | 'umrah' | 'tourism' | 'goethe' | 'embassy' | 'visa'
   travel_date: string
   status: 'pending' | 'under_review' | 'approved' | 'rejected' | 'completed'
   created_at: string
@@ -43,6 +43,7 @@ interface VisitRequest {
   arrival_date: string | null
   departure_date: string | null
   trip_status: 'pending_arrival' | 'scheduled_pending_approval' | 'arrived' | 'completed' | null
+  trip_id?: string | null
   assigned_to?: string | null
   admin_notes?: string | null
   deposit_paid?: boolean
@@ -98,7 +99,7 @@ export default function DashboardContent({ userId }: { userId: string }) {
       // Load visit requests (فقط الحقول المطلوبة لتحسين الأداء)
       const { data: visitRequests, error } = await supabase
         .from('visit_requests')
-        .select('id, user_id, visitor_name, visit_type, travel_date, status, city, days_count, arrival_date, departure_date, trip_status, created_at, updated_at, deposit_paid, deposit_amount, payment_verified, assigned_to, admin_notes')
+        .select('id, user_id, visitor_name, visit_type, travel_date, status, city, days_count, arrival_date, departure_date, trip_status, trip_id, created_at, updated_at, deposit_paid, deposit_amount, payment_verified, assigned_to, admin_notes')
         .eq('user_id', userId)
         .order('created_at', { ascending: false })
 
@@ -531,6 +532,9 @@ export default function DashboardContent({ userId }: { userId: string }) {
                 const adminInfo = parseAdminNotes((request.admin_notes || '') as string) || {}
                 const shortCode = String(request.id).slice(0, 8).toUpperCase()
                 const lastAdminResponse = getLatestAdminResponseSnippet(request.admin_notes)
+                const createdAtMs = new Date(request.created_at).getTime()
+                const isNewUserRequest =
+                  request.status === 'pending' && Date.now() - createdAtMs < 1000 * 60 * 60 * 12 // 12 hours
                 const needsPostApproval =
                   request.visit_type === 'visit' &&
                   request.status === 'approved' &&
@@ -552,6 +556,11 @@ export default function DashboardContent({ userId }: { userId: string }) {
                             <span className="relative inline-flex items-center">
                               <span className="absolute inline-flex h-2.5 w-2.5 rounded-full bg-blue-500 opacity-75 animate-ping"></span>
                               <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-blue-600"></span>
+                            </span>
+                          )}
+                          {isNewUserRequest && (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] sm:text-xs font-bold bg-emerald-100 text-emerald-900 border border-emerald-200">
+                              جديد
                             </span>
                           )}
                           <h3 className="text-base sm:text-lg md:text-xl font-bold text-gray-800 break-words">
@@ -617,6 +626,11 @@ export default function DashboardContent({ userId }: { userId: string }) {
                       {/* شريط التقدم */}
                       <div className="mt-4 pt-4 border-t border-gray-200">
                         <ProgressBar request={request} showLabels={true} />
+                        {Boolean((request as any)?.trip_id) && request.trip_status === 'scheduled_pending_approval' && (
+                          <div className="mt-2 text-xs font-semibold text-orange-800 bg-orange-50 border border-orange-200 rounded-lg px-3 py-2">
+                            تم تسجيل حجزك • بانتظار موافقة الإدارة
+                          </div>
+                        )}
                       </div>
                     </div>
                     <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">

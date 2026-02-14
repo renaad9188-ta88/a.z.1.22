@@ -14,12 +14,14 @@ interface BookedTrip {
 interface BookedTripCardProps {
   trip: BookedTrip
   isBookingConfirmed: boolean
+  isPendingApproval?: boolean
   onChangeBooking: () => void
 }
 
 export default function BookedTripCard({
   trip,
   isBookingConfirmed,
+  isPendingApproval = false,
   onChangeBooking,
 }: BookedTripCardProps) {
   if (isBookingConfirmed) {
@@ -47,7 +49,9 @@ export default function BookedTripCard({
         <div className="flex-1">
           <div className="flex items-center gap-2 mb-2">
             <Bus className="w-5 h-5 text-green-600" />
-            <h4 className="font-bold text-green-800">رحلة محجوزة</h4>
+            <h4 className="font-bold text-green-800">
+              رحلة محجوزة{isPendingApproval ? ' (بانتظار موافقة الإدارة)' : ''}
+            </h4>
           </div>
           <div className="space-y-2 text-sm">
             <div className="flex items-center gap-2">
