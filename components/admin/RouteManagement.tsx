@@ -118,6 +118,8 @@ export default function RouteManagement() {
     companions_count: number
     phone: string | null
     full_name: string | null
+    whatsapp_phone?: string | null
+    jordan_phone?: string | null
   }>>>({})
   const [showPassengersModal, setShowPassengersModal] = useState<{ tripId: string; passengers: any[] } | null>(null)
   const [schedulingRequest, setSchedulingRequest] = useState<VisitRequest | null>(null)
@@ -455,17 +457,22 @@ export default function RouteManagement() {
         
         if (!passengersErr && passengersData) {
           const userIds = Array.from(new Set(passengersData.map((p: any) => p.user_id).filter(Boolean)))
-          let profilesMap: Record<string, { phone: string | null; full_name: string | null }> = {}
+          let profilesMap: Record<string, { phone: string | null; full_name: string | null; whatsapp_phone: string | null; jordan_phone: string | null }> = {}
           
           if (userIds.length > 0) {
             const { data: profiles, error: profErr } = await supabase
               .from('profiles')
-              .select('user_id, phone, full_name')
+              .select('user_id, phone, full_name, whatsapp_phone, jordan_phone')
               .in('user_id', userIds)
             
             if (!profErr && profiles) {
               profiles.forEach((p: any) => {
-                profilesMap[p.user_id] = { phone: p.phone, full_name: p.full_name }
+                profilesMap[p.user_id] = {
+                  phone: p.phone || null,
+                  full_name: p.full_name || null,
+                  whatsapp_phone: p.whatsapp_phone || null,
+                  jordan_phone: p.jordan_phone || null,
+                }
               })
             }
           }
@@ -479,6 +486,8 @@ export default function RouteManagement() {
               companions_count: p.companions_count || 0,
               phone: profilesMap[p.user_id]?.phone || null,
               full_name: profilesMap[p.user_id]?.full_name || null,
+              whatsapp_phone: profilesMap[p.user_id]?.whatsapp_phone || null,
+              jordan_phone: profilesMap[p.user_id]?.jordan_phone || null,
             })
           })
           
@@ -1223,6 +1232,7 @@ export default function RouteManagement() {
       {/* Passengers Modal */}
       {showPassengersModal && (
         <PassengersModal
+          tripId={showPassengersModal.tripId}
           passengers={showPassengersModal.passengers}
           onClose={() => setShowPassengersModal(null)}
           normalizePhoneForWhatsApp={normalizePhoneForWhatsApp}
