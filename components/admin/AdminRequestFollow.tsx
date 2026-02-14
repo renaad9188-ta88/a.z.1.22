@@ -2,13 +2,10 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
-import toast from 'react-hot-toast'
 import { ArrowRight, CheckCircle, Clock, Save, MessageCircle, Phone, Bus, Calendar, MapPin, DollarSign, Navigation } from 'lucide-react'
-import { createSupabaseBrowserClient } from '@/lib/supabase'
 import TripSchedulingModal from '@/components/admin/TripSchedulingModal'
+import { parseAdminNotes } from '@/components/request-details/utils'
 import { formatDate } from '@/lib/date-utils'
-import { parseAdminNotes, getSignedImageUrl } from '@/components/request-details/utils'
-import { notifyRequestApproved, notifyRequestRejected, notifyPaymentVerified, notifyCustomMessage } from '@/lib/notifications'
 import AvailableTripsModal from '@/components/request-follow/AvailableTripsModal'
 import AdminRequestFollowStepper from './AdminRequestFollowStepper'
 import AdminResponseSection from './AdminResponseSection'
@@ -17,117 +14,13 @@ import RemainingPaymentImage from './RemainingPaymentImage'
 import StepActions from './StepActions'
 import BookedTripDetails from './BookedTripDetails'
 import TripModificationsHistory from './TripModificationsHistory'
-
-type Role = 'admin' | 'supervisor'
-type ContactProfile = { full_name: string | null; phone: string | null; jordan_phone?: string | null; whatsapp_phone?: string | null }
-
-type ReqRow = {
-  id: string
-  user_id: string
-  visitor_name: string
-  status: 'pending' | 'under_review' | 'approved' | 'rejected' | 'completed'
-  admin_notes: string | null
-  rejection_reason: string | null
-  payment_verified: boolean | null
-  remaining_amount: number | null
-  arrival_date: string | null
-  departure_date: string | null
-  trip_status: string | null
-  trip_id?: string | null
-  assigned_to: string | null
-  selected_dropoff_stop_id?: string | null
-  selected_pickup_stop_id?: string | null
-  deposit_paid?: boolean | null
-  deposit_amount?: number | null
-  companions_count?: number | null
-  created_at: string
-  updated_at: string
-}
-
-type TripLite = {
-  id: string
-  trip_date: string
-  meeting_time: string | null
-  departure_time: string | null
-  start_location_name: string
-  end_location_name: string
-  trip_type?: string | null
-}
-
-type AssignedDriver = { id: string; name: string; phone: string | null; vehicle_type: string | null }
-
-const POST_APPROVAL_SUBMITTED_MARK = 'حالة الاستكمال: مرسل'
-
-function extractLatestAdminResponse(notes: string): { body: string; dateText?: string } | null {
-  const marker = '=== رد الإدارة ==='
-  const idx = notes.lastIndexOf(marker)
-  if (idx === -1) return null
-  const after = notes.slice(idx + marker.length).trim()
-  if (!after) return null
-  const dateIdx = after.lastIndexOf('تاريخ الرد:')
-  if (dateIdx !== -1) {
-    const body = after.slice(0, dateIdx).trim()
-    const dateText = after.slice(dateIdx).replace('تاريخ الرد:', '').trim()
-    return body ? { body, dateText } : null
-  }
-  return { body: after }
-}
-
-function extractAllAdminResponses(notes: string): Array<{ body: string; dateText?: string }> {
-  const marker = '=== رد الإدارة ==='
-  if (!notes.includes(marker)) return []
-  const parts = notes.split(marker).slice(1) // content after each marker
-  const res: Array<{ body: string; dateText?: string }> = []
-  for (const p of parts) {
-    const chunk = (p || '').trim()
-    if (!chunk) continue
-    const dateIdx = chunk.lastIndexOf('تاريخ الرد:')
-    if (dateIdx !== -1) {
-      const body = chunk.slice(0, dateIdx).trim()
-      const dateText = chunk.slice(dateIdx).replace('تاريخ الرد:', '').trim()
-      if (body) res.push({ body, dateText })
-      continue
-    }
-    res.push({ body: chunk })
-  }
-  // newest first (because we append to notes)
-  return res.reverse()
-}
-
-function extractTripModifications(notes: string): Array<{ oldTripId?: string; newTripId?: string; tripInfo?: string; stopInfo?: string; dateText?: string }> {
-  const marker = '=== تعديل الحجز ==='
-  if (!notes.includes(marker)) return []
-  const parts = notes.split(marker).slice(1) // content after each marker
-  const res: Array<{ oldTripId?: string; newTripId?: string; tripInfo?: string; stopInfo?: string; dateText?: string }> = []
-  for (const p of parts) {
-    const chunk = (p || '').trim()
-    if (!chunk) continue
-    const mod: any = {}
-    const lines = chunk.split('\n')
-    for (const line of lines) {
-      const trimmed = line.trim()
-      if (trimmed.startsWith('الرحلة السابقة:')) {
-        mod.oldTripId = trimmed.replace('الرحلة السابقة:', '').trim()
-      } else if (trimmed.startsWith('الرحلة الجديدة:')) {
-        mod.newTripId = trimmed.replace('الرحلة الجديدة:', '').trim()
-      } else if (trimmed.startsWith('نقطة النزول:') || trimmed.startsWith('نقطة التحميل:')) {
-        mod.stopInfo = trimmed.split(':')[1]?.trim()
-      } else if (trimmed.startsWith('تاريخ التعديل:')) {
-        mod.dateText = trimmed.replace('تاريخ التعديل:', '').trim()
-      } else if (trimmed && !trimmed.startsWith('تم تعديل الحجز') && !trimmed.startsWith('من قبل')) {
-        // معلومات الرحلة (المسار والتاريخ)
-        if (!mod.tripInfo) {
-          mod.tripInfo = trimmed
-        }
-      }
-    }
-    if (mod.newTripId || mod.tripInfo) {
-      res.push(mod)
-    }
-  }
-  // newest first
-  return res.reverse()
-}
+import type { Role } from './request-follow/types'
+import { extractLatestAdminResponse, extractAllAdminResponses, extractTripModifications, POST_APPROVAL_SUBMITTED_MARK } from './request-follow/utils'
+import { useRequestData } from './request-follow/hooks/useRequestData'
+import { useTripData } from './request-follow/hooks/useTripData'
+import { usePaymentData } from './request-follow/hooks/usePaymentData'
+import { useRequestActions } from './request-follow/hooks/useRequestActions'
+import { useAvailableTrips } from './request-follow/hooks/useAvailableTrips'
 
 export default function AdminRequestFollow({
   requestId,
@@ -138,209 +31,72 @@ export default function AdminRequestFollow({
   adminUserId: string
   role: Role
 }) {
-  const supabase = createSupabaseBrowserClient()
-  const [request, setRequest] = useState<ReqRow | null>(null)
-  const [loading, setLoading] = useState(true)
   const [activeStep, setActiveStep] = useState(1)
   const [showSchedule, setShowSchedule] = useState(false)
-  const [saving, setSaving] = useState(false)
-  const [newResponse, setNewResponse] = useState('')
-  const [userProfile, setUserProfile] = useState<ContactProfile | null>(null)
-  const [bookedTrip, setBookedTrip] = useState<TripLite | null>(null)
-  const [bookedStops, setBookedStops] = useState<Array<{ id: string; name: string; order_index: number }> | null>(null)
-  const [selectedDropoffStop, setSelectedDropoffStop] = useState<{ id: string; name: string } | null>(null)
-  const [selectedPickupStop, setSelectedPickupStop] = useState<{ id: string; name: string } | null>(null)
-  const [remainingPaymentImageUrl, setRemainingPaymentImageUrl] = useState<string | null>(null)
-  const [depositPaymentImageUrls, setDepositPaymentImageUrls] = useState<string[]>([])
-  const [assignedDrivers, setAssignedDrivers] = useState<AssignedDriver[]>([])
-  // Admin-assisted booking (route trips + stop points)
-  const [showAvailableTrips, setShowAvailableTrips] = useState(false)
-  const [availableTrips, setAvailableTrips] = useState<any[]>([])
-  const [loadingTrips, setLoadingTrips] = useState(false)
-  const [tripStopsById, setTripStopsById] = useState<Record<string, any[]>>({})
-  const [loadingStopsId, setLoadingStopsId] = useState<string | null>(null)
-  const [expandedTripId, setExpandedTripId] = useState<string | null>(null)
-  const [selectedStopByTrip, setSelectedStopByTrip] = useState<Record<string, string>>({})
-  const [bookingStep, setBookingStep] = useState<'arrival' | 'departure'>('arrival')
-  const [calculatedDepartureDate, setCalculatedDepartureDate] = useState<string | null>(null)
 
-  const load = async () => {
-    try {
-      setLoading(true)
-      const { data, error } = await supabase
-        .from('visit_requests')
-        .select(
-          'id,user_id,visitor_name,status,admin_notes,rejection_reason,payment_verified,remaining_amount,arrival_date,departure_date,trip_status,trip_id,assigned_to,selected_dropoff_stop_id,selected_pickup_stop_id,deposit_paid,deposit_amount,companions_count,created_at,updated_at'
-        )
-        .eq('id', requestId)
-        .single()
-      if (error) throw error
+  // Request Data Hook
+  const {
+    request,
+    setRequest,
+    loading,
+    userProfile,
+    reload,
+  } = useRequestData(requestId, adminUserId, role)
 
-      const row = data as any as ReqRow
-      if (role === 'supervisor' && row.assigned_to && row.assigned_to !== adminUserId) {
-        toast.error('هذا الطلب غير مخصص لك')
-        setRequest(null)
-        return
-      }
+  // Trip Data Hook
+  const {
+    bookedTrip,
+    bookedStops,
+    selectedDropoffStop,
+    selectedPickupStop,
+    assignedDrivers,
+    loadTripData,
+  } = useTripData()
 
-      setRequest(row)
-
-      // Load booked trip (if user booked route_trip)
-      if ((row as any)?.trip_id) {
-        try {
-          const tripId = String((row as any).trip_id)
-          const { data: t, error: tErr } = await supabase
-            .from('route_trips')
-            .select('id,route_id,trip_date,meeting_time,departure_time,start_location_name,end_location_name,trip_type')
-            .eq('id', tripId)
-            .maybeSingle()
-          if (!tErr && t) {
-            setBookedTrip(t as any)
-            // Load assigned drivers for this trip
-            try {
-              const { data: drvRows } = await supabase
-                .from('route_trip_drivers')
-                .select('drivers(id,name,phone,vehicle_type)')
-                .eq('trip_id', tripId)
-                .eq('is_active', true)
-              const list = (drvRows || [])
-                .map((x: any) => x.drivers)
-                .filter(Boolean) as AssignedDriver[]
-              setAssignedDrivers(list)
-            } catch {
-              setAssignedDrivers([])
-            }
-            // Load stop points for this trip; fallback to route default points
-            const { data: stops } = await supabase
-              .from('route_trip_stop_points')
-              .select('id,name,order_index')
-              .eq('trip_id', tripId)
-              .order('order_index', { ascending: true })
-            const tripStops = ((stops as any) || []) as any[]
-            if (tripStops.length > 0) {
-              setBookedStops(tripStops)
-            } else {
-              const routeId = (t as any)?.route_id as string | undefined
-              const tripType: 'arrival' | 'departure' | null = ((t as any)?.trip_type as any) || null
-              const allowedKinds = tripType === 'departure' ? ['pickup', 'both'] : ['dropoff', 'both']
-              if (routeId) {
-                try {
-                  const { data: routeStops } = await supabase
-                    .from('route_stop_points')
-                    .select('id,name,order_index')
-                    .eq('route_id', routeId)
-                    .eq('is_active', true)
-                    .in('stop_kind', allowedKinds as any)
-                    .order('order_index', { ascending: true })
-                  setBookedStops((routeStops as any) || [])
-                } catch {
-                  const { data: routeStops } = await supabase
-                    .from('route_stop_points')
-                    .select('id,name,order_index')
-                    .eq('route_id', routeId)
-                    .eq('is_active', true)
-                    .order('order_index', { ascending: true })
-                  setBookedStops((routeStops as any) || [])
-                }
-              } else {
-                setBookedStops([])
-              }
-            }
-            
-            // تحميل نقطة النزول/التحميل المختارة
-            const rowData = row as any
-            if (rowData.selected_dropoff_stop_id) {
-              const stopId = rowData.selected_dropoff_stop_id
-              let { data: dropoffStop } = await supabase
-                .from('route_trip_stop_points')
-                .select('id,name')
-                .eq('id', stopId)
-                .maybeSingle()
-              if (!dropoffStop) {
-                const res = await supabase
-                  .from('route_stop_points')
-                  .select('id,name')
-                  .eq('id', stopId)
-                  .maybeSingle()
-                dropoffStop = (res as any)?.data || null
-              }
-              setSelectedDropoffStop(dropoffStop ? { id: dropoffStop.id, name: dropoffStop.name } : null)
-            } else {
-              setSelectedDropoffStop(null)
-            }
-            
-            if (rowData.selected_pickup_stop_id) {
-              const stopId = rowData.selected_pickup_stop_id
-              let { data: pickupStop } = await supabase
-                .from('route_trip_stop_points')
-                .select('id,name')
-                .eq('id', stopId)
-                .maybeSingle()
-              if (!pickupStop) {
-                const res = await supabase
-                  .from('route_stop_points')
-                  .select('id,name')
-                  .eq('id', stopId)
-                  .maybeSingle()
-                pickupStop = (res as any)?.data || null
-              }
-              setSelectedPickupStop(pickupStop ? { id: pickupStop.id, name: pickupStop.name } : null)
-            } else {
-              setSelectedPickupStop(null)
-            }
-          } else {
-            setBookedTrip(null)
-            setBookedStops(null)
-            setAssignedDrivers([])
-            setSelectedDropoffStop(null)
-            setSelectedPickupStop(null)
-          }
-        } catch {
-          setBookedTrip(null)
-          setBookedStops(null)
-          setAssignedDrivers([])
-        }
-      } else {
-        setBookedTrip(null)
-        setBookedStops(null)
-        setAssignedDrivers([])
-      }
-
-      // Load contact profile for WhatsApp/phone buttons
-      try {
-        const { data: prof } = await supabase
-          .from('profiles')
-          .select('full_name,phone,jordan_phone,whatsapp_phone')
-          .eq('user_id', row.user_id)
-          .maybeSingle()
-        setUserProfile((prof as any) || null)
-      } catch {
-        setUserProfile(null)
-      }
-    } catch (e: any) {
-      console.error('Admin follow load error:', e)
-      toast.error(e?.message || 'تعذر تحميل الطلب')
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  useEffect(() => {
-    load()
-    const onFocus = () => load()
-    const onVisible = () => {
-      if (document.visibilityState === 'visible') load()
-    }
-    window.addEventListener('focus', onFocus)
-    document.addEventListener('visibilitychange', onVisible)
-    return () => {
-      window.removeEventListener('focus', onFocus)
-      document.removeEventListener('visibilitychange', onVisible)
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [requestId])
-
+  // Payment Data Hook
   const adminInfo = useMemo(() => parseAdminNotes((request?.admin_notes || '') as string) || {}, [request])
+  const {
+    remainingPaymentImageUrl,
+    depositPaymentImageUrls,
+  } = usePaymentData(request, adminInfo)
+
+  // Request Actions Hook
+  const {
+    saving,
+    newResponse,
+    setNewResponse,
+    approve,
+    reject,
+    setPaymentVerified,
+    saveResponse,
+    appendAdminResponseAndNotify,
+  } = useRequestActions(request, reload)
+
+  // Available Trips Hook
+  const {
+    showAvailableTrips,
+    setShowAvailableTrips,
+    availableTrips,
+    loadingTrips,
+    tripStopsById,
+    loadingStopsId,
+    expandedTripId,
+    selectedStopByTrip,
+    setSelectedStopByTrip,
+    bookingStep,
+    calculatedDepartureDate,
+    toggleTripStops,
+    openBookingModal,
+    handleAdminBookTrip,
+  } = useAvailableTrips(request)
+
+  // Load trip data when request changes
+  useEffect(() => {
+    if (request) {
+      loadTripData((request as any)?.trip_id, request)
+    }
+  }, [request?.trip_id, loadTripData])
+
   const latestResponse = useMemo(() => extractLatestAdminResponse((request?.admin_notes || '') as string), [request])
   const responseHistory = useMemo(() => extractAllAdminResponses((request?.admin_notes || '') as string), [request])
   const tripModifications = useMemo(() => extractTripModifications((request?.admin_notes || '') as string), [request])
@@ -396,255 +152,10 @@ export default function AdminRequestFollow({
     setActiveStep(firstIncomplete)
   }, [request, steps])
 
-  // تحميل signed URL لصورة الدفع المتبقي
-  useEffect(() => {
-    const loadPaymentImageUrl = async () => {
-      if (!request) {
-        setRemainingPaymentImageUrl(null)
-        return
-      }
-      
-      const notes = (request.admin_notes || '') as string
-      const match = notes.match(/صورة الدفع المتبقي:\s*([^\n]+)/)
-      const rawUrl = match?.[1]?.trim()
-      
-      if (!rawUrl) {
-        setRemainingPaymentImageUrl(null)
-        return
-      }
-      
-      // إذا كان الرابط يحتوي على token (signed URL)، استخدمه مباشرة
-      if (rawUrl.includes('?token=') || rawUrl.includes('&token=')) {
-        setRemainingPaymentImageUrl(rawUrl)
-        return
-      }
-      
-      // إذا لم يكن signed URL، قم بإنشاء signed URL جديد
-      try {
-        const signedUrl = await getSignedImageUrl(rawUrl, supabase)
-        setRemainingPaymentImageUrl(signedUrl)
-      } catch (error) {
-        console.error('Error loading payment image signed URL:', error)
-        // في حالة الخطأ، استخدم الرابط الأصلي
-        setRemainingPaymentImageUrl(rawUrl)
-      }
-    }
-    
-    loadPaymentImageUrl()
-  }, [request, supabase])
-
-  // تحميل signed URLs لصور الدفعة الأولية
-  useEffect(() => {
-    const loadDepositPaymentImages = async () => {
-      if (!request || !adminInfo?.paymentImages || adminInfo.paymentImages.length === 0) {
-        setDepositPaymentImageUrls([])
-        return
-      }
-
-      try {
-        const signedUrls = await Promise.all(
-          adminInfo.paymentImages.map(async (url: string) => {
-            try {
-              return await getSignedImageUrl(url, supabase)
-            } catch (error) {
-              console.warn('Error loading payment image signed URL:', error)
-              return url
-            }
-          })
-        )
-        setDepositPaymentImageUrls(signedUrls.filter(Boolean))
-      } catch (error) {
-        console.error('Error loading deposit payment images:', error)
-        setDepositPaymentImageUrls(adminInfo.paymentImages || [])
-      }
-    }
-
-    loadDepositPaymentImages()
-  }, [request, adminInfo?.paymentImages, supabase])
-
   const current = steps.find((s) => s.id === activeStep)
   const canGoNext = activeStep < 4 && Boolean(current?.done)
   const canGoPrev = activeStep > 1
 
-  const approve = async () => {
-    if (!request) return
-    try {
-      setSaving(true)
-      const stamp = new Date().toISOString()
-      const autoMsg = '✅ تمت الموافقة على الطلب. تم فتح الحجز ويمكنك المتابعة من صفحة متابعة الطلب.'
-      const section = `\n\n=== رد الإدارة ===\n${autoMsg}\nتاريخ الرد: ${stamp}`
-      const nextNotes = ((request.admin_notes || '') as string) + section
-      const { error } = await supabase
-        .from('visit_requests')
-        .update({ 
-          status: 'approved', 
-          payment_verified: true, // فتح الحجز مباشرة عند الموافقة
-          admin_notes: nextNotes,
-          updated_at: stamp 
-        } as any)
-        .eq('id', request.id)
-      if (error) throw error
-      
-      // ✅ Logging: تسجيل تغيير حالة الطلب
-      try {
-        const { logRequestStatusChanged } = await import('@/lib/audit')
-        await logRequestStatusChanged(request.id, request.status, 'approved', request.visitor_name)
-      } catch (logErr) {
-        console.error('Error logging status change:', logErr)
-      }
-      
-      // إرسال الإشعار بشكل منفصل مع معالجة الأخطاء واستخدام نفس Supabase client
-      try {
-        // استخدام نفس Supabase client المستخدم في الصفحة
-        const { notifyRequestApproved } = await import('@/lib/notifications')
-        await notifyRequestApproved(request.user_id, request.id, request.visitor_name, supabase)
-      } catch (notifyError) {
-        console.error('Error sending notification:', notifyError)
-        // لا نوقف العملية إذا فشل الإشعار
-      }
-      
-      toast.success('تم قبول الطلب')
-      await load()
-    } catch (e: any) {
-      console.error('approve error:', e)
-      toast.error(e?.message || 'تعذر قبول الطلب')
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  const reject = async () => {
-    if (!request) return
-    const reason = prompt('أدخل سبب الرفض (اختياري):') || ''
-    try {
-      setSaving(true)
-      const stamp = new Date().toISOString()
-      const autoMsg = reason?.trim()
-        ? `✗ تم رفض الطلب.\nسبب الرفض: ${reason.trim()}`
-        : '✗ تم رفض الطلب.'
-      const section = `\n\n=== رد الإدارة ===\n${autoMsg}\nتاريخ الرد: ${stamp}`
-      const nextNotes = ((request.admin_notes || '') as string) + section
-      const { error } = await supabase
-        .from('visit_requests')
-        .update({ 
-          status: 'rejected', 
-          rejection_reason: reason || null, 
-          admin_notes: nextNotes,
-          updated_at: stamp 
-        } as any)
-        .eq('id', request.id)
-      if (error) throw error
-      
-      // ✅ Logging: تسجيل تغيير حالة الطلب
-      try {
-        const { logRequestStatusChanged } = await import('@/lib/audit')
-        await logRequestStatusChanged(request.id, request.status, 'rejected', request.visitor_name)
-      } catch (logErr) {
-        console.error('Error logging status change:', logErr)
-      }
-      
-      await notifyRequestRejected(request.user_id, request.id, request.visitor_name, reason || undefined)
-      toast.success('تم رفض الطلب')
-      await load()
-    } catch (e: any) {
-      console.error('reject error:', e)
-      toast.error(e?.message || 'تعذر رفض الطلب')
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  const setPaymentVerified = async (val: boolean) => {
-    if (!request) return
-    try {
-      setSaving(true)
-      const { error } = await supabase
-        .from('visit_requests')
-        .update({ payment_verified: val, updated_at: new Date().toISOString() } as any)
-        .eq('id', request.id)
-      if (error) throw error
-      if (val) await notifyPaymentVerified(request.user_id, request.id)
-      toast.success(val ? 'تم تأكيد الدفع' : 'تم إلغاء تأكيد الدفع')
-      await load()
-    } catch (e: any) {
-      console.error('payment verify error:', e)
-      toast.error(e?.message || 'تعذر تحديث حالة الدفع')
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  const saveResponse = async () => {
-    if (!request) return
-    const msg = newResponse.trim()
-    if (!msg) return toast.error('اكتب رد الإدارة أولاً')
-    try {
-      setSaving(true)
-      const stamp = new Date().toISOString()
-      const section = `\n\n=== رد الإدارة ===\n${msg}\nتاريخ الرد: ${stamp}`
-      const updatedNotes = ((request.admin_notes || '') as string) + section
-      const { error } = await supabase
-        .from('visit_requests')
-        .update({ admin_notes: updatedNotes, updated_at: new Date().toISOString() } as any)
-        .eq('id', request.id)
-      if (error) throw error
-      await notifyCustomMessage(request.user_id, request.id, msg)
-      toast.success('تم إرسال الرد للمستخدم')
-      setNewResponse('')
-      await load()
-    } catch (e: any) {
-      console.error('saveResponse error:', e)
-      toast.error(e?.message || 'تعذر إرسال الرد')
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  const appendAdminResponseAndNotify = async (
-    msg: string,
-    alsoMarkReceived?: boolean,
-    alsoMarkDepositPaid?: boolean
-  ) => {
-    if (!request) return
-    const clean = (msg || '').trim()
-    if (!clean) return toast.error('لا يوجد نص لإرساله')
-    
-    // إذا كان alsoMarkReceived = true و status !== 'pending'، يعني تم استلامه مسبقاً
-    if (alsoMarkReceived && request.status !== 'pending') {
-      toast.error('تم استلام الطلب مسبقاً. لا يمكن إرسال إشعار الاستلام مرة أخرى.')
-      return
-    }
-    
-    try {
-      setSaving(true)
-      const stamp = new Date().toISOString()
-      const section = `\n\n=== رد الإدارة ===\n${clean}\nتاريخ الرد: ${stamp}`
-      const nextNotes = ((request.admin_notes || '') as string) + section
-      const update: any = { admin_notes: nextNotes, updated_at: new Date().toISOString() }
-      if (alsoMarkReceived && request.status === 'pending') {
-        update.status = 'under_review'
-        // نحدد deposit_paid فقط عند تأكيد استلام الرسوم (وليس عند استلام الطلب بدون دفع)
-        if (alsoMarkDepositPaid && !request.deposit_paid) {
-          update.deposit_paid = true
-          // حساب المبلغ بناءً على عدد الأشخاص (إذا كان موجوداً في companions_data)
-          const companionsCount = request.companions_count || 0
-          const totalPeople = companionsCount + 1 // الزائر الرئيسي + المرافقين
-          update.deposit_amount = totalPeople * 10
-          update.total_amount = totalPeople * 10
-        }
-      }
-      const { error } = await supabase.from('visit_requests').update(update).eq('id', request.id)
-      if (error) throw error
-      await notifyCustomMessage(request.user_id, request.id, clean)
-      toast.success('تم إرسال الرسالة للمستخدم')
-      await load()
-    } catch (e: any) {
-      console.error('appendAdminResponseAndNotify error:', e)
-      toast.error(e?.message || 'تعذر إرسال الرسالة')
-    } finally {
-      setSaving(false)
-    }
-  }
 
   if (loading) {
     return (
@@ -694,176 +205,6 @@ export default function AdminRequestFollow({
     return lines.join('\n')
   })()
 
-  const loadTripStops = async (tripId: string) => {
-    if (tripStopsById[tripId]) return
-    try {
-      setLoadingStopsId(tripId)
-      const trip = (availableTrips || []).find((t: any) => t.id === tripId) || null
-      const tripType: 'arrival' | 'departure' = (trip?.trip_type as any) || bookingStep
-
-      const { data, error } = await supabase
-        .from('route_trip_stop_points')
-        .select('id,name,order_index')
-        .eq('trip_id', tripId)
-        .order('order_index', { ascending: true })
-      if (error) throw error
-
-      const tripStops = ((data as any) || []) as any[]
-      if (tripStops.length > 0) {
-        setTripStopsById((p) => ({ ...p, [tripId]: tripStops }))
-        return
-      }
-
-      // Fallback: route default stops (pickup/dropoff/both)
-      const routeId = trip?.route_id as string | undefined
-      if (!routeId) {
-        setTripStopsById((p) => ({ ...p, [tripId]: [] }))
-        return
-      }
-
-      const allowedKinds = tripType === 'departure' ? ['pickup', 'both'] : ['dropoff', 'both']
-      try {
-        const { data: routeStops, error: rsErr } = await supabase
-          .from('route_stop_points')
-          .select('id,name,order_index')
-          .eq('route_id', routeId)
-          .eq('is_active', true)
-          .in('stop_kind', allowedKinds as any)
-          .order('order_index', { ascending: true })
-        if (rsErr) throw rsErr
-        setTripStopsById((p) => ({ ...p, [tripId]: (routeStops as any) || [] }))
-      } catch {
-        // Backward compatibility if stop_kind is not migrated yet
-        const { data: routeStops } = await supabase
-          .from('route_stop_points')
-          .select('id,name,order_index')
-          .eq('route_id', routeId)
-          .eq('is_active', true)
-          .order('order_index', { ascending: true })
-        setTripStopsById((p) => ({ ...p, [tripId]: (routeStops as any) || [] }))
-      }
-    } catch (e) {
-      console.error('Error loading admin trip stops:', e)
-      setTripStopsById((p) => ({ ...p, [tripId]: [] }))
-    } finally {
-      setLoadingStopsId(null)
-    }
-  }
-
-  const toggleTripStops = async (tripId: string) => {
-    const next = expandedTripId === tripId ? null : tripId
-    setExpandedTripId(next)
-    if (next) await loadTripStops(tripId)
-  }
-
-  const loadAvailableTrips = async (tripType?: 'arrival' | 'departure') => {
-    try {
-      setLoadingTrips(true)
-      const today = new Date().toISOString().split('T')[0]
-      const filterType = tripType || bookingStep
-
-      let query = supabase
-        .from('route_trips')
-        .select('id,trip_date,meeting_time,departure_time,start_location_name,end_location_name,route_id,trip_type')
-        .eq('is_active', true)
-        .gte('trip_date', today)
-        .order('trip_date', { ascending: true })
-        .order('departure_time', { ascending: true })
-        .limit(50)
-        .eq('trip_type', filterType)
-
-      // في حال المغادرة، إذا لدينا موعد قدوم، نقرّب النتائج حول موعد المغادرة المتوقع (شهر بعد القدوم)
-      if (filterType === 'departure' && request.arrival_date) {
-        const arrivalDate = new Date(request.arrival_date)
-        const expectedDeparture = new Date(arrivalDate)
-        expectedDeparture.setMonth(expectedDeparture.getMonth() + 1)
-        const expected = expectedDeparture.toISOString().split('T')[0]
-        setCalculatedDepartureDate(expected)
-
-        const weekBefore = new Date(expectedDeparture)
-        weekBefore.setDate(weekBefore.getDate() - 7)
-        const weekAfter = new Date(expectedDeparture)
-        weekAfter.setDate(weekAfter.getDate() + 7)
-        query = query
-          .gte('trip_date', weekBefore.toISOString().split('T')[0])
-          .lte('trip_date', weekAfter.toISOString().split('T')[0])
-      } else {
-        setCalculatedDepartureDate(null)
-      }
-
-      const { data, error } = await query
-      if (error) throw error
-      setAvailableTrips((data as any) || [])
-    } catch (e) {
-      console.error('Error loading admin available trips:', e)
-      toast.error('تعذر تحميل الرحلات المتاحة')
-      setAvailableTrips([])
-    } finally {
-      setLoadingTrips(false)
-    }
-  }
-
-  const openBookingModal = async (step: 'arrival' | 'departure') => {
-    setBookingStep(step)
-    setSelectedStopByTrip({})
-    setExpandedTripId(null)
-    setShowAvailableTrips(true)
-    await loadAvailableTrips(step)
-  }
-
-  const handleAdminBookTrip = async (tripId: string) => {
-    if (!request) return
-    try {
-      const trip = availableTrips.find((t) => t.id === tripId)
-      if (!trip) return toast.error('الرحلة غير موجودة')
-
-      const tripType: 'arrival' | 'departure' = (trip.trip_type as any) || bookingStep
-      const selectedStopId = selectedStopByTrip[tripId] || null
-      const stopName =
-        selectedStopId && tripStopsById[tripId]
-          ? tripStopsById[tripId].find((s: any) => s.id === selectedStopId)?.name
-          : null
-
-      const updateData: any = {
-        trip_id: tripId,
-        trip_status: 'pending_arrival',
-        updated_at: new Date().toISOString(),
-      }
-      if (tripType === 'arrival') {
-        updateData.arrival_date = trip.trip_date
-        updateData.selected_dropoff_stop_id = selectedStopId
-      } else {
-        updateData.departure_date = trip.trip_date
-        updateData.selected_pickup_stop_id = selectedStopId
-      }
-
-      const tripInfo = `${trip.start_location_name} → ${trip.end_location_name} (${formatDate(trip.trip_date)})`
-      const adminNote = `\n\n=== حجز من الإدارة ===\nتم حجز رحلة ${tripType === 'arrival' ? 'قدوم' : 'مغادرة'} بواسطة الإدارة\n${tripInfo}${stopName ? `\nنقطة ${tripType === 'arrival' ? 'النزول' : 'التحميل'}: ${stopName}` : ''}\nتاريخ الحجز: ${new Date().toISOString()}`
-      updateData.admin_notes = ((request.admin_notes || '') as string) + adminNote
-
-      const { error } = await supabase.from('visit_requests').update(updateData).eq('id', request.id)
-      if (error) throw error
-
-      toast.success('تم حجز الرحلة للمستخدم')
-      setShowAvailableTrips(false)
-      setSelectedStopByTrip({})
-      await load()
-
-      // إشعار سريع للمستخدم (اختياري)
-      try {
-        await notifyCustomMessage(
-          request.user_id,
-          request.id,
-          `تم حجز رحلة ${tripType === 'arrival' ? 'قدوم' : 'مغادرة'} لك من قبل الإدارة.\n${tripInfo}${stopName ? `\nنقطة ${tripType === 'arrival' ? 'النزول' : 'التحميل'}: ${stopName}` : ''}`
-        )
-      } catch (e) {
-        console.error('Error notifying user about admin booking:', e)
-      }
-    } catch (e: any) {
-      console.error('handleAdminBookTrip error:', e)
-      toast.error(e?.message || 'تعذر حجز الرحلة')
-    }
-  }
 
   return (
     <div className="page">
@@ -1231,7 +572,7 @@ export default function AdminRequestFollow({
         <TripSchedulingModal
           request={request as any}
           onClose={() => setShowSchedule(false)}
-          onUpdate={load}
+          onUpdate={reload}
           isAdmin={true}
         />
       )}
@@ -1255,7 +596,7 @@ export default function AdminRequestFollow({
             [tripId]: stopId,
           }))
         }}
-        onBookTrip={handleAdminBookTrip}
+        onBookTrip={(tripId) => handleAdminBookTrip(tripId, reload)}
         isBookingDisabled={saving || request.status === 'rejected'}
       />
     </div>
