@@ -9,6 +9,21 @@ export function useDriverTripAssignment(
 
   const handleAssignDriverToTrip = async (tripId: string, driverId: string, routeId: string) => {
     try {
+      // التحقق من وجود السائق في جدول drivers أولاً
+      const { data: driverExists, error: checkErr } = await supabase
+        .from('drivers')
+        .select('id, name')
+        .eq('id', driverId)
+        .maybeSingle()
+
+      if (checkErr) throw checkErr
+
+      if (!driverExists) {
+        toast.error('السائق المحدد غير موجود في قاعدة البيانات. يرجى تحديث الصفحة وإعادة المحاولة.')
+        console.error('Driver not found:', driverId)
+        return
+      }
+
       const { error } = await supabase
         .from('route_trip_drivers')
         .upsert(
@@ -110,6 +125,21 @@ export function useDriverTripAssignment(
 
   const handleAssignDriver = async (routeId: string, driverId: string, onReload: () => void) => {
     try {
+      // التحقق من وجود السائق في جدول drivers أولاً
+      const { data: driverExists, error: checkErr } = await supabase
+        .from('drivers')
+        .select('id, name')
+        .eq('id', driverId)
+        .maybeSingle()
+
+      if (checkErr) throw checkErr
+
+      if (!driverExists) {
+        toast.error('السائق المحدد غير موجود في قاعدة البيانات. يرجى تحديث الصفحة وإعادة المحاولة.')
+        console.error('Driver not found:', driverId)
+        return
+      }
+
       const { error } = await supabase.from('route_drivers').upsert({
         route_id: routeId,
         driver_id: driverId,
@@ -120,7 +150,8 @@ export function useDriverTripAssignment(
       toast.success('تم ربط السائق بالخط بنجاح')
       onReload()
     } catch (error: any) {
-      toast.error('حدث خطأ أثناء ربط السائق')
+      console.error('handleAssignDriver error:', error)
+      toast.error(error?.message || 'حدث خطأ أثناء ربط السائق')
     }
   }
 

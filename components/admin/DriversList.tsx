@@ -1,6 +1,6 @@
 'use client'
 
-import { Users, Phone, Bus, MapPin, Navigation, Trash2, Copy, CalendarDays } from 'lucide-react'
+import { Users, Phone, Bus, MapPin, Navigation, Trash2, Copy, CalendarDays, Link2, UserCheck } from 'lucide-react'
 import toast from 'react-hot-toast'
 
 interface Driver {
@@ -51,6 +51,7 @@ interface DriversListProps {
   toggleDriverActive: (driverId: string, nextActive: boolean) => void
   deleteDriver: (driverId: string) => void
   onAssignToTrip: (driver: Driver, tripType: 'arrival' | 'departure') => void
+  linkDriverToAccount?: (driverId: string, driverPhone: string) => Promise<boolean>
 }
 
 export default function DriversList({
@@ -71,6 +72,7 @@ export default function DriversList({
   toggleDriverActive,
   deleteDriver,
   onAssignToTrip,
+  linkDriverToAccount,
 }: DriversListProps) {
   const filteredDrivers = drivers.filter((d) => {
     const q = driverSearch.trim()
@@ -124,7 +126,13 @@ export default function DriversList({
                 <div className="min-w-0 flex-1 space-y-2">
                   {/* Name and badges */}
                   <div className="flex flex-wrap items-center gap-2">
-                    <span className="font-extrabold text-base sm:text-lg text-gray-900">{d.name}</span>
+                    <div className="flex items-center gap-2">
+                      <Bus className="w-4 h-4 text-blue-600 flex-shrink-0" />
+                      <span className="font-extrabold text-base sm:text-lg text-gray-900">{d.name}</span>
+                      <span className="text-[11px] px-2 py-0.5 rounded-full border bg-blue-50 text-blue-700 border-blue-200 font-semibold">
+                        سائق الرحلات
+                      </span>
+                    </div>
                     <span className={`text-[11px] px-2 py-0.5 rounded-full border ${d.is_active ? 'bg-green-50 text-green-700 border-green-200' : 'bg-gray-50 text-gray-700 border-gray-200'}`}>
                       {d.is_active ? 'نشط' : 'غير نشط'}
                     </span>
@@ -138,7 +146,8 @@ export default function DriversList({
                       </span>
                     )}
                     {d.user_id ? (
-                      <span className="text-[11px] px-2 py-0.5 rounded-full border bg-blue-50 text-blue-700 border-blue-200">
+                      <span className="text-[11px] px-2 py-0.5 rounded-full border bg-blue-50 text-blue-700 border-blue-200 flex items-center gap-1">
+                        <UserCheck className="w-3 h-3" />
                         مربوط بحساب
                       </span>
                     ) : (
@@ -255,6 +264,21 @@ export default function DriversList({
                         <MapPin className="w-4 h-4 text-gray-700" />
                         سجل حركة
                       </button>
+                      {!d.user_id && linkDriverToAccount && (
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            if (confirm(`هل تريد ربط السائق "${d.name}" بحساب موجود برقم الهاتف "${d.phone}"؟\n\nملاحظة: يجب أن يكون المستخدم معين كسائق أولاً.`)) {
+                              await linkDriverToAccount(d.id, d.phone)
+                            }
+                          }}
+                          className="w-full px-2.5 py-2 rounded-lg bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200 text-xs sm:text-sm font-bold transition inline-flex items-center justify-center gap-2"
+                          title="ربط السائق بحساب موجود"
+                        >
+                          <Link2 className="w-4 h-4" />
+                          ربط بحساب
+                        </button>
+                      )}
                       {d.user_id && (
                         <button
                           type="button"

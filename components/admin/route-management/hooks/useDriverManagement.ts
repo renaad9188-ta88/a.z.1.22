@@ -3,7 +3,7 @@ import { createSupabaseBrowserClient } from '@/lib/supabase'
 import toast from 'react-hot-toast'
 import type { Driver } from '../types'
 
-export function useDriverManagement(onReload: () => void) {
+export function useDriverManagement(onReload: () => void | Promise<void>) {
   const supabase = createSupabaseBrowserClient()
   const [driverSearch, setDriverSearch] = useState('')
 
@@ -28,10 +28,82 @@ export function useDriverManagement(onReload: () => void) {
       const { error } = await supabase.from('drivers').update({ is_active: nextActive }).eq('id', driverId)
       if (error) throw error
       toast.success(nextActive ? 'تم تفعيل السائق' : 'تم تعطيل السائق')
-      onReload()
+      // إعادة تحميل البيانات فوراً
+      await onReload()
     } catch (e: any) {
       console.error('toggleDriverActive error:', e)
       toast.error(e?.message || 'تعذر تحديث حالة السائق')
+    }
+  }
+
+  const normalizePhoneForSearch = (phone: string) => {
+    // إزالة جميع الأحرف غير الرقمية
+    let digits = phone.replace(/[^\d]/g, '')
+    // إزالة الأصفار من البداية
+    digits = digits.replace(/^0+/, '')
+    // إذا كان يبدأ بـ 962، أبقيه كما هو، وإلا أضف 962
+    if (!digits.startsWith('962')) {
+      digits = '962' + digits
+    }
+    return digits
+  }
+
+  const linkDriverToAccount = async (driverId: string, driverPhone: string) => {
+    try {
+      // تطبيع رقم الهاتف للبحث
+      const normalizedPhone = normalizePhoneForSearch(driverPhone)
+      
+      // جلب جميع الحسابات مع role = 'driver'
+      const { data: profiles, error: findErr } = await supabase
+        .from('profiles')
+        .select('user_id, full_name, phone, role')
+        .eq('role', 'driver')
+
+      if (findErr) throw findErr
+
+      // البحث عن حساب يطابق رقم الهاتف (بأي تنسيق)
+      const profile = (profiles || []).find((p) => {
+        if (!p.phone) return false
+        const profilePhoneNormalized = normalizePhoneForSearch(p.phone)
+        return profilePhoneNormalized === normalizedPhone
+      })
+
+      if (!profile || !profile.user_id) {
+        toast.error('لم يتم العثور على حساب برقم الهاتف هذا مع دور "سائق".\n\nتأكد من:\n1. تعيين المستخدم كسائق من لوحة "العملاء / المنتسبين"\n2. تطابق رقم الهاتف في جدول profiles مع رقم السائق', { duration: 6000 })
+        return false
+      }
+
+      // التحقق من أن الحساب غير مربوط بسائق آخر
+      const { data: existingDriver, error: checkErr } = await supabase
+        .from('drivers')
+        .select('id, name')
+        .eq('user_id', profile.user_id)
+        .neq('id', driverId)
+        .maybeSingle()
+
+      if (checkErr) throw checkErr
+
+      if (existingDriver) {
+        toast.error(`هذا الحساب مربوط بالفعل بسائق آخر: "${existingDriver.name}"`, { duration: 5000 })
+        return false
+      }
+
+      // ربط السائق بالحساب
+      const { error: updateErr } = await supabase
+        .from('drivers')
+        .update({ user_id: profile.user_id })
+        .eq('id', driverId)
+
+      if (updateErr) throw updateErr
+
+      toast.success(`تم ربط السائق بالحساب بنجاح!\nالحساب: ${profile.full_name || profile.phone}`, { duration: 4000 })
+      // إعادة تحميل البيانات فوراً
+      await onReload()
+      return true
+    } catch (e: any) {
+      console.error('linkDriverToAccount error:', e)
+      toast.error(e?.message || 'تعذر ربط السائق بالحساب')
+      return false
     }
   }
 
@@ -80,8 +152,9 @@ export function useDriverManagement(onReload: () => void) {
     try {
       const { error } = await supabase.from('drivers').delete().eq('id', driverId)
       if (error) throw error
-      toast.success('تم حذف السائق')
-      onReload()
+      toast.success('تم حذف السائق بنجاح')
+      // إعادة تحميل البيانات فوراً
+      await onReload()
     } catch (e: any) {
       console.error('deleteDriver error:', e)
       toast.error(e?.message || 'تعذر حذف السائق')
@@ -173,7 +246,8 @@ export function useDriverManagement(onReload: () => void) {
       }
 
       toast.success(userId ? 'تم حفظ السائق وربطه بالحساب بنجاح' : 'تم إضافة السائق بنجاح')
-      onReload()
+      // إعادة تحميل البيانات فوراً
+      await onReload()
     } catch (error: any) {
       toast.error(error.message || 'حدث خطأ أثناء إضافة السائق')
     }
@@ -189,6 +263,7 @@ export function useDriverManagement(onReload: () => void) {
     toggleDriverActive,
     deleteDriver,
     handleAddDriver,
+    linkDriverToAccount,
   }
 }
 

@@ -80,6 +80,7 @@ export default function RouteManagement() {
     toggleDriverActive,
     deleteDriver,
     handleAddDriver,
+    linkDriverToAccount,
   } = useDriverManagement(reloadData)
 
   // Trip Management Hook
@@ -395,6 +396,7 @@ export default function RouteManagement() {
             toggleDriverActive={toggleDriverActive}
             deleteDriver={(id) => deleteDriver(id, drivers)}
             onAssignToTrip={(driver, tripType) => setAssignDriverModal({ driver, tripType })}
+            linkDriverToAccount={linkDriverToAccount}
           />
         </>
       )}

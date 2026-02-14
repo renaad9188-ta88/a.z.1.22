@@ -8,6 +8,7 @@ import { LogOut, Bus, Settings } from 'lucide-react'
 import toast from 'react-hot-toast'
 import DriverAvailabilityMap from '@/components/driver/DriverAvailabilityMap'
 import DriverAssignedTripsPanel from '@/components/driver/DriverAssignedTripsPanel'
+import DriverTripOverview from '@/components/driver/DriverTripOverview'
 import NotificationsDropdown from '@/components/NotificationsDropdown'
 import { Users } from 'lucide-react'
 
@@ -179,21 +180,21 @@ export default function DriverDashboard() {
           />
         )}
 
-        {selectedTripId && (
-          <div className="mb-4 sm:mb-6">
-            <Link
-              href={`/driver/trip/${selectedTripId}`}
-              className="w-full inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-blue-600 text-white hover:bg-blue-700 transition text-sm sm:text-base font-extrabold shadow-md"
-              title="عرض قائمة الركاب ونقاط النزول"
-            >
-              <Users className="w-5 h-5" />
-              فتح قائمة الركاب ونقاط النزول
-            </Link>
+        {selectedTripId ? (
+          <div className="space-y-4 sm:space-y-6">
+            {/* Trip Overview - كل المعلومات في صفحة واحدة */}
+            <DriverTripOverview tripId={selectedTripId} />
+            
+            {/* Driver Availability Map */}
+            <div className="mt-4 sm:mt-6">
+              <DriverAvailabilityMap selectedTripId={selectedTripId} />
+            </div>
+          </div>
+        ) : (
+          <div className="bg-white rounded-xl shadow-md p-6 text-center">
+            <p className="text-gray-600">اختر رحلة من الأعلى لعرض التفاصيل</p>
           </div>
         )}
-        <div className="mt-4 sm:mt-6">
-          <DriverAvailabilityMap selectedTripId={selectedTripId} />
-        </div>
       </div>
     </div>
   )

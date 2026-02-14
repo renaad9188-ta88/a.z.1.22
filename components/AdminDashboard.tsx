@@ -307,11 +307,15 @@ export default function AdminDashboard() {
 
   // تصفية الطلبات
   const filteredRequests = requests.filter(request => {
+    const userProfile = userProfiles[request.user_id]
+    const userFullName = userProfile?.full_name || ''
+    
     const matchesSearch = 
       !searchQuery ||
       request.visitor_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       request.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      request.city.toLowerCase().includes(searchQuery.toLowerCase())
+      request.city.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      userFullName.toLowerCase().includes(searchQuery.toLowerCase())
 
     const notes = (request.admin_notes || '') as string
     const isDraft = notes.startsWith('[DRAFT]')
