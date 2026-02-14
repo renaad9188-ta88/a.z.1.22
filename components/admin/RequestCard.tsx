@@ -1,8 +1,9 @@
 'use client'
 
+import { useState } from 'react'
 import { formatDate } from '@/lib/date-utils'
 import { VisitRequest } from './types'
-import { Clock, CheckCircle, XCircle, Eye, Calendar, MapPin, Users, DollarSign, Plane, Copy, ExternalLink, MessageCircle, Phone, Ticket, Bus, CheckCircle2 } from 'lucide-react'
+import { Clock, CheckCircle, XCircle, Eye, Calendar, MapPin, Users, DollarSign, Plane, Copy, ExternalLink, MessageCircle, Phone, Ticket, Bus, CheckCircle2, Trash2, RotateCcw, MoreVertical } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { parseAdminNotes } from '../request-details/utils'
 import Link from 'next/link'
@@ -13,10 +14,15 @@ interface RequestCardProps {
   userProfile?: { full_name: string | null; phone: string | null; whatsapp_phone?: string | null; jordan_phone?: string | null }
   onClick: () => void
   onScheduleTrip?: () => void
+  onDelete?: () => void
+  onRestore?: () => void
+  isAdmin?: boolean
+  isDeleted?: boolean
   index?: number
 }
 
-export default function RequestCard({ request, userProfile, onClick, onScheduleTrip, index }: RequestCardProps) {
+export default function RequestCard({ request, userProfile, onClick, onScheduleTrip, onDelete, onRestore, isAdmin = false, isDeleted = false, index }: RequestCardProps) {
+  const [showMenu, setShowMenu] = useState(false)
   // حساب عمر الطلب (بالساعات)
   const getRequestAge = () => {
     const created = new Date(request.created_at)
@@ -139,6 +145,12 @@ export default function RequestCard({ request, userProfile, onClick, onScheduleT
   const isCompleted = request.status === 'completed' || request.trip_status === 'completed'
   const isUnderReview = request.status === 'under_review' || request.status === 'pending'
 
+  // التحقق من إمكانية الحذف (للإدمن فقط - أي طلب)
+  const canDelete = isAdmin && onDelete && !isDeleted
+  
+  // التحقق من إمكانية الاسترجاع (للإدمن فقط - الطلبات المحذوفة)
+  const canRestore = isAdmin && onRestore && isDeleted
+
   const needsPaymentVerifyAfterPostApproval =
     request.status === 'approved' &&
     !isCompleted &&
@@ -173,9 +185,9 @@ export default function RequestCard({ request, userProfile, onClick, onScheduleT
   }
 
   return (
-    <div className={`${getBackgroundGradient()} rounded-xl shadow-lg hover:shadow-2xl transition-all duration-300 p-4 sm:p-6 border-2 border-r-0 ${getBorderColor()} ${
+    <div className={`${isDeleted ? 'bg-gradient-to-br from-gray-100 via-white to-white border-l-4 border-l-gray-400' : getBackgroundGradient()} rounded-xl shadow-lg hover:shadow-2xl transition-all duration-300 p-4 sm:p-6 border-2 border-r-0 ${isDeleted ? '' : getBorderColor()} ${
       isNewRequest ? 'ring-2 ring-blue-300 ring-opacity-50' : ''
-    } w-full max-w-full overflow-hidden`}>
+    } w-full max-w-full overflow-hidden ${isDeleted ? 'opacity-75' : ''}`}>
       <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
         {/* المعلومات الأساسية */}
         <div className="flex-1 space-y-3">
@@ -215,6 +227,11 @@ export default function RequestCard({ request, userProfile, onClick, onScheduleT
                 {isDraft && (
                   <span className="px-2 py-0.5 bg-red-600 text-white text-xs font-bold rounded-full animate-pulse">
                     غير مكتمل
+                  </span>
+                )}
+                {isDeleted && (
+                  <span className="px-2 py-0.5 bg-gray-600 text-white text-xs font-bold rounded-full">
+                    محذوف
                   </span>
                 )}
               </div>
@@ -435,15 +452,80 @@ export default function RequestCard({ request, userProfile, onClick, onScheduleT
 
         {/* الأزرار */}
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-3">
-          <Link
-            href={`/admin/request/${request.id}/follow`}
-            onClick={(e) => e.stopPropagation()}
-            className="px-4 py-2.5 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-lg hover:from-blue-700 hover:to-blue-800 transition-all font-bold text-sm sm:text-base flex items-center justify-center gap-2 shadow-md hover:shadow-lg transform hover:scale-105 border-2 border-blue-500"
-            title="متابعة الطلب (مراحل)"
-          >
-            <Eye className="w-4 h-4" />
-            متابعة الطلب
-          </Link>
+          {!isDeleted && (
+            <Link
+              href={`/admin/request/${request.id}/follow`}
+              onClick={(e) => e.stopPropagation()}
+              className="px-4 py-2.5 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-lg hover:from-blue-700 hover:to-blue-800 transition-all font-bold text-sm sm:text-base flex items-center justify-center gap-2 shadow-md hover:shadow-lg transform hover:scale-105 border-2 border-blue-500"
+              title="متابعة الطلب (مراحل)"
+            >
+              <Eye className="w-4 h-4" />
+              متابعة الطلب
+            </Link>
+          )}
+          {/* قائمة منسدلة للأزرار الإضافية */}
+          {(canDelete || canRestore) && (
+            <div className="relative">
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  setShowMenu(!showMenu)
+                }}
+                className="p-2 rounded-lg bg-gray-100 hover:bg-gray-200 transition text-gray-700 border border-gray-300"
+                title="المزيد من الخيارات"
+              >
+                <MoreVertical className="w-4 h-4" />
+              </button>
+              
+              {showMenu && (
+                <>
+                  {/* Overlay لإغلاق القائمة عند النقر خارجها */}
+                  <div
+                    className="fixed inset-0 z-10"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      setShowMenu(false)
+                    }}
+                  />
+                  
+                  {/* القائمة المنسدلة */}
+                  <div className="absolute left-0 top-full mt-1 bg-white rounded-lg shadow-lg border border-gray-200 z-20 min-w-[140px]">
+                    {canDelete && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          setShowMenu(false)
+                          onDelete()
+                        }}
+                        className="w-full px-3 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2 transition rounded-t-lg"
+                        title="حذف الطلب"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                        حذف
+                      </button>
+                    )}
+                    {canRestore && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          setShowMenu(false)
+                          onRestore()
+                        }}
+                        className={`w-full px-3 py-2 text-sm text-green-600 hover:bg-green-50 flex items-center gap-2 transition ${canDelete ? 'rounded-b-lg' : 'rounded-lg'}`}
+                        title="استرجاع الطلب"
+                      >
+                        <RotateCcw className="w-3.5 h-3.5" />
+                        استرجاع
+                      </button>
+                    )}
+                  </div>
+                </>
+              )}
+            </div>
+          )}
         </div>
 
         {/* التاريخ */}

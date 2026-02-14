@@ -42,6 +42,8 @@ export interface VisitRequest {
   departure_date?: string | null
   trip_status?: 'pending_arrival' | 'scheduled_pending_approval' | 'arrived' | 'completed' | null
   trip_id?: string | null
+  deleted_at?: string | null
+  deleted_by?: string | null
   created_at: string
   updated_at: string
 }
@@ -66,6 +68,7 @@ export interface AdminStats {
   approved: number
   rejected: number
   completed: number
+  deleted?: number
 }
 
 

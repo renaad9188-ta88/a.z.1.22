@@ -17,7 +17,7 @@ import InvitesManagement from './admin/InvitesManagement'
 import CustomersManagement from './admin/CustomersManagement'
 import BookingsManagement from './admin/BookingsManagement'
 import { VisitRequest, UserProfile, AdminStats as StatsType } from './admin/types'
-import { ChevronDown, Layers, Calendar, Building2, MessageCircle, Phone, Plane, Ticket, MapPin } from 'lucide-react'
+import { ChevronDown, Layers, Calendar, Building2, MessageCircle, Phone, Plane, Ticket, MapPin, Archive, RotateCcw } from 'lucide-react'
 import QRCodeShare from './QRCodeShare'
 import { parseAdminNotes } from './request-details/utils'
 import { formatDate } from '@/lib/date-utils'
@@ -42,6 +42,10 @@ export default function AdminDashboard() {
   const [showInvitesManagement, setShowInvitesManagement] = useState(false)
   const [showCustomersManagement, setShowCustomersManagement] = useState(false)
   const [showBookingsManagement, setShowBookingsManagement] = useState(false)
+  const [showDeletedRequests, setShowDeletedRequests] = useState(false)
+  const [deletedRequests, setDeletedRequests] = useState<VisitRequest[]>([])
+  const [loadingDeleted, setLoadingDeleted] = useState(false)
+  const [deletedCount, setDeletedCount] = useState(0)
   const [collapsedTypes, setCollapsedTypes] = useState<Record<string, boolean>>({})
   const [tripBookingsStats, setTripBookingsStats] = useState<Array<{
     trip_id: string
@@ -77,7 +81,28 @@ export default function AdminDashboard() {
 
   useEffect(() => {
     loadRequests()
-  }, [])
+    // تحميل عدد الطلبات المحذوفة عند التحميل الأولي (للإدمن فقط)
+    if (currentRole === 'admin') {
+      loadDeletedCount()
+    }
+  }, [currentRole])
+
+  // تحميل عدد الطلبات المحذوفة فقط (بدون تحميل التفاصيل)
+  const loadDeletedCount = async () => {
+    if (currentRole !== 'admin') return
+    
+    try {
+      const { count, error } = await supabase
+        .from('visit_requests')
+        .select('*', { count: 'exact', head: true })
+        .not('deleted_at', 'is', null)
+
+      if (error) throw error
+      setDeletedCount(count || 0)
+    } catch (error: any) {
+      console.error('Error loading deleted count:', error)
+    }
+  }
 
   // جلب إحصائيات الرحلات
   useEffect(() => {
@@ -194,10 +219,11 @@ export default function AdminDashboard() {
         return
       }
       
-      // تحميل جميع الطلبات (قائمة خفيفة لتحسين الأداء)
+      // تحميل جميع الطلبات (قائمة خفيفة لتحسين الأداء) - إخفاء المحذوفة
       const { data: requestsData, error: requestsError } = await supabase
         .from('visit_requests')
         .select('id, user_id, visitor_name, visit_type, travel_date, status, city, days_count, arrival_date, departure_date, trip_status, trip_id, created_at, updated_at, admin_notes, companions_count, deposit_paid, deposit_amount, total_amount, remaining_amount, payment_verified, assigned_to, assigned_by, assigned_at')
+        .is('deleted_at', null)  // إخفاء الطلبات المحذوفة
         .order('created_at', { ascending: false })
 
       if (requestsError) {
@@ -298,6 +324,135 @@ export default function AdminDashboard() {
   const handleCloseSchedulingModal = () => {
     setSchedulingRequest(null)
   }
+
+  const handleDeleteRequest = async (requestId: string) => {
+    // التحقق من أن المستخدم إدمن
+    if (currentRole !== 'admin') {
+      toast.error('ليس لديك صلاحية لحذف الطلبات')
+      return
+    }
+
+    // البحث عن الطلب
+    const request = requests.find(r => r.id === requestId) || deletedRequests.find(r => r.id === requestId)
+    if (!request) {
+      toast.error('لم يتم العثور على الطلب')
+      return
+    }
+
+    const confirmMessage = `⚠️ تحذير: هل أنت متأكد من حذف الطلب؟\n\n` +
+      `الزائر: ${request.visitor_name}\n` +
+      `الحالة: ${request.status}\n\n` +
+      `سيتم إخفاء الطلب من القائمة (يمكن استرجاعه لاحقاً من قسم "الطلبات المحذوفة").`
+
+    if (!confirm(confirmMessage)) return
+
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) {
+        toast.error('يجب تسجيل الدخول')
+        return
+      }
+
+      const { error } = await supabase
+        .from('visit_requests')
+        .update({ 
+          deleted_at: new Date().toISOString(),
+          deleted_by: user.id
+        })
+        .eq('id', requestId)
+
+      if (error) throw error
+
+      toast.success('تم حذف الطلب (يمكن استرجاعه من قسم "الطلبات المحذوفة")')
+      loadRequests() // إعادة تحميل القائمة
+      loadDeletedCount() // تحديث العدد
+      if (showDeletedRequests) {
+        loadDeletedRequests() // إعادة تحميل المحذوفة
+      }
+    } catch (error: any) {
+      console.error('Delete request error:', error)
+      toast.error(error?.message || 'تعذر حذف الطلب')
+    }
+  }
+
+  const loadDeletedRequests = async () => {
+    if (currentRole !== 'admin') return
+    
+    try {
+      setLoadingDeleted(true)
+      const { data, error } = await supabase
+        .from('visit_requests')
+        .select('id, user_id, visitor_name, visit_type, travel_date, status, city, days_count, arrival_date, departure_date, trip_status, trip_id, created_at, updated_at, admin_notes, companions_count, deposit_paid, deposit_amount, total_amount, remaining_amount, payment_verified, assigned_to, assigned_by, assigned_at, deleted_at, deleted_by')
+        .not('deleted_at', 'is', null)  // فقط المحذوفة
+        .order('deleted_at', { ascending: false })
+        .limit(500)
+
+      if (error) throw error
+
+      const userIds = Array.from(new Set((data || []).map((r: any) => r.user_id)))
+      let profilesMap: { [key: string]: UserProfile } = {}
+      
+      if (userIds.length > 0) {
+        const { data: profilesData } = await supabase
+          .from('profiles')
+          .select('user_id, full_name, phone, jordan_phone, whatsapp_phone')
+          .in('user_id', userIds)
+        
+        if (profilesData) {
+          profilesData.forEach(profile => {
+            profilesMap[profile.user_id] = profile
+          })
+        }
+      }
+
+      setDeletedRequests((data || []) as any)
+      setDeletedCount((data || []).length)
+      // تحديث userProfiles لتشمل ملفات المستخدمين للطلبات المحذوفة
+      setUserProfiles(prev => ({ ...prev, ...profilesMap }))
+    } catch (error: any) {
+      console.error('Error loading deleted requests:', error)
+      toast.error('تعذر تحميل الطلبات المحذوفة')
+    } finally {
+      setLoadingDeleted(false)
+    }
+  }
+
+  const handleRestoreRequest = async (requestId: string) => {
+    if (currentRole !== 'admin') {
+      toast.error('ليس لديك صلاحية لاسترجاع الطلبات')
+      return
+    }
+
+    if (!confirm('هل أنت متأكد من استرجاع هذا الطلب؟')) return
+
+    try {
+      const { error } = await supabase
+        .from('visit_requests')
+        .update({ 
+          deleted_at: null,
+          deleted_by: null
+        })
+        .eq('id', requestId)
+
+      if (error) throw error
+
+      toast.success('تم استرجاع الطلب بنجاح')
+      loadDeletedRequests() // إعادة تحميل المحذوفة
+      loadRequests() // إعادة تحميل القائمة الرئيسية
+      loadDeletedCount() // تحديث العدد
+    } catch (error: any) {
+      console.error('Restore request error:', error)
+      toast.error(error?.message || 'تعذر استرجاع الطلب')
+    }
+  }
+
+  // تحميل المحذوفة عند فتح القسم
+  useEffect(() => {
+    if (showDeletedRequests && currentRole === 'admin' && !loading) {
+      loadDeletedRequests()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showDeletedRequests, currentRole, loading])
 
   const handleClearFilters = () => {
     setSearchQuery('')
@@ -520,6 +675,7 @@ export default function AdminDashboard() {
     approved: requests.filter(r => r.status === 'approved').length,
     rejected: requests.filter(r => r.status === 'rejected').length,
     completed: requests.filter(r => r.status === 'completed' || r.trip_status === 'completed').length,
+    deleted: deletedCount,
   }
 
   if (loading) {
@@ -602,6 +758,26 @@ export default function AdminDashboard() {
                   المشرفين
                 </button>
               )}
+              {currentRole === 'admin' && (
+                <button
+                  onClick={() => {
+                    if (showDeletedRequests) {
+                      setShowDeletedRequests(false)
+                    } else {
+                      setShowDeletedRequests(true)
+                      setShowRouteManagement(false)
+                      setShowInvitesManagement(false)
+                      setShowCustomersManagement(false)
+                      setShowSupervisorsManagement(false)
+                      setShowBookingsManagement(false)
+                    }
+                  }}
+                  className="px-2 sm:px-3 md:px-4 py-1 sm:py-1.5 md:py-2 text-xs sm:text-sm md:text-base text-gray-700 hover:text-red-600 transition flex items-center gap-1"
+                >
+                  <Archive className="w-3 h-3 sm:w-4 sm:h-4" />
+                  المحذوفة
+                </button>
+              )}
               <Link
                 href="/admin/profile"
                 className="px-2 sm:px-3 md:px-4 py-1 sm:py-1.5 md:py-2 text-xs sm:text-sm md:text-base text-gray-700 hover:text-blue-600 transition"
@@ -667,6 +843,49 @@ export default function AdminDashboard() {
             </div>
             <SupervisorsManagement />
           </div>
+        ) : showDeletedRequests ? (
+          <div className="mb-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
+              <h2 className="text-base sm:text-lg md:text-xl font-extrabold text-gray-900 flex items-center gap-2">
+                <Archive className="w-5 h-5 text-red-600" />
+                الطلبات المحذوفة ({deletedRequests.length})
+              </h2>
+              <button
+                onClick={() => setShowDeletedRequests(false)}
+                className="w-full sm:w-auto px-4 py-2 bg-gray-200 rounded-lg hover:bg-gray-300 font-bold"
+              >
+                العودة للطلبات
+              </button>
+            </div>
+            {loadingDeleted ? (
+              <div className="text-center py-8">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-red-600 mx-auto mb-2"></div>
+                <p className="text-gray-600">جاري تحميل الطلبات المحذوفة...</p>
+              </div>
+            ) : deletedRequests.length === 0 ? (
+              <div className="bg-white rounded-xl shadow-md p-6 text-center">
+                <Archive className="w-12 h-12 mx-auto mb-2 text-gray-300" />
+                <p className="text-gray-600">لا توجد طلبات محذوفة</p>
+              </div>
+            ) : (
+              <div className="space-y-3 sm:space-y-4">
+                {deletedRequests.map((request, index) => (
+                  <RequestCard
+                    key={request.id}
+                    request={request}
+                    userProfile={userProfiles[request.user_id]}
+                    onClick={() => handleRequestClick(request)}
+                    onScheduleTrip={() => handleScheduleTrip(request)}
+                    onDelete={currentRole === 'admin' ? () => handleDeleteRequest(request.id) : undefined}
+                    onRestore={currentRole === 'admin' ? () => handleRestoreRequest(request.id) : undefined}
+                    isAdmin={currentRole === 'admin'}
+                    isDeleted={true}
+                    index={index}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
         ) : showBookingsManagement ? (
           <div className="mb-6">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
@@ -685,9 +904,31 @@ export default function AdminDashboard() {
             {/* Stats */}
             <AdminStats 
               stats={stats} 
-              selectedFilter={statusFilter}
+              selectedFilter={showDeletedRequests ? 'deleted' : statusFilter}
               onStatClick={(filterType) => {
-                setStatusFilter(filterType)
+                if (filterType === 'deleted') {
+                  setShowDeletedRequests(true)
+                  setShowRouteManagement(false)
+                  setShowInvitesManagement(false)
+                  setShowCustomersManagement(false)
+                  setShowSupervisorsManagement(false)
+                  setShowBookingsManagement(false)
+                } else if (filterType === 'bookings') {
+                  setShowBookingsManagement(true)
+                  setShowRouteManagement(false)
+                  setShowInvitesManagement(false)
+                  setShowCustomersManagement(false)
+                  setShowSupervisorsManagement(false)
+                  setShowDeletedRequests(false)
+                } else {
+                  setStatusFilter(filterType)
+                  setShowRouteManagement(false)
+                  setShowInvitesManagement(false)
+                  setShowCustomersManagement(false)
+                  setShowSupervisorsManagement(false)
+                  setShowBookingsManagement(false)
+                  setShowDeletedRequests(false)
+                }
               }}
             />
 
@@ -1124,6 +1365,8 @@ export default function AdminDashboard() {
                                   userProfile={userProfiles[request.user_id]}
                                   onClick={() => handleRequestClick(request)}
                                   onScheduleTrip={() => handleScheduleTrip(request)}
+                                  onDelete={currentRole === 'admin' ? () => handleDeleteRequest(request.id) : undefined}
+                                  isAdmin={currentRole === 'admin'}
                                   index={idx}
                                 />
                               ))}
@@ -1142,6 +1385,8 @@ export default function AdminDashboard() {
                     userProfile={userProfiles[request.user_id]}
                     onClick={() => handleRequestClick(request)}
                     onScheduleTrip={() => handleScheduleTrip(request)}
+                    onDelete={currentRole === 'admin' ? () => handleDeleteRequest(request.id) : undefined}
+                    isAdmin={currentRole === 'admin'}
                     index={index}
                   />
                 ))
