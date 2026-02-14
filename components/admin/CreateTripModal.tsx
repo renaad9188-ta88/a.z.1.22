@@ -4,72 +4,13 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { createSupabaseBrowserClient } from '@/lib/supabase'
 import toast from 'react-hot-toast'
 import { X, MapPin, Plus, Trash2, Edit, ArrowUp, ArrowDown } from 'lucide-react'
-
-type StopKind = 'pickup' | 'dropoff' | 'both'
-
-type StopPoint = {
-  name: string
-  lat: number
-  lng: number
-}
-
-type RouteStopRow = {
-  id: string
-  route_id: string
-  name: string
-  lat: number
-  lng: number
-  order_index: number
-  is_active: boolean
-  stop_kind?: StopKind | null
-}
-
-const MAX_STOP_POINTS = 7
-
-function loadGoogleMaps(apiKey: string): Promise<void> {
-  if (typeof window === 'undefined') return Promise.resolve()
-  if ((window as any).google?.maps) return Promise.resolve()
-
-  return new Promise((resolve, reject) => {
-    const existing = document.querySelector('script[data-google-maps="1"]') as HTMLScriptElement | null
-    if (existing) {
-      existing.addEventListener('load', () => resolve())
-      existing.addEventListener('error', () => reject(new Error('Google Maps failed to load')))
-      return
-    }
-
-    const script = document.createElement('script')
-    script.dataset.googleMaps = '1'
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places,geometry&language=ar`
-    script.async = true
-    script.defer = true
-    script.onload = () => resolve()
-    script.onerror = () => reject(new Error('Google Maps failed to load'))
-    document.head.appendChild(script)
-  })
-}
-
-function toYmd(d: Date) {
-  const yyyy = d.getFullYear()
-  const mm = String(d.getMonth() + 1).padStart(2, '0')
-  const dd = String(d.getDate()).padStart(2, '0')
-  return `${yyyy}-${mm}-${dd}`
-}
-
-function dateRangeDays(startYmd: string, endYmd: string): string[] {
-  if (!startYmd || !endYmd) return []
-  const start = new Date(startYmd + 'T00:00:00')
-  const end = new Date(endYmd + 'T00:00:00')
-  if (isNaN(start.getTime()) || isNaN(end.getTime())) return []
-  if (end < start) return []
-  const out: string[] = []
-  const cur = new Date(start)
-  while (cur <= end) {
-    out.push(toYmd(cur))
-    cur.setDate(cur.getDate() + 1)
-  }
-  return out
-}
+import { loadGoogleMaps } from './trip-creation/utils'
+import { useDateSelection } from './trip-creation/hooks/useDateSelection'
+import { useRouteStops } from './trip-creation/hooks/useRouteStops'
+import { useTripStops } from './trip-creation/hooks/useTripStops'
+import { useTripSave } from './trip-creation/hooks/useTripSave'
+import type { StopKind, LocationPoint } from './trip-creation/types'
+import { MAX_STOP_POINTS } from './trip-creation/types'
 
 export default function CreateTripModal({
   routeId,
@@ -222,43 +163,6 @@ export default function CreateTripModal({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editTripId, editTripData?.id, copyTripData?.id])
 
-  const loadRouteStops = async () => {
-    try {
-      setRouteStopsLoading(true)
-      // First try with stop_kind
-      try {
-        const { data, error } = await supabase
-          .from('route_stop_points')
-          .select('id,route_id,name,lat,lng,order_index,is_active,stop_kind')
-          .eq('route_id', routeId)
-          .eq('is_active', true)
-          .in('stop_kind', [stopKindForTrip, 'both'] as any)
-          .order('order_index', { ascending: true })
-        if (error) throw error
-        setRouteStops(((data as any) || []) as RouteStopRow[])
-      } catch {
-        // Backward compatibility if stop_kind not migrated yet
-        const { data, error } = await supabase
-          .from('route_stop_points')
-          .select('id,route_id,name,lat,lng,order_index,is_active')
-          .eq('route_id', routeId)
-          .eq('is_active', true)
-          .order('order_index', { ascending: true })
-        if (error) throw error
-        setRouteStops(((data as any) || []) as RouteStopRow[])
-      }
-    } catch (e: any) {
-      console.error('loadRouteStops error:', e)
-      setRouteStops([])
-    } finally {
-      setRouteStopsLoading(false)
-    }
-  }
-
-  useEffect(() => {
-    loadRouteStops()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [routeId, tripType])
 
   // Google Maps load
   useEffect(() => {
@@ -320,13 +224,12 @@ export default function CreateTripModal({
           const name = results && results[0] ? results[0].formatted_address : stopLabelSingular
 
           if (mode === 'trip_stop') {
-            if (stopPoints.length >= MAX_STOP_POINTS) {
+            const added = addStopPoint({ name, lat, lng })
+            if (!added) {
               toast.error(`يمكنك إضافة ${MAX_STOP_POINTS} محطات كحد أقصى`)
-              setMapAddMode('none')
-              return
+            } else {
+              toast.success('تمت إضافة محطة للرحلة')
             }
-            setStopPoints((prev) => [...prev, { name, lat, lng }])
-            toast.success('تمت إضافة محطة للرحلة')
             setMapAddMode('none')
             return
           }
@@ -521,181 +424,43 @@ export default function CreateTripModal({
     useRouteDefaultStops,
   ])
 
-  const moveInList = async (kind: 'route' | 'trip', index: number, dir: -1 | 1) => {
+  const moveInList = (kind: 'route' | 'trip', index: number, dir: -1 | 1) => {
     if (kind === 'trip') {
-      const list = stopPoints
-      const other = list[index + dir]
-      if (!other) return
-      const next = [...list]
-      ;[next[index], next[index + dir]] = [next[index + dir], next[index]]
-      setStopPoints(next)
+      moveStopPoint(index, dir)
       return
     }
-
-    const list = routeStops
-    const other = list[index + dir]
-    if (!other) return
-    try {
-      setSaving(true)
-      const a = list[index]
-      const b = other
-      const { error: e1 } = await supabase.from('route_stop_points').update({ order_index: b.order_index } as any).eq('id', a.id)
-      const { error: e2 } = await supabase.from('route_stop_points').update({ order_index: a.order_index } as any).eq('id', b.id)
-      if (e1) throw e1
-      if (e2) throw e2
-      await loadRouteStops()
-    } catch (e: any) {
-      console.error('route stop reorder error:', e)
-      toast.error(e?.message || 'تعذر تغيير ترتيب المحطات')
-    } finally {
-      setSaving(false)
-    }
+    moveRouteStop(index, dir)
   }
 
-  const editName = async (kind: 'route' | 'trip', index: number) => {
+  const editName = (kind: 'route' | 'trip', index: number) => {
     if (kind === 'trip') {
       const cur = stopPoints[index]
       const name = prompt('اسم المحطة:', cur?.name || '')
-      if (!name) return
-      setStopPoints((prev) => prev.map((x, i) => (i === index ? { ...x, name } : x)))
+      if (name) editStopPointName(index, name)
       return
     }
-
-    const cur = routeStops[index]
-    const name = prompt('اسم المحطة:', cur?.name || '')
-    if (!name || !cur?.id) return
-    try {
-      setSaving(true)
-      const { error } = await supabase
-        .from('route_stop_points')
-        .update({ name, updated_at: new Date().toISOString() } as any)
-        .eq('id', cur.id)
-      if (error) throw error
-      await loadRouteStops()
-    } catch (e: any) {
-      console.error('edit route stop error:', e)
-      toast.error(e?.message || 'تعذر تعديل المحطة')
-    } finally {
-      setSaving(false)
-    }
+    editRouteStopName(index)
   }
 
-  const removeStop = async (kind: 'route' | 'trip', index: number) => {
+  const removeStop = (kind: 'route' | 'trip', index: number) => {
     if (kind === 'trip') {
-      setStopPoints((prev) => prev.filter((_, i) => i !== index))
+      removeStopPoint(index)
       return
     }
-
-    const cur = routeStops[index]
-    if (!cur?.id) return
-    if (!confirm('حذف هذه المحطة من الخط؟')) return
-    try {
-      setSaving(true)
-      const { error } = await supabase.from('route_stop_points').delete().eq('id', cur.id)
-      if (error) throw error
-      await loadRouteStops()
-    } catch (e: any) {
-      console.error('delete route stop error:', e)
-      toast.error(e?.message || 'تعذر حذف المحطة')
-    } finally {
-      setSaving(false)
-    }
+    removeRouteStop(index)
   }
 
   const handleSave = async () => {
-    if (!departureTime) {
-      toast.error('يرجى تحديد وقت الانطلاق')
-      return
-    }
-    if (!startLocation) {
-      toast.error('يرجى تحديد نقطة الانطلاق')
-      return
-    }
-    if (!endLocation) {
-      toast.error('يرجى تحديد نقطة الوصول')
-      return
-    }
-    if (selectedDates.length === 0) {
-      toast.error('اختر يوم واحد على الأقل لإنشاء الرحلات')
-      return
-    }
-
-    try {
-      setSaving(true)
-      const tripTypeDb = tripType === 'departure' ? 'departure' : 'arrival'
-      const stopsToSave = useRouteDefaultStops ? [] : stopPoints
-
-      if (editTripId) {
-        const { error: updateErr } = await supabase
-          .from('route_trips')
-          .update({
-            trip_date: selectedDates[0],
-            meeting_time: meetingTime || null,
-            departure_time: departureTime,
-            start_location_name: startLocation.name,
-            start_lat: startLocation.lat,
-            start_lng: startLocation.lng,
-            end_location_name: endLocation.name,
-            end_lat: endLocation.lat,
-            end_lng: endLocation.lng,
-            updated_at: new Date().toISOString(),
-          })
-          .eq('id', editTripId)
-        if (updateErr) throw updateErr
-
-        // Update stop points: delete old and insert new
-        const { error: delErr } = await supabase.from('route_trip_stop_points').delete().eq('trip_id', editTripId)
-        if (delErr) throw delErr
-        if (stopsToSave.length > 0) {
-          const rows = stopsToSave.map((s, idx) => ({ trip_id: editTripId, name: s.name, lat: s.lat, lng: s.lng, order_index: idx }))
-          const { error: insErr } = await supabase.from('route_trip_stop_points').insert(rows as any)
-          if (insErr) throw insErr
-        }
-
-        toast.success('تم تحديث الرحلة بنجاح')
-        onSuccess?.()
-        onClose()
-        return
-      }
-
-      // Create new trips
-      for (const dateStr of selectedDates) {
-        const { data: trip, error: tripErr } = await supabase
-          .from('route_trips')
-          .insert({
-            route_id: routeId,
-            trip_type: tripTypeDb,
-            trip_date: dateStr,
-            meeting_time: meetingTime || null,
-            departure_time: departureTime,
-            start_location_name: startLocation.name,
-            start_lat: startLocation.lat,
-            start_lng: startLocation.lng,
-            end_location_name: endLocation.name,
-            end_lat: endLocation.lat,
-            end_lng: endLocation.lng,
-            is_active: true,
-          })
-          .select('id')
-          .single()
-        if (tripErr) throw tripErr
-
-        if (stopsToSave.length > 0) {
-          const rows = stopsToSave.map((s, idx) => ({ trip_id: trip.id, name: s.name, lat: s.lat, lng: s.lng, order_index: idx }))
-          const { error: insErr } = await supabase.from('route_trip_stop_points').insert(rows as any)
-          if (insErr) throw insErr
-        }
-      }
-
-      toast.success(`تم إنشاء ${selectedDates.length} رحلة بنجاح`)
-      onSuccess?.()
-      onClose()
-    } catch (e: any) {
-      console.error('Create trip error:', e)
-      toast.error(e?.message || 'تعذر إنشاء الرحلات')
-    } finally {
-      setSaving(false)
-    }
+    await saveTrip(
+      selectedDates,
+      meetingTime,
+      departureTime,
+      startLocation,
+      endLocation,
+      stopPoints,
+      useRouteDefaultStops,
+      editTripId
+    )
   }
 
   return (

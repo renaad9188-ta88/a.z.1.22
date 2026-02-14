@@ -1,13 +1,16 @@
 import { useState, useEffect } from 'react'
 import { createSupabaseBrowserClient } from '@/lib/supabase'
 import toast from 'react-hot-toast'
+import { getSignedImageUrl } from '@/components/request-details/utils'
 import type { ReqRow, ContactProfile, Role } from '../types'
 
-export function useRequestData(requestId: string, adminUserId: string, role: Role) {
+export function useRequestData(requestId: string, adminUserId: string, role: Role, adminInfo?: any) {
   const supabase = createSupabaseBrowserClient()
   const [request, setRequest] = useState<ReqRow | null>(null)
   const [loading, setLoading] = useState(true)
   const [userProfile, setUserProfile] = useState<ContactProfile | null>(null)
+  const [remainingPaymentImageUrl, setRemainingPaymentImageUrl] = useState<string | null>(null)
+  const [depositPaymentImageUrls, setDepositPaymentImageUrls] = useState<string[]>([])
 
   const load = async () => {
     try {
@@ -64,11 +67,76 @@ export function useRequestData(requestId: string, adminUserId: string, role: Rol
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [requestId])
 
+  // تحميل signed URL لصورة الدفع المتبقي
+  useEffect(() => {
+    const loadPaymentImageUrl = async () => {
+      if (!request) {
+        setRemainingPaymentImageUrl(null)
+        return
+      }
+      
+      const notes = (request.admin_notes || '') as string
+      const match = notes.match(/صورة الدفع المتبقي:\s*([^\n]+)/)
+      const rawUrl = match?.[1]?.trim()
+      
+      if (!rawUrl) {
+        setRemainingPaymentImageUrl(null)
+        return
+      }
+      
+      if (rawUrl.includes('?token=') || rawUrl.includes('&token=')) {
+        setRemainingPaymentImageUrl(rawUrl)
+        return
+      }
+      
+      try {
+        const signedUrl = await getSignedImageUrl(rawUrl, supabase)
+        setRemainingPaymentImageUrl(signedUrl)
+      } catch (error) {
+        console.error('Error loading payment image signed URL:', error)
+        setRemainingPaymentImageUrl(rawUrl)
+      }
+    }
+    
+    loadPaymentImageUrl()
+  }, [request, supabase])
+
+  // تحميل signed URLs لصور الدفعة الأولية
+  useEffect(() => {
+    const loadDepositPaymentImages = async () => {
+      if (!request || !adminInfo?.paymentImages || adminInfo.paymentImages.length === 0) {
+        setDepositPaymentImageUrls([])
+        return
+      }
+
+      try {
+        const signedUrls = await Promise.all(
+          adminInfo.paymentImages.map(async (url: string) => {
+            try {
+              return await getSignedImageUrl(url, supabase)
+            } catch (error) {
+              console.warn('Error loading payment image signed URL:', error)
+              return url
+            }
+          })
+        )
+        setDepositPaymentImageUrls(signedUrls.filter(Boolean))
+      } catch (error) {
+        console.error('Error loading deposit payment images:', error)
+        setDepositPaymentImageUrls(adminInfo.paymentImages || [])
+      }
+    }
+
+    loadDepositPaymentImages()
+  }, [request, adminInfo?.paymentImages, supabase])
+
   return {
     request,
     setRequest,
     loading,
     userProfile,
+    remainingPaymentImageUrl,
+    depositPaymentImageUrls,
     reload: load,
   }
 }

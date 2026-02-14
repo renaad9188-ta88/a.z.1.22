@@ -18,7 +18,6 @@ import type { Role } from './request-follow/types'
 import { extractLatestAdminResponse, extractAllAdminResponses, extractTripModifications, POST_APPROVAL_SUBMITTED_MARK } from './request-follow/utils'
 import { useRequestData } from './request-follow/hooks/useRequestData'
 import { useTripData } from './request-follow/hooks/useTripData'
-import { usePaymentData } from './request-follow/hooks/usePaymentData'
 import { useRequestActions } from './request-follow/hooks/useRequestActions'
 import { useAvailableTrips } from './request-follow/hooks/useAvailableTrips'
 
@@ -34,14 +33,17 @@ export default function AdminRequestFollow({
   const [activeStep, setActiveStep] = useState(1)
   const [showSchedule, setShowSchedule] = useState(false)
 
-  // Request Data Hook
+  // Request Data Hook (includes payment images)
+  const adminInfo = useMemo(() => parseAdminNotes((request?.admin_notes || '') as string) || {}, [request])
   const {
     request,
     setRequest,
     loading,
     userProfile,
+    remainingPaymentImageUrl,
+    depositPaymentImageUrls,
     reload,
-  } = useRequestData(requestId, adminUserId, role)
+  } = useRequestData(requestId, adminUserId, role, adminInfo)
 
   // Trip Data Hook
   const {
@@ -52,13 +54,6 @@ export default function AdminRequestFollow({
     assignedDrivers,
     loadTripData,
   } = useTripData()
-
-  // Payment Data Hook
-  const adminInfo = useMemo(() => parseAdminNotes((request?.admin_notes || '') as string) || {}, [request])
-  const {
-    remainingPaymentImageUrl,
-    depositPaymentImageUrls,
-  } = usePaymentData(request, adminInfo)
 
   // Request Actions Hook
   const {
