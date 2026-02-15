@@ -45,29 +45,42 @@ export default function SupervisorCustomersPanel({ supervisorId }: SupervisorCus
   const loadCustomers = async () => {
     try {
       setLoading(true)
-      const { data, error } = await supabase
+      // جلب قائمة customer_id من supervisor_customers
+      const { data: supervisorCustomers, error: scError } = await supabase
         .from('supervisor_customers')
-        .select(`
-          customer_id,
-          profiles:customer_id (
-            user_id,
-            full_name,
-            phone,
-            jordan_phone,
-            whatsapp_phone
-          )
-        `)
+        .select('customer_id')
         .eq('supervisor_id', supervisorId)
 
-      if (error) throw error
+      if (scError) throw scError
 
-      const customersList = (data || []).map((item: any) => ({
-        customer_id: item.customer_id,
-        full_name: item.profiles?.full_name || null,
-        phone: item.profiles?.phone || null,
-        jordan_phone: item.profiles?.jordan_phone || null,
-        whatsapp_phone: item.profiles?.whatsapp_phone || null,
-      }))
+      if (!supervisorCustomers || supervisorCustomers.length === 0) {
+        setCustomers([])
+        return
+      }
+
+      // جلب بيانات profiles للمنتسبين
+      const customerIds = supervisorCustomers.map((sc: any) => sc.customer_id)
+      const { data: profiles, error: profilesError } = await supabase
+        .from('profiles')
+        .select('user_id, full_name, phone, jordan_phone, whatsapp_phone')
+        .in('user_id', customerIds)
+
+      if (profilesError) throw profilesError
+
+      // إنشاء map للبحث السريع
+      const profilesMap = new Map((profiles || []).map((p: any) => [p.user_id, p]))
+
+      // دمج البيانات
+      const customersList = customerIds.map((customerId: string) => {
+        const profile = profilesMap.get(customerId)
+        return {
+          customer_id: customerId,
+          full_name: profile?.full_name || null,
+          phone: profile?.phone || null,
+          jordan_phone: profile?.jordan_phone || null,
+          whatsapp_phone: profile?.whatsapp_phone || null,
+        }
+      })
 
       setCustomers(customersList)
     } catch (e: any) {

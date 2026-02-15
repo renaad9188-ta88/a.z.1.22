@@ -3,10 +3,12 @@
 import { useEffect, useMemo, useState } from 'react'
 import { createSupabaseBrowserClient } from '@/lib/supabase'
 import toast from 'react-hot-toast'
-import { UserPlus, UserX, Users, Search, X, Shield, UserCheck, Phone, Power, PowerOff, BarChart3, Eye } from 'lucide-react'
+import { UserPlus, UserX, Users, Search, X, Shield, UserCheck, Phone, Power, PowerOff, BarChart3, Eye, FileText } from 'lucide-react'
 import SupervisorPermissionsModal from './SupervisorPermissionsModal'
 import SupervisorCustomersModal from './SupervisorCustomersModal'
 import SupervisorStats from './SupervisorStats'
+import RequestCard from './RequestCard'
+import { VisitRequest, UserProfile } from './types'
 
 type ProfileRow = {
   user_id: string
@@ -30,6 +32,10 @@ export default function SupervisorsManagement() {
   const [selectedSupervisorForCustomers, setSelectedSupervisorForCustomers] = useState<{ id: string; name: string } | null>(null)
   const [selectedSupervisorForStats, setSelectedSupervisorForStats] = useState<{ id: string; name: string } | null>(null)
   const [supervisorStatuses, setSupervisorStatuses] = useState<{ [key: string]: boolean }>({})
+  const [selectedSupervisorForRequests, setSelectedSupervisorForRequests] = useState<{ id: string; name: string; filter: string; title: string } | null>(null)
+  const [supervisorRequests, setSupervisorRequests] = useState<VisitRequest[]>([])
+  const [supervisorRequestsLoading, setSupervisorRequestsLoading] = useState(false)
+  const [supervisorRequestsProfiles, setSupervisorRequestsProfiles] = useState<{ [key: string]: UserProfile }>({})
 
   const load = async () => {
     try {
@@ -85,6 +91,106 @@ export default function SupervisorsManagement() {
     load()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  // تحميل الطلبات المفلترة للمشرف
+  const loadSupervisorRequests = async (supervisorId: string, filter: string) => {
+    try {
+      setSupervisorRequestsLoading(true)
+      
+      // جلب قائمة منتسبي المشرف
+      const { data: customerData } = await supabase
+        .from('supervisor_customers')
+        .select('customer_id')
+        .eq('supervisor_id', supervisorId)
+
+      const customerIds = (customerData || []).map((c: any) => c.customer_id)
+
+      // جلب الطلبات المعينة مباشرة
+      let query = supabase
+        .from('visit_requests')
+        .select('*')
+        .eq('assigned_to', supervisorId)
+        .is('deleted_at', null)
+
+      // تطبيق الفلتر حسب الحالة
+      if (filter === 'pending') {
+        query = query.in('status', ['pending', 'under_review'])
+      } else if (filter === 'approved') {
+        query = query.eq('status', 'approved')
+      } else if (filter === 'rejected') {
+        query = query.eq('status', 'rejected')
+      } else if (filter === 'completed') {
+        query = query.or('status.eq.completed,trip_status.eq.completed')
+      } else if (filter === 'assigned') {
+        // فقط المعينة مباشرة (لا حاجة لتعديل query)
+      }
+
+      const { data: assignedRequests, error: assignedError } = await query
+
+      if (assignedError) throw assignedError
+
+      // جلب طلبات المنتسبين
+      let customerRequests: any[] = []
+      if (customerIds.length > 0) {
+        let customerQuery = supabase
+          .from('visit_requests')
+          .select('*')
+          .in('user_id', customerIds)
+          .is('deleted_at', null)
+
+        if (filter === 'pending') {
+          customerQuery = customerQuery.in('status', ['pending', 'under_review'])
+        } else if (filter === 'approved') {
+          customerQuery = customerQuery.eq('status', 'approved')
+        } else if (filter === 'rejected') {
+          customerQuery = customerQuery.eq('status', 'rejected')
+        } else if (filter === 'completed') {
+          customerQuery = customerQuery.or('status.eq.completed,trip_status.eq.completed')
+        }
+
+        const { data, error } = await customerQuery
+        if (error) throw error
+        customerRequests = data || []
+      }
+
+      // دمج الطلبات (بدون تكرار)
+      const allRequestIds = new Set([
+        ...(assignedRequests || []).map((r: any) => r.id),
+        ...customerRequests.map((r: any) => r.id),
+      ])
+
+      const allRequests = [
+        ...(assignedRequests || []),
+        ...customerRequests.filter((r: any) => !allRequestIds.has(r.id)),
+      ] as VisitRequest[]
+
+      // جلب profiles للمستخدمين
+      const userIds = Array.from(new Set(allRequests.map((r: any) => r.user_id).filter(Boolean)))
+      const profilesMap: { [key: string]: UserProfile } = {}
+
+      if (userIds.length > 0) {
+        const { data: profiles, error: profilesError } = await supabase
+          .from('profiles')
+          .select('user_id, full_name, phone, jordan_phone, whatsapp_phone')
+          .in('user_id', userIds)
+
+        if (!profilesError && profiles) {
+          profiles.forEach((p: any) => {
+            profilesMap[p.user_id] = p as UserProfile
+          })
+        }
+      }
+
+      setSupervisorRequests(allRequests)
+      setSupervisorRequestsProfiles(profilesMap)
+    } catch (e: any) {
+      console.error('Load supervisor requests error:', e)
+      toast.error('تعذر تحميل الطلبات')
+      setSupervisorRequests([])
+    } finally {
+      setSupervisorRequestsLoading(false)
+    }
+  }
 
   // تطبيع رقم الهاتف للبحث
   const normalizePhoneForSearch = (phone: string) => {
@@ -500,7 +606,128 @@ export default function SupervisorsManagement() {
               <SupervisorStats
                 supervisorId={selectedSupervisorForStats.id}
                 supervisorName={selectedSupervisorForStats.name}
+                onCustomersClick={() => {
+                  setSelectedSupervisorForStats(null)
+                  setSelectedSupervisorForCustomers({
+                    id: selectedSupervisorForStats.id,
+                    name: selectedSupervisorForStats.name,
+                  })
+                }}
+                onAllRequestsClick={() => {
+                  setSelectedSupervisorForStats(null)
+                  setSelectedSupervisorForRequests({
+                    id: selectedSupervisorForStats.id,
+                    name: selectedSupervisorForStats.name,
+                    filter: 'all',
+                    title: 'جميع الطلبات',
+                  })
+                  loadSupervisorRequests(selectedSupervisorForStats.id, 'all')
+                }}
+                onPendingRequestsClick={() => {
+                  setSelectedSupervisorForStats(null)
+                  setSelectedSupervisorForRequests({
+                    id: selectedSupervisorForStats.id,
+                    name: selectedSupervisorForStats.name,
+                    filter: 'pending',
+                    title: 'الطلبات قيد المراجعة',
+                  })
+                  loadSupervisorRequests(selectedSupervisorForStats.id, 'pending')
+                }}
+                onApprovedRequestsClick={() => {
+                  setSelectedSupervisorForStats(null)
+                  setSelectedSupervisorForRequests({
+                    id: selectedSupervisorForStats.id,
+                    name: selectedSupervisorForStats.name,
+                    filter: 'approved',
+                    title: 'الطلبات المقبولة',
+                  })
+                  loadSupervisorRequests(selectedSupervisorForStats.id, 'approved')
+                }}
+                onRejectedRequestsClick={() => {
+                  setSelectedSupervisorForStats(null)
+                  setSelectedSupervisorForRequests({
+                    id: selectedSupervisorForStats.id,
+                    name: selectedSupervisorForStats.name,
+                    filter: 'rejected',
+                    title: 'الطلبات المرفوضة',
+                  })
+                  loadSupervisorRequests(selectedSupervisorForStats.id, 'rejected')
+                }}
+                onCompletedRequestsClick={() => {
+                  setSelectedSupervisorForStats(null)
+                  setSelectedSupervisorForRequests({
+                    id: selectedSupervisorForStats.id,
+                    name: selectedSupervisorForStats.name,
+                    filter: 'completed',
+                    title: 'الطلبات المنتهية',
+                  })
+                  loadSupervisorRequests(selectedSupervisorForStats.id, 'completed')
+                }}
+                onAssignedRequestsClick={() => {
+                  setSelectedSupervisorForStats(null)
+                  setSelectedSupervisorForRequests({
+                    id: selectedSupervisorForStats.id,
+                    name: selectedSupervisorForStats.name,
+                    filter: 'assigned',
+                    title: 'الطلبات المعينة مباشرة',
+                  })
+                  loadSupervisorRequests(selectedSupervisorForStats.id, 'assigned')
+                }}
+                onContactInfoClick={() => {
+                  setSelectedSupervisorForStats(null)
+                  setSelectedSupervisorForPermissions({
+                    id: selectedSupervisorForStats.id,
+                    name: selectedSupervisorForStats.name,
+                  })
+                }}
               />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal للطلبات المفلترة */}
+      {selectedSupervisorForRequests && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-3 sm:p-4 overflow-y-auto">
+          <div className="bg-white rounded-lg max-w-6xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+            <div className="sticky top-0 bg-white border-b border-gray-200 p-4 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <FileText className="w-5 h-5 text-blue-600" />
+                <h3 className="text-lg font-bold text-gray-900">
+                  {selectedSupervisorForRequests.title} - {selectedSupervisorForRequests.name}
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedSupervisorForRequests(null)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-4 sm:p-6">
+              {supervisorRequestsLoading ? (
+                <div className="text-center py-8 text-gray-600">جاري التحميل...</div>
+              ) : supervisorRequests.length === 0 ? (
+                <div className="text-center py-8 text-gray-600">لا توجد طلبات</div>
+              ) : (
+                <div className="space-y-3">
+                  {supervisorRequests.map((request, index) => (
+                    <RequestCard
+                      key={request.id}
+                      request={request}
+                      userProfile={supervisorRequestsProfiles[request.user_id] || null}
+                      onClick={() => {}}
+                      onScheduleTrip={() => {}}
+                      onDelete={() => {}}
+                      onRestore={() => {}}
+                      isAdmin={true}
+                      isDeleted={false}
+                      index={index}
+                    />
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         </div>

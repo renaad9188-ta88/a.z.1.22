@@ -64,6 +64,7 @@ export default function SupervisorInvitesPanel({ supervisorId }: SupervisorInvit
   })
   const [savingOne, setSavingOne] = useState(false)
   const fileRef = useRef<HTMLInputElement | null>(null)
+  const [supervisorPhone, setSupervisorPhone] = useState<string | null>(null)
 
   const baseUrl = useMemo(() => {
     if (typeof window === 'undefined') return ''
@@ -74,10 +75,46 @@ export default function SupervisorInvitesPanel({ supervisorId }: SupervisorInvit
     '{name}\nندعوك للتسجيل في منصة خدمات السوريين.\nرابط التسجيل: {link}\n\nإذا لا ترغب باستقبال الرسائل اكتب STOP.'
   )
 
+  // جلب رقم المشرف من supervisor_permissions
+  const loadSupervisorPhone = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('supervisor_permissions')
+        .select('whatsapp_phone, contact_phone')
+        .eq('supervisor_id', supervisorId)
+        .maybeSingle()
+
+      if (error && error.code !== 'PGRST116') {
+        console.error('Error loading supervisor phone:', error)
+        return
+      }
+
+      if (data) {
+        // استخدام whatsapp_phone أولاً، ثم contact_phone
+        const phone = data.whatsapp_phone || data.contact_phone || null
+        setSupervisorPhone(phone)
+      }
+    } catch (e) {
+      console.error('Error loading supervisor phone:', e)
+    }
+  }
+
+  useEffect(() => {
+    loadSupervisorPhone()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [supervisorId])
+
   const inviteMessage = (r: InviteRow) => {
     const link = `${baseUrl}/auth/register?invite=${encodeURIComponent(r.invite_token)}`
     const name = (r.full_name || '').trim() || 'أهلاً بك'
-    return (messageTpl || '').replaceAll('{name}', name).replaceAll('{link}', link)
+    let message = (messageTpl || '').replaceAll('{name}', name).replaceAll('{link}', link)
+    
+    // إضافة رقم المشرف في الرسالة للتواصل
+    if (supervisorPhone) {
+      message += `\n\nللتواصل معي: ${supervisorPhone}`
+    }
+    
+    return message
   }
 
   const load = async () => {

@@ -7,6 +7,14 @@ import { Users, FileText, CheckCircle, Clock, XCircle, MessageCircle, Phone, Tre
 interface SupervisorStatsProps {
   supervisorId: string
   supervisorName: string
+  onCustomersClick?: () => void
+  onAllRequestsClick?: () => void
+  onPendingRequestsClick?: () => void
+  onApprovedRequestsClick?: () => void
+  onRejectedRequestsClick?: () => void
+  onCompletedRequestsClick?: () => void
+  onAssignedRequestsClick?: () => void
+  onContactInfoClick?: () => void
 }
 
 interface SupervisorStatistics {
@@ -22,7 +30,18 @@ interface SupervisorStatistics {
   whatsappPhone: string | null
 }
 
-export default function SupervisorStats({ supervisorId, supervisorName }: SupervisorStatsProps) {
+export default function SupervisorStats({ 
+  supervisorId, 
+  supervisorName, 
+  onCustomersClick,
+  onAllRequestsClick,
+  onPendingRequestsClick,
+  onApprovedRequestsClick,
+  onRejectedRequestsClick,
+  onCompletedRequestsClick,
+  onAssignedRequestsClick,
+  onContactInfoClick,
+}: SupervisorStatsProps) {
   const supabase = createSupabaseBrowserClient()
   const [loading, setLoading] = useState(true)
   const [stats, setStats] = useState<SupervisorStatistics | null>(null)
@@ -151,7 +170,11 @@ export default function SupervisorStats({ supervisorId, supervisorName }: Superv
       </div>
 
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 mb-4">
-        <div className="bg-white rounded-lg p-3 border border-gray-200">
+        <div 
+          className={`bg-white rounded-lg p-3 border border-gray-200 ${onCustomersClick ? 'cursor-pointer hover:bg-blue-50 hover:border-blue-300 transition' : ''}`}
+          onClick={onCustomersClick}
+          title={onCustomersClick ? 'انقر لعرض المنتسبين' : undefined}
+        >
           <div className="flex items-center gap-2 mb-1">
             <Users className="w-4 h-4 text-blue-600" />
             <span className="text-xs text-gray-600">المنتسبون</span>
@@ -159,7 +182,11 @@ export default function SupervisorStats({ supervisorId, supervisorName }: Superv
           <div className="text-xl font-bold text-gray-900">{stats.totalCustomers}</div>
         </div>
 
-        <div className="bg-white rounded-lg p-3 border border-gray-200">
+        <div 
+          className={`bg-white rounded-lg p-3 border border-gray-200 ${onAllRequestsClick ? 'cursor-pointer hover:bg-purple-50 hover:border-purple-300 transition' : ''}`}
+          onClick={onAllRequestsClick}
+          title={onAllRequestsClick ? 'انقر لعرض جميع الطلبات' : undefined}
+        >
           <div className="flex items-center gap-2 mb-1">
             <FileText className="w-4 h-4 text-purple-600" />
             <span className="text-xs text-gray-600">الطلبات</span>
@@ -167,7 +194,11 @@ export default function SupervisorStats({ supervisorId, supervisorName }: Superv
           <div className="text-xl font-bold text-gray-900">{stats.totalRequests}</div>
         </div>
 
-        <div className="bg-white rounded-lg p-3 border border-gray-200">
+        <div 
+          className={`bg-white rounded-lg p-3 border border-gray-200 ${onPendingRequestsClick ? 'cursor-pointer hover:bg-yellow-50 hover:border-yellow-300 transition' : ''}`}
+          onClick={onPendingRequestsClick}
+          title={onPendingRequestsClick ? 'انقر لعرض الطلبات قيد المراجعة' : undefined}
+        >
           <div className="flex items-center gap-2 mb-1">
             <Clock className="w-4 h-4 text-yellow-600" />
             <span className="text-xs text-gray-600">قيد المراجعة</span>
@@ -175,7 +206,11 @@ export default function SupervisorStats({ supervisorId, supervisorName }: Superv
           <div className="text-xl font-bold text-yellow-700">{stats.pendingRequests}</div>
         </div>
 
-        <div className="bg-white rounded-lg p-3 border border-gray-200">
+        <div 
+          className={`bg-white rounded-lg p-3 border border-gray-200 ${onApprovedRequestsClick ? 'cursor-pointer hover:bg-green-50 hover:border-green-300 transition' : ''}`}
+          onClick={onApprovedRequestsClick}
+          title={onApprovedRequestsClick ? 'انقر لعرض الطلبات المقبولة' : undefined}
+        >
           <div className="flex items-center gap-2 mb-1">
             <CheckCircle className="w-4 h-4 text-green-600" />
             <span className="text-xs text-gray-600">مقبولة</span>
@@ -183,7 +218,11 @@ export default function SupervisorStats({ supervisorId, supervisorName }: Superv
           <div className="text-xl font-bold text-green-700">{stats.approvedRequests}</div>
         </div>
 
-        <div className="bg-white rounded-lg p-3 border border-gray-200">
+        <div 
+          className={`bg-white rounded-lg p-3 border border-gray-200 ${onRejectedRequestsClick ? 'cursor-pointer hover:bg-red-50 hover:border-red-300 transition' : ''}`}
+          onClick={onRejectedRequestsClick}
+          title={onRejectedRequestsClick ? 'انقر لعرض الطلبات المرفوضة' : undefined}
+        >
           <div className="flex items-center gap-2 mb-1">
             <XCircle className="w-4 h-4 text-red-600" />
             <span className="text-xs text-gray-600">مرفوضة</span>
@@ -191,7 +230,11 @@ export default function SupervisorStats({ supervisorId, supervisorName }: Superv
           <div className="text-xl font-bold text-red-700">{stats.rejectedRequests}</div>
         </div>
 
-        <div className="bg-white rounded-lg p-3 border border-gray-200">
+        <div 
+          className={`bg-white rounded-lg p-3 border border-gray-200 ${onCompletedRequestsClick ? 'cursor-pointer hover:bg-teal-50 hover:border-teal-300 transition' : ''}`}
+          onClick={onCompletedRequestsClick}
+          title={onCompletedRequestsClick ? 'انقر لعرض الطلبات المنتهية' : undefined}
+        >
           <div className="flex items-center gap-2 mb-1">
             <CheckCircle className="w-4 h-4 text-teal-600" />
             <span className="text-xs text-gray-600">منتهية</span>
@@ -199,7 +242,11 @@ export default function SupervisorStats({ supervisorId, supervisorName }: Superv
           <div className="text-xl font-bold text-teal-700">{stats.completedRequests}</div>
         </div>
 
-        <div className="bg-white rounded-lg p-3 border border-gray-200">
+        <div 
+          className={`bg-white rounded-lg p-3 border border-gray-200 ${onAssignedRequestsClick ? 'cursor-pointer hover:bg-indigo-50 hover:border-indigo-300 transition' : ''}`}
+          onClick={onAssignedRequestsClick}
+          title={onAssignedRequestsClick ? 'انقر لعرض الطلبات المعينة مباشرة' : undefined}
+        >
           <div className="flex items-center gap-2 mb-1">
             <FileText className="w-4 h-4 text-indigo-600" />
             <span className="text-xs text-gray-600">معينة مباشرة</span>
@@ -207,7 +254,11 @@ export default function SupervisorStats({ supervisorId, supervisorName }: Superv
           <div className="text-xl font-bold text-indigo-700">{stats.assignedRequests}</div>
         </div>
 
-        <div className="bg-white rounded-lg p-3 border border-gray-200">
+        <div 
+          className={`bg-white rounded-lg p-3 border border-gray-200 ${onContactInfoClick ? 'cursor-pointer hover:bg-gray-50 hover:border-gray-300 transition' : ''}`}
+          onClick={onContactInfoClick}
+          title={onContactInfoClick ? 'انقر لتعديل معلومات التواصل' : undefined}
+        >
           <div className="flex items-center gap-2 mb-1">
             {stats.hasContactInfo ? (
               <MessageCircle className="w-4 h-4 text-green-600" />
