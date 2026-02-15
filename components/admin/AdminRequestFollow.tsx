@@ -89,7 +89,7 @@ export default function AdminRequestFollow({
     toggleTripStops,
     openBookingModal,
     handleAdminBookTrip,
-  } = useAvailableTrips(request)
+  } = useAvailableTrips(request, role)
 
   // Load trip data when request changes
   useEffect(() => {
@@ -155,9 +155,10 @@ export default function AdminRequestFollow({
       setConfirmingBooking(true)
       const stamp = new Date().toISOString()
       const currentNotes = ((request.admin_notes || '') as string) || ''
+      const roleLabel = role === 'supervisor' ? 'المشرف' : 'الإدارة'
       const nextNotes = currentNotes.includes('تم تأكيد الحجز')
         ? currentNotes
-        : currentNotes + `\n\n=== تأكيد الحجز ===\nتم تأكيد الحجز\nتاريخ التأكيد: ${stamp}`
+        : currentNotes + `\n\n=== تأكيد الحجز ===\nتم تأكيد الحجز من ${roleLabel}\nتاريخ التأكيد: ${stamp}`
 
       const updateData: any = {
         admin_notes: nextNotes,
@@ -179,7 +180,7 @@ export default function AdminRequestFollow({
         await notifyCustomMessage(
           request.user_id,
           request.id,
-          '✅ تم تأكيد الحجز من الإدارة. يمكنك الآن متابعة تفاصيل الحجز والتتبع من صفحة متابعة الطلب.'
+          `✅ تم تأكيد الحجز من ${roleLabel}. يمكنك الآن متابعة تفاصيل الحجز والتتبع من صفحة متابعة الطلب.`
         )
       } catch (e) {
         console.error('Error notifying user confirm booking:', e)
@@ -580,7 +581,7 @@ export default function AdminRequestFollow({
                     )}
 
                     <div className="bg-white border border-gray-200 rounded-lg p-4 space-y-3">
-                      <p className="text-sm font-extrabold text-gray-900">حجز للمستخدم (من الإدارة)</p>
+                      <p className="text-sm font-extrabold text-gray-900">حجز للمستخدم (من {role === 'supervisor' ? 'المشرف' : 'الإدارة'})</p>
                       <p className="text-xs text-gray-600 leading-relaxed">
                         يمكنك اختيار رحلة للمستخدم وتحديد نقطة النزول/التحميل. سيتم حفظها وتظهر للمستخدم في صفحته تلقائياً.
                       </p>

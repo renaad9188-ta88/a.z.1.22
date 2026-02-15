@@ -86,7 +86,7 @@ export default function VisaServicesPage() {
         ? `\nالدولة المطلوبة: ${formData.country}`
         : ''
 
-      const { error } = await supabase
+      const { data: requestData, error } = await supabase
         .from('visit_requests')
         .insert({
           user_id: user.id,
@@ -102,8 +102,19 @@ export default function VisaServicesPage() {
           passport_expiry: new Date().toISOString().split('T')[0],
           admin_notes: `خدمة: ${serviceTypeLabel}${countryInfo}\nالهاتف: ${formData.phone}${formData.notes ? `\nملاحظات: ${formData.notes}` : ''}`,
         })
+        .select('id')
+        .single()
 
       if (error) throw error
+
+      // تعيين تلقائي للمشرف المخصص لخدمة "فيز وتأشيرات"
+      try {
+        const { autoAssignSupervisorForService } = await import('@/lib/supervisor-auto-assign')
+        await autoAssignSupervisorForService('visa', requestData.id)
+      } catch (assignError) {
+        console.error('Error auto-assigning supervisor:', assignError)
+      }
+
       toast.success('تم حفظ الطلب بنجاح!')
       setShowContactInfo(true)
       

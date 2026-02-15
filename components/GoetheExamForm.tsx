@@ -80,7 +80,7 @@ export default function GoetheExamForm() {
         throw new Error('فشل رفع صورة الجواز')
       }
 
-      const { error } = await supabase
+      const { data: requestData, error } = await supabase
         .from('visit_requests')
         .insert({
           user_id: user.id,
@@ -96,8 +96,18 @@ export default function GoetheExamForm() {
           passport_expiry: new Date().toISOString().split('T')[0],
           admin_notes: `خدمة: امتحان جوته\nالمستوى المطلوب: ${formData.examLevel}\nتاريخ الامتحان: ${formData.examDate}\nالمستوى السابق: ${formData.previousLevel}\nملاحظات: ${formData.notes}\nالهاتف: ${formData.phone}`,
         })
+        .select('id')
+        .single()
 
       if (error) throw error
+
+      // تعيين تلقائي للمشرف المخصص لخدمة "جوته"
+      try {
+        const { autoAssignSupervisorForService } = await import('@/lib/supervisor-auto-assign')
+        await autoAssignSupervisorForService('goethe', requestData.id)
+      } catch (assignError) {
+        console.error('Error auto-assigning supervisor:', assignError)
+      }
       toast.success('تم حفظ الطلب بنجاح!')
       router.push('/dashboard')
       router.refresh()

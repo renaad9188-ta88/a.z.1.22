@@ -20,7 +20,7 @@ export const carouselImages = {
     url: 'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=1200&h=600&fit=crop&q=80',
     // للصور المحلية: ضع الصورة في public/images/carousel/border.jpg واستخدم:
     // url: '/images/carousel/border.jpg'
-    title: 'شركة الأجنحة البيضاء للسياحة والسفر',
+    title: '',
     subtitle: 'خدمات سياحية متميزة',
     description: 'نوفر لك أفضل الخدمات السياحية',
   },

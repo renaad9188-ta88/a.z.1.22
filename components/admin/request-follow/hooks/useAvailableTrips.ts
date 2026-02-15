@@ -3,9 +3,9 @@ import { createSupabaseBrowserClient } from '@/lib/supabase'
 import toast from 'react-hot-toast'
 import { formatDate } from '@/lib/date-utils'
 import { notifyCustomMessage } from '@/lib/notifications'
-import type { ReqRow } from '../types'
+import type { ReqRow, Role } from '../types'
 
-export function useAvailableTrips(request: ReqRow | null) {
+export function useAvailableTrips(request: ReqRow | null, role: Role = 'admin') {
   const supabase = createSupabaseBrowserClient()
   const [showAvailableTrips, setShowAvailableTrips] = useState(false)
   const [availableTrips, setAvailableTrips] = useState<any[]>([])
@@ -193,7 +193,8 @@ export function useAvailableTrips(request: ReqRow | null) {
       }
 
       const tripInfo = `${trip.start_location_name} → ${trip.end_location_name} (${formatDate(trip.trip_date)})`
-      const adminNote = `\n\n=== حجز من الإدارة ===\nتم حجز رحلة ${tripType === 'arrival' ? 'قدوم' : 'مغادرة'} بواسطة الإدارة\n${tripInfo}${stopName ? `\nنقطة ${tripType === 'arrival' ? 'النزول' : 'التحميل'}: ${stopName}` : ''}\nتاريخ الحجز: ${new Date().toISOString()}`
+      const roleLabel = role === 'supervisor' ? 'المشرف' : 'الإدارة'
+      const adminNote = `\n\n=== حجز من ${roleLabel} ===\nتم حجز رحلة ${tripType === 'arrival' ? 'قدوم' : 'مغادرة'} بواسطة ${roleLabel}\n${tripInfo}${stopName ? `\nنقطة ${tripType === 'arrival' ? 'النزول' : 'التحميل'}: ${stopName}` : ''}\nتاريخ الحجز: ${new Date().toISOString()}`
       updateData.admin_notes = ((request.admin_notes || '') as string) + adminNote
 
       const { error } = await supabase.from('visit_requests').update(updateData).eq('id', request.id)
@@ -209,7 +210,7 @@ export function useAvailableTrips(request: ReqRow | null) {
         await notifyCustomMessage(
           request.user_id,
           request.id,
-          `تم حجز رحلة ${tripType === 'arrival' ? 'قدوم' : 'مغادرة'} لك من قبل الإدارة.\n${tripInfo}${stopName ? `\nنقطة ${tripType === 'arrival' ? 'النزول' : 'التحميل'}: ${stopName}` : ''}`
+          `تم حجز رحلة ${tripType === 'arrival' ? 'قدوم' : 'مغادرة'} لك من قبل ${roleLabel}.\n${tripInfo}${stopName ? `\nنقطة ${tripType === 'arrival' ? 'النزول' : 'التحميل'}: ${stopName}` : ''}`
         )
       } catch (e) {
         console.error('Error notifying user about admin booking:', e)

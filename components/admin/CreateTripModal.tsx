@@ -710,6 +710,7 @@ export default function CreateTripModal({
                 </div>
               </div>
 
+
               {/* Start/End */}
               {showAdvanced && (
                 <div className="border border-gray-200 rounded-xl p-3 space-y-3">

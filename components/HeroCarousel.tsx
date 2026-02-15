@@ -114,9 +114,11 @@ export default function HeroCarousel() {
               {/* Content */}
               <div className={`relative z-10 h-full flex items-start justify-center text-center px-4 pt-8 sm:pt-12 md:pt-16 lg:pt-20 ${slide.textColor}`}>
                 <div className="max-w-4xl mx-auto">
-                  <h2 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl xl:text-6xl font-extrabold mb-3 sm:mb-4 md:mb-5 drop-shadow-2xl text-white leading-tight">
-                    {slide.title}
-                  </h2>
+                  {slide.title && (
+                    <h2 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl xl:text-6xl font-extrabold mb-3 sm:mb-4 md:mb-5 drop-shadow-2xl text-white leading-tight">
+                      {slide.title}
+                    </h2>
+                  )}
                   <p className="text-base sm:text-lg md:text-xl lg:text-2xl mb-2 sm:mb-3 md:mb-4 font-bold drop-shadow-xl text-white/95">
                     {slide.subtitle}
                   </p>

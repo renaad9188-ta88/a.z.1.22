@@ -429,11 +429,15 @@ export default function BookingsManagement() {
   return (
     <div className="space-y-4 sm:space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
-        <h2 className="text-base sm:text-lg md:text-xl font-extrabold text-gray-900">إدارة الحجوزات والرحلات</h2>
+        <div className="flex items-center gap-2">
+          <Bus className="w-5 h-5 text-blue-600" />
+          <p className="text-sm text-gray-600">عرض وإدارة جميع الحجوزات والرحلات</p>
+        </div>
         <button
           onClick={() => loadBookings()}
-          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm font-semibold"
+          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm font-semibold flex items-center gap-2"
         >
+          <Calendar className="w-4 h-4" />
           تحديث
         </button>
       </div>

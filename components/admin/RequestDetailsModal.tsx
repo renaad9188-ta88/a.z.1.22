@@ -21,12 +21,160 @@ import {
   notifySupervisorAssigned,
   notifyPaymentVerified
 } from '@/lib/notifications'
+import { Sparkles } from 'lucide-react'
 
 interface RequestDetailsModalProps {
   request: VisitRequest | null
   userProfile: UserProfile | null
   onClose: () => void
   onUpdate: () => void
+}
+
+// مكون للتعيين حسب الخدمة
+function ServiceBasedSupervisorSelector({
+  visitType,
+  currentAssigned,
+  onAssign,
+  supabase,
+}: {
+  visitType: string
+  currentAssigned: string
+  onAssign: (supervisorId: string) => void
+  supabase: ReturnType<typeof createSupabaseBrowserClient>
+}) {
+  const [loading, setLoading] = useState(false)
+  const [foundSupervisor, setFoundSupervisor] = useState<{ id: string; name: string } | null>(null)
+
+  const handleAssignByService = async () => {
+    if (currentAssigned) {
+      toast.error('الطلب معيّن بالفعل لمشرف')
+      return
+    }
+
+    try {
+      setLoading(true)
+      const { autoAssignSupervisorForService } = await import('@/lib/supervisor-auto-assign')
+      const supervisorId = await autoAssignSupervisorForService(
+        visitType as 'visit' | 'umrah' | 'tourism' | 'goethe' | 'embassy' | 'visa'
+      )
+
+      if (supervisorId) {
+        // جلب اسم المشرف
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('full_name, phone')
+          .eq('user_id', supervisorId)
+          .maybeSingle()
+
+        const supervisorName = profile?.full_name || profile?.phone || 'مشرف'
+        setFoundSupervisor({ id: supervisorId, name: supervisorName })
+        onAssign(supervisorId)
+        toast.success(`تم تعيين المشرف: ${supervisorName}`)
+      } else {
+        toast.error('لم يتم العثور على مشرف مخصص لهذه الخدمة')
+      }
+    } catch (e: any) {
+      console.error('Service-based assign error:', e)
+      toast.error('تعذر البحث عن المشرف المناسب')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  if (foundSupervisor && currentAssigned === foundSupervisor.id) {
+    return (
+      <div className="mb-2 px-3 py-2 bg-green-50 border border-green-200 rounded-lg text-green-700 text-xs sm:text-sm font-semibold">
+        ✓ المشرف المخصص للخدمة: {foundSupervisor.name}
+      </div>
+    )
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={handleAssignByService}
+      disabled={loading || !!currentAssigned}
+      className="w-full mb-2 px-3 py-2 bg-purple-50 border border-purple-200 rounded-lg text-purple-700 hover:bg-purple-100 text-xs sm:text-sm font-semibold disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+      title="تعيين المشرف المخصص لهذه الخدمة"
+    >
+      <Briefcase className="w-3 h-3" />
+      {loading ? 'جاري البحث...' : 'تعيين حسب الخدمة'}
+    </button>
+  )
+}
+
+// مكون للتعيين التلقائي
+function AutoAssignButton({
+  requestUserId,
+  currentAssigned,
+  onAssign,
+  supabase,
+}: {
+  requestUserId: string
+  currentAssigned: string
+  onAssign: (supervisorId: string) => void
+  supabase: ReturnType<typeof createSupabaseBrowserClient>
+}) {
+  const [loading, setLoading] = useState(false)
+  const [foundSupervisor, setFoundSupervisor] = useState<{ id: string; name: string } | null>(null)
+
+  const handleAutoAssign = async () => {
+    if (currentAssigned) {
+      toast.error('الطلب معيّن بالفعل لمشرف')
+      return
+    }
+
+    try {
+      setLoading(true)
+      // البحث عن المشرف الذي له هذا المستخدم كمنتسب
+      const { data, error } = await supabase
+        .from('supervisor_customers')
+        .select('supervisor_id, profiles:supervisor_id(user_id, full_name, phone)')
+        .eq('customer_id', requestUserId)
+        .limit(1)
+        .maybeSingle()
+
+      if (error && error.code !== 'PGRST116') throw error
+
+      if (data && data.supervisor_id) {
+        const supervisor = data.profiles as any
+        setFoundSupervisor({
+          id: data.supervisor_id,
+          name: supervisor?.full_name || supervisor?.phone || 'مشرف',
+        })
+        onAssign(data.supervisor_id)
+        toast.success(`تم تعيين المشرف: ${supervisor?.full_name || supervisor?.phone || 'مشرف'}`)
+      } else {
+        toast.error('لم يتم العثور على مشرف مرتبط بهذا المستخدم')
+      }
+    } catch (e: any) {
+      console.error('Auto assign error:', e)
+      toast.error('تعذر البحث عن المشرف المناسب')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  if (foundSupervisor && currentAssigned === foundSupervisor.id) {
+    return (
+      <div className="px-3 py-2.5 bg-green-50 border border-green-200 rounded-lg text-green-700 text-xs sm:text-sm font-semibold whitespace-nowrap">
+        ✓ {foundSupervisor.name}
+      </div>
+    )
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={handleAutoAssign}
+      disabled={loading || !!currentAssigned}
+      className="px-3 py-2.5 bg-blue-50 border border-blue-200 rounded-lg text-blue-700 hover:bg-blue-100 text-xs sm:text-sm font-semibold disabled:opacity-60 disabled:cursor-not-allowed whitespace-nowrap flex items-center gap-1"
+      title="تعيين تلقائي بناءً على المنتسبين"
+    >
+      <Sparkles className="w-3 h-3" />
+      {loading ? 'جاري البحث...' : 'تعيين تلقائي'}
+    </button>
+  )
 }
 
 export default function RequestDetailsModal({
@@ -99,6 +247,40 @@ export default function RequestDetailsModal({
     })()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  // البحث عن المشرف المناسب تلقائياً بناءً على المنتسبين
+  useEffect(() => {
+    if (!request?.user_id) return
+
+    ;(async () => {
+      try {
+        // البحث عن المشرف الذي له هذا المستخدم كمنتسب
+        const { data, error } = await supabase
+          .from('supervisor_customers')
+          .select('supervisor_id, profiles:supervisor_id(user_id, full_name, phone)')
+          .eq('customer_id', request.user_id)
+          .limit(1)
+          .maybeSingle()
+
+        if (error && error.code !== 'PGRST116') {
+          console.warn('Could not load supervisor assignment:', error)
+          return
+        }
+
+        if (data && data.supervisor_id) {
+          // إذا لم يكن هناك تعيين حالياً، اقترح التعيين التلقائي
+          const currentAssigned = (request as any)?.assigned_to
+          if (!currentAssigned) {
+            // يمكن إضافة منطق هنا لاقتراح التعيين (مثل toast أو زر)
+            // لكننا لن نعين تلقائياً بدون موافقة الإدمن
+          }
+        }
+      } catch (e) {
+        console.warn('Error checking supervisor assignment:', e)
+      }
+    })()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [request?.user_id])
 
   const loadImages = async () => {
     if (!request) return
@@ -613,20 +795,34 @@ export default function RequestDetailsModal({
               {/* تعيين المشرف */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">تعيين مشرف للطلب</label>
-                <select
-                  value={assignedTo}
-                  onChange={(e) => setAssignedTo(e.target.value)}
-                  className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm sm:text-base"
-                >
-                  <option value="">بدون تعيين</option>
-                  {supervisors.map((s) => (
-                    <option key={s.user_id} value={s.user_id}>
-                      {s.full_name || s.phone || s.user_id.slice(0, 8)}
-                    </option>
-                  ))}
-                </select>
+                <ServiceBasedSupervisorSelector
+                  visitType={request.visit_type}
+                  currentAssigned={assignedTo}
+                  onAssign={(supervisorId) => setAssignedTo(supervisorId)}
+                  supabase={supabase}
+                />
+                <div className="flex gap-2 mt-2">
+                  <select
+                    value={assignedTo}
+                    onChange={(e) => setAssignedTo(e.target.value)}
+                    className="flex-1 px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm sm:text-base"
+                  >
+                    <option value="">بدون تعيين</option>
+                    {supervisors.map((s) => (
+                      <option key={s.user_id} value={s.user_id}>
+                        {s.full_name || s.phone || s.user_id.slice(0, 8)}
+                      </option>
+                    ))}
+                  </select>
+                  <AutoAssignButton
+                    requestUserId={request.user_id}
+                    currentAssigned={assignedTo}
+                    onAssign={(supervisorId) => setAssignedTo(supervisorId)}
+                    supabase={supabase}
+                  />
+                </div>
                 <p className="text-[11px] text-gray-600 mt-1">
-                  المشرف سيشاهد هذا الطلب فقط داخل لوحة المشرف.
+                  المشرف سيشاهد هذا الطلب فقط داخل لوحة المشرف. استخدم "تعيين حسب الخدمة" أو "تعيين تلقائي" للبحث عن المشرف المناسب.
                 </p>
               </div>
 

@@ -293,6 +293,15 @@ export default function JordanVisitForm() {
 
       if (error) throw error
 
+      // تعيين تلقائي للمشرف المخصص لخدمة "زيارة الأردن"
+      try {
+        const { autoAssignSupervisorForService } = await import('@/lib/supervisor-auto-assign')
+        await autoAssignSupervisorForService('visit', requestData.id)
+      } catch (assignError) {
+        console.error('Error auto-assigning supervisor:', assignError)
+        // لا نرمي خطأ هنا، فقط نسجله
+      }
+
       // إرسال إشعارات بشكل غير متزامن (لا ننتظرها)
       setTimeout(async () => {
         try {

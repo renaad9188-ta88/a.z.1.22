@@ -16,6 +16,8 @@ import SupervisorsManagement from './admin/SupervisorsManagement'
 import InvitesManagement from './admin/InvitesManagement'
 import CustomersManagement from './admin/CustomersManagement'
 import BookingsManagement from './admin/BookingsManagement'
+import SupervisorCustomersPanel from './supervisor/SupervisorCustomersPanel'
+import SupervisorInvitesPanel from './supervisor/SupervisorInvitesPanel'
 import { VisitRequest, UserProfile, AdminStats as StatsType } from './admin/types'
 import { ChevronDown, Layers, Calendar, Building2, MessageCircle, Phone, Plane, Ticket, MapPin, Archive, RotateCcw } from 'lucide-react'
 import QRCodeShare from './QRCodeShare'
@@ -37,12 +39,104 @@ export default function AdminDashboard() {
   const [typeFilter, setTypeFilter] = useState('all')
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
   const [currentRole, setCurrentRole] = useState<'admin' | 'supervisor' | 'other'>('other')
+  const [supervisorPermissions, setSupervisorPermissions] = useState<{
+    can_manage_routes: boolean
+    can_create_trips: boolean
+    can_assign_requests: boolean
+    can_verify_payments: boolean
+    can_view_all_requests: boolean
+  } | null>(null)
   const [showRouteManagement, setShowRouteManagement] = useState(false)
   const [showSupervisorsManagement, setShowSupervisorsManagement] = useState(false)
   const [showInvitesManagement, setShowInvitesManagement] = useState(false)
   const [showCustomersManagement, setShowCustomersManagement] = useState(false)
   const [showBookingsManagement, setShowBookingsManagement] = useState(false)
   const [showDeletedRequests, setShowDeletedRequests] = useState(false)
+  const [showSupervisorCustomers, setShowSupervisorCustomers] = useState(false)
+  const [showSupervisorInvites, setShowSupervisorInvites] = useState(false)
+
+  // دالة موحدة للتنقل بين الأقسام
+  const handleSectionToggle = (section: 'routes' | 'invites' | 'bookings' | 'customers' | 'supervisors' | 'deleted' | 'supervisor-customers' | 'supervisor-invites') => {
+    // التحقق من حالة القسم الحالي
+    let isCurrentlyOpen = false
+    switch (section) {
+      case 'routes':
+        isCurrentlyOpen = showRouteManagement
+        break
+      case 'invites':
+        isCurrentlyOpen = showInvitesManagement
+        break
+      case 'bookings':
+        isCurrentlyOpen = showBookingsManagement
+        break
+      case 'customers':
+        isCurrentlyOpen = showCustomersManagement
+        break
+      case 'supervisors':
+        isCurrentlyOpen = showSupervisorsManagement
+        break
+      case 'deleted':
+        isCurrentlyOpen = showDeletedRequests
+        break
+      case 'supervisor-customers':
+        isCurrentlyOpen = showSupervisorCustomers
+        break
+      case 'supervisor-invites':
+        isCurrentlyOpen = showSupervisorInvites
+        break
+    }
+
+    // إذا كان القسم مفتوحاً، أغلق جميع الأقسام
+    if (isCurrentlyOpen) {
+      setShowRouteManagement(false)
+      setShowInvitesManagement(false)
+      setShowBookingsManagement(false)
+      setShowCustomersManagement(false)
+      setShowSupervisorsManagement(false)
+      setShowDeletedRequests(false)
+      setShowSupervisorCustomers(false)
+      setShowSupervisorInvites(false)
+      return
+    }
+
+    // إغلاق جميع الأقسام أولاً
+    setShowRouteManagement(false)
+    setShowInvitesManagement(false)
+    setShowBookingsManagement(false)
+    setShowCustomersManagement(false)
+    setShowSupervisorsManagement(false)
+    setShowDeletedRequests(false)
+    setShowSupervisorCustomers(false)
+    setShowSupervisorInvites(false)
+
+    // فتح القسم المطلوب
+    switch (section) {
+      case 'routes':
+        setShowRouteManagement(true)
+        break
+      case 'invites':
+        setShowInvitesManagement(true)
+        break
+      case 'bookings':
+        setShowBookingsManagement(true)
+        break
+      case 'customers':
+        setShowCustomersManagement(true)
+        break
+      case 'supervisors':
+        setShowSupervisorsManagement(true)
+        break
+      case 'deleted':
+        setShowDeletedRequests(true)
+        break
+      case 'supervisor-customers':
+        setShowSupervisorCustomers(true)
+        break
+      case 'supervisor-invites':
+        setShowSupervisorInvites(true)
+        break
+    }
+  }
   const [deletedRequests, setDeletedRequests] = useState<VisitRequest[]>([])
   const [loadingDeleted, setLoadingDeleted] = useState(false)
   const [deletedCount, setDeletedCount] = useState(0)
@@ -218,6 +312,51 @@ export default function AdminDashboard() {
         router.push('/dashboard')
         return
       }
+
+      // تحميل صلاحيات المشرف إذا كان مشرف
+      if (isSupervisor) {
+        try {
+          const { data: permData, error: permError } = await supabase
+            .from('supervisor_permissions')
+            .select('*')
+            .eq('supervisor_id', user.id)
+            .maybeSingle()
+
+          if (permError && permError.code !== 'PGRST116') {
+            console.error('Error loading supervisor permissions:', permError)
+          }
+
+          if (permData) {
+            setSupervisorPermissions({
+              can_manage_routes: permData.can_manage_routes || false,
+              can_create_trips: permData.can_create_trips || false,
+              can_assign_requests: permData.can_assign_requests || false,
+              can_verify_payments: permData.can_verify_payments !== false,
+              can_view_all_requests: permData.can_view_all_requests || false,
+            })
+          } else {
+            // صلاحيات افتراضية للمشرف الجديد
+            setSupervisorPermissions({
+              can_manage_routes: false,
+              can_create_trips: false,
+              can_assign_requests: false,
+              can_verify_payments: true,
+              can_view_all_requests: false,
+            })
+          }
+        } catch (e) {
+          console.error('Error loading permissions:', e)
+          setSupervisorPermissions({
+            can_manage_routes: false,
+            can_create_trips: false,
+            can_assign_requests: false,
+            can_verify_payments: true,
+            can_view_all_requests: false,
+          })
+        }
+      } else {
+        setSupervisorPermissions(null)
+      }
       
       // تحميل جميع الطلبات (قائمة خفيفة لتحسين الأداء) - إخفاء المحذوفة
       const { data: requestsData, error: requestsError } = await supabase
@@ -263,10 +402,41 @@ export default function AdminDashboard() {
         }
       }
 
-      // ملاحظة: المشرف يرى فقط الطلبات المعيّنة له (المسودات عادة لا تكون معيّنة)
-      const scoped = isSupervisor
-        ? (visibleRequests || []).filter((r: any) => (r?.assigned_to || null) === user.id && !String((r?.admin_notes || '') as string).startsWith('[DRAFT]'))
-        : (visibleRequests || [])
+      // فلترة الطلبات للمشرف بناءً على الصلاحيات
+      let scoped = visibleRequests || []
+      if (isSupervisor && supervisorPermissions) {
+        if (!supervisorPermissions.can_view_all_requests) {
+          // جلب قائمة منتسبي المشرف
+          const { data: customersData } = await supabase
+            .from('supervisor_customers')
+            .select('customer_id')
+            .eq('supervisor_id', user.id)
+          
+          const customerIds = (customersData || []).map((c: any) => c.customer_id)
+          
+          // جلب قائمة الخدمات المخصصة للمشرف
+          const { data: servicesData } = await supabase
+            .from('supervisor_service_permissions')
+            .select('service_type')
+            .eq('supervisor_id', user.id)
+          
+          const allowedServiceTypes = new Set((servicesData || []).map((s: any) => s.service_type))
+          
+          // فلترة: الطلبات المعينة له أو طلبات منتسبيه أو طلبات الخدمات المخصصة له
+          scoped = (visibleRequests || []).filter((r: any) => {
+            const isAssigned = (r?.assigned_to || null) === user.id
+            const isCustomer = customerIds.includes(r.user_id)
+            const isAllowedService = allowedServiceTypes.size > 0 && allowedServiceTypes.has(r.visit_type)
+            const isDraft = String((r?.admin_notes || '') as string).startsWith('[DRAFT]')
+            return (isAssigned || isCustomer || isAllowedService) && !isDraft
+          })
+        } else {
+          // يمكنه رؤية جميع الطلبات، لكن نستثني المسودات
+          scoped = (visibleRequests || []).filter((r: any) => 
+            !String((r?.admin_notes || '') as string).startsWith('[DRAFT]')
+          )
+        }
+      }
 
       setRequests(scoped || [])
       setUserProfiles(profilesMap)
@@ -707,36 +877,38 @@ export default function AdminDashboard() {
             </div>
             <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 md:gap-3 w-full sm:w-auto justify-end sm:justify-start">
               <QRCodeShare title="منصة خدمات السوريين - لوحة الإدارة" />
-              {currentRole === 'admin' && (
+              {(currentRole === 'admin' || (currentRole === 'supervisor' && supervisorPermissions?.can_manage_routes)) && (
                 <button
-                  onClick={() => setShowRouteManagement(!showRouteManagement)}
-                  className="px-2 sm:px-3 md:px-4 py-1 sm:py-1.5 md:py-2 text-sm sm:text-base md:text-lg text-gray-700 hover:text-blue-600 transition font-semibold"
+                  onClick={() => handleSectionToggle('routes')}
+                  className={`px-2 sm:px-3 md:px-4 py-1 sm:py-1.5 md:py-2 text-sm sm:text-base md:text-lg transition font-semibold ${
+                    showRouteManagement 
+                      ? 'text-blue-600 bg-blue-50 rounded-lg' 
+                      : 'text-gray-700 hover:text-blue-600'
+                  }`}
                 >
                   إدارة الخطوط
                 </button>
               )}
               {currentRole === 'admin' && (
                 <button
-                  onClick={() => setShowInvitesManagement(!showInvitesManagement)}
-                  className="px-2 sm:px-3 md:px-4 py-1 sm:py-1.5 md:py-2 text-sm sm:text-base md:text-lg text-gray-700 hover:text-blue-600 transition font-semibold"
+                  onClick={() => handleSectionToggle('invites')}
+                  className={`px-2 sm:px-3 md:px-4 py-1 sm:py-1.5 md:py-2 text-sm sm:text-base md:text-lg transition font-semibold ${
+                    showInvitesManagement 
+                      ? 'text-blue-600 bg-blue-50 rounded-lg' 
+                      : 'text-gray-700 hover:text-blue-600'
+                  }`}
                 >
                   الدعوات
                 </button>
               )}
               {currentRole === 'admin' && (
                 <button
-                  onClick={() => {
-                    if (showBookingsManagement) {
-                      setShowBookingsManagement(false)
-                    } else {
-                      setShowBookingsManagement(true)
-                      setShowRouteManagement(false)
-                      setShowInvitesManagement(false)
-                      setShowCustomersManagement(false)
-                      setShowSupervisorsManagement(false)
-                    }
-                  }}
-                  className="px-2 sm:px-3 md:px-4 py-1 sm:py-1.5 md:py-2 text-xs sm:text-sm md:text-base text-gray-700 hover:text-blue-600 transition flex items-center gap-1"
+                  onClick={() => handleSectionToggle('bookings')}
+                  className={`px-2 sm:px-3 md:px-4 py-1 sm:py-1.5 md:py-2 text-xs sm:text-sm md:text-base transition flex items-center gap-1 ${
+                    showBookingsManagement 
+                      ? 'text-blue-600 bg-blue-50 rounded-lg' 
+                      : 'text-gray-700 hover:text-blue-600'
+                  }`}
                 >
                   <Calendar className="w-3 h-3 sm:w-4 sm:h-4" />
                   الحجوزات
@@ -744,39 +916,64 @@ export default function AdminDashboard() {
               )}
               {currentRole === 'admin' && (
                 <button
-                  onClick={() => setShowCustomersManagement(!showCustomersManagement)}
-                  className="px-2 sm:px-3 md:px-4 py-1 sm:py-1.5 md:py-2 text-sm sm:text-base md:text-lg text-gray-700 hover:text-blue-600 transition font-semibold"
+                  onClick={() => handleSectionToggle('customers')}
+                  className={`px-2 sm:px-3 md:px-4 py-1 sm:py-1.5 md:py-2 text-sm sm:text-base md:text-lg transition font-semibold ${
+                    showCustomersManagement 
+                      ? 'text-blue-600 bg-blue-50 rounded-lg' 
+                      : 'text-gray-700 hover:text-blue-600'
+                  }`}
                 >
                   المنتسبين
                 </button>
               )}
               {currentRole === 'admin' && (
                 <button
-                  onClick={() => setShowSupervisorsManagement(!showSupervisorsManagement)}
-                  className="px-2 sm:px-3 md:px-4 py-1 sm:py-1.5 md:py-2 text-sm sm:text-base md:text-lg text-gray-700 hover:text-blue-600 transition font-semibold"
+                  onClick={() => handleSectionToggle('supervisors')}
+                  className={`px-2 sm:px-3 md:px-4 py-1 sm:py-1.5 md:py-2 text-sm sm:text-base md:text-lg transition font-semibold ${
+                    showSupervisorsManagement 
+                      ? 'text-blue-600 bg-blue-50 rounded-lg' 
+                      : 'text-gray-700 hover:text-blue-600'
+                  }`}
                 >
                   المشرفين
                 </button>
               )}
               {currentRole === 'admin' && (
                 <button
-                  onClick={() => {
-                    if (showDeletedRequests) {
-                      setShowDeletedRequests(false)
-                    } else {
-                      setShowDeletedRequests(true)
-                      setShowRouteManagement(false)
-                      setShowInvitesManagement(false)
-                      setShowCustomersManagement(false)
-                      setShowSupervisorsManagement(false)
-                      setShowBookingsManagement(false)
-                    }
-                  }}
-                  className="px-2 sm:px-3 md:px-4 py-1 sm:py-1.5 md:py-2 text-xs sm:text-sm md:text-base text-gray-700 hover:text-red-600 transition flex items-center gap-1"
+                  onClick={() => handleSectionToggle('deleted')}
+                  className={`px-2 sm:px-3 md:px-4 py-1 sm:py-1.5 md:py-2 text-xs sm:text-sm md:text-base transition flex items-center gap-1 ${
+                    showDeletedRequests 
+                      ? 'text-red-600 bg-red-50 rounded-lg' 
+                      : 'text-gray-700 hover:text-red-600'
+                  }`}
                 >
                   <Archive className="w-3 h-3 sm:w-4 sm:h-4" />
                   المحذوفة
                 </button>
+              )}
+              {currentRole === 'supervisor' && (
+                <>
+                  <button
+                    onClick={() => handleSectionToggle('supervisor-customers')}
+                    className={`px-2 sm:px-3 md:px-4 py-1 sm:py-1.5 md:py-2 text-xs sm:text-sm md:text-base transition font-semibold ${
+                      showSupervisorCustomers 
+                        ? 'text-blue-600 bg-blue-50 rounded-lg' 
+                        : 'text-gray-700 hover:text-blue-600'
+                    }`}
+                  >
+                    المنتسبين
+                  </button>
+                  <button
+                    onClick={() => handleSectionToggle('supervisor-invites')}
+                    className={`px-2 sm:px-3 md:px-4 py-1 sm:py-1.5 md:py-2 text-xs sm:text-sm md:text-base transition font-semibold ${
+                      showSupervisorInvites 
+                        ? 'text-blue-600 bg-blue-50 rounded-lg' 
+                        : 'text-gray-700 hover:text-blue-600'
+                    }`}
+                  >
+                    الدعوات
+                  </button>
+                </>
               )}
               <Link
                 href="/admin/profile"
@@ -843,6 +1040,32 @@ export default function AdminDashboard() {
             </div>
             <SupervisorsManagement />
           </div>
+        ) : showSupervisorCustomers && currentUserId ? (
+          <div className="mb-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
+              <h2 className="text-base sm:text-lg md:text-xl font-extrabold text-gray-900">إدارة منتسبي</h2>
+              <button
+                onClick={() => setShowSupervisorCustomers(false)}
+                className="w-full sm:w-auto px-4 py-2 bg-gray-200 rounded-lg hover:bg-gray-300 font-bold"
+              >
+                العودة للطلبات
+              </button>
+            </div>
+            <SupervisorCustomersPanel supervisorId={currentUserId} />
+          </div>
+        ) : showSupervisorInvites && currentUserId ? (
+          <div className="mb-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
+              <h2 className="text-base sm:text-lg md:text-xl font-extrabold text-gray-900">إدارة الدعوات</h2>
+              <button
+                onClick={() => setShowSupervisorInvites(false)}
+                className="w-full sm:w-auto px-4 py-2 bg-gray-200 rounded-lg hover:bg-gray-300 font-bold"
+              >
+                العودة للطلبات
+              </button>
+            </div>
+            <SupervisorInvitesPanel supervisorId={currentUserId} />
+          </div>
         ) : showDeletedRequests ? (
           <div className="mb-6">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
@@ -889,15 +1112,20 @@ export default function AdminDashboard() {
         ) : showBookingsManagement ? (
           <div className="mb-6">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
-              <h2 className="text-base sm:text-lg md:text-xl font-extrabold text-gray-900">إدارة الحجوزات والرحلات</h2>
+              <div className="flex items-center gap-2">
+                <Calendar className="w-5 h-5 text-blue-600" />
+                <h2 className="text-base sm:text-lg md:text-xl font-extrabold text-gray-900">إدارة الحجوزات والرحلات</h2>
+              </div>
               <button
                 onClick={() => setShowBookingsManagement(false)}
-                className="w-full sm:w-auto px-4 py-2 bg-gray-200 rounded-lg hover:bg-gray-300 font-bold"
+                className="w-full sm:w-auto px-4 py-2 bg-gray-200 rounded-lg hover:bg-gray-300 font-bold transition"
               >
                 العودة للطلبات
               </button>
             </div>
-            <BookingsManagement />
+            <div className="bg-white rounded-xl shadow-md p-4 sm:p-6">
+              <BookingsManagement />
+            </div>
           </div>
         ) : (
           <>

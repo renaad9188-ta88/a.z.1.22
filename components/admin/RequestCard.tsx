@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { formatDate } from '@/lib/date-utils'
 import { VisitRequest } from './types'
 import { Clock, CheckCircle, XCircle, Eye, Calendar, MapPin, Users, DollarSign, Plane, Copy, ExternalLink, MessageCircle, Phone, Ticket, Bus, CheckCircle2, Trash2, RotateCcw, MoreVertical } from 'lucide-react'
@@ -131,9 +131,38 @@ export default function RequestCard({ request, userProfile, onClick, onScheduleT
   // سيتم حساب isCompleted لاحقاً ثم نستخدمه هنا (بعد تعريفه)
   const isDraft = ((request.admin_notes || '') as string).startsWith('[DRAFT]')
 
-  const waDigits = String(userProfile?.whatsapp_phone || adminInfo.syrianPhone || userProfile?.phone || adminInfo.jordanPhone || '')
-    .replace(/[^\d]/g, '')
-  const callDigits = String(userProfile?.phone || adminInfo.syrianPhone || adminInfo.jordanPhone || '').replace(/[^\d+]/g, '')
+  // البحث عن رقم المشرف المخصص (إذا كان المنتسب له مشرف)
+  const [supervisorContact, setSupervisorContact] = useState<{ contact_phone: string | null; whatsapp_phone: string | null; supervisor_name: string } | null>(null)
+  const [loadingSupervisorContact, setLoadingSupervisorContact] = useState(false)
+
+  useEffect(() => {
+    if (request.user_id && !isAdmin) {
+      // فقط للمنتسبين (ليس للإدمن)، البحث عن المشرف المخصص
+      setLoadingSupervisorContact(true)
+      import('@/lib/supervisor-utils').then(({ getSupervisorContactForCustomer, getSupervisorWhatsAppNumber, getSupervisorCallNumber }) => {
+        getSupervisorContactForCustomer(request.user_id).then((contact) => {
+          if (contact) {
+            setSupervisorContact({
+              contact_phone: getSupervisorCallNumber(contact),
+              whatsapp_phone: getSupervisorWhatsAppNumber(contact),
+              supervisor_name: contact.supervisor_name,
+            })
+          }
+          setLoadingSupervisorContact(false)
+        }).catch(() => {
+          setLoadingSupervisorContact(false)
+        })
+      })
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [request.user_id, isAdmin])
+
+  // تحديد الأرقام للعرض: المشرف أولاً، ثم الإدمن
+  const waDigits = supervisorContact?.whatsapp_phone 
+    || String(userProfile?.whatsapp_phone || adminInfo.syrianPhone || userProfile?.phone || adminInfo.jordanPhone || '')
+      .replace(/[^\d]/g, '')
+  const callDigits = supervisorContact?.contact_phone
+    || String(userProfile?.phone || adminInfo.syrianPhone || adminInfo.jordanPhone || '').replace(/[^\d+]/g, '')
   const waHref = waDigits ? `https://wa.me/${waDigits}` : ''
 
   // ملاحظة أداء: لا نعتمد على companions_data في بطاقة القائمة (قد تكون كبيرة وتبطّئ تحميل لوحة الأدمن).
@@ -245,34 +274,44 @@ export default function RequestCard({ request, userProfile, onClick, onScheduleT
                 </p>
               )}
               {isDraft && (
-                <div className="flex flex-wrap gap-2 mb-2">
-                  {waHref && (
-                    <a
-                      href={waHref}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      onClick={(e) => e.stopPropagation()}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-green-600 text-white hover:bg-green-700 transition text-xs font-bold"
-                      title="فتح واتساب للتواصل"
-                    >
-                      <MessageCircle className="w-3.5 h-3.5" />
-                      واتساب
-                    </a>
+                <div className="flex flex-col gap-2 mb-2">
+                  {supervisorContact && (
+                    <div className="text-xs text-blue-700 font-semibold bg-blue-50 px-2 py-1 rounded">
+                      المشرف المخصص: {supervisorContact.supervisor_name}
+                    </div>
                   )}
-                  {callDigits && (
-                    <a
-                      href={`tel:${callDigits}`}
-                      onClick={(e) => e.stopPropagation()}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gray-800 text-white hover:bg-black transition text-xs font-bold"
-                      title="اتصال"
-                    >
-                      <Phone className="w-3.5 h-3.5" />
-                      اتصال
-                    </a>
-                  )}
-                  {!waHref && !callDigits && (
-                    <span className="text-xs text-gray-500">لا يوجد رقم تواصل محفوظ</span>
-                  )}
+                  <div className="flex flex-wrap gap-2">
+                    {waHref && (
+                      <a
+                        href={waHref}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={(e) => e.stopPropagation()}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-green-600 text-white hover:bg-green-700 transition text-xs font-bold"
+                        title={supervisorContact ? `واتساب المشرف: ${supervisorContact.supervisor_name}` : "فتح واتساب للتواصل"}
+                      >
+                        <MessageCircle className="w-3.5 h-3.5" />
+                        واتساب
+                      </a>
+                    )}
+                    {callDigits && (
+                      <a
+                        href={`tel:${callDigits}`}
+                        onClick={(e) => e.stopPropagation()}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gray-800 text-white hover:bg-black transition text-xs font-bold"
+                        title={supervisorContact ? `اتصال بالمشرف: ${supervisorContact.supervisor_name}` : "اتصال"}
+                      >
+                        <Phone className="w-3.5 h-3.5" />
+                        اتصال
+                      </a>
+                    )}
+                    {!waHref && !callDigits && !loadingSupervisorContact && (
+                      <span className="text-xs text-gray-500">لا يوجد رقم تواصل محفوظ</span>
+                    )}
+                    {loadingSupervisorContact && (
+                      <span className="text-xs text-gray-500">جاري البحث عن المشرف...</span>
+                    )}
+                  </div>
                 </div>
               )}
               {getStatusBadge(request.status)}
@@ -482,15 +521,15 @@ export default function RequestCard({ request, userProfile, onClick, onScheduleT
                 <>
                   {/* Overlay لإغلاق القائمة عند النقر خارجها */}
                   <div
-                    className="fixed inset-0 z-10"
+                    className="fixed inset-0 z-[100]"
                     onClick={(e) => {
                       e.stopPropagation()
                       setShowMenu(false)
                     }}
                   />
                   
-                  {/* القائمة المنسدلة */}
-                  <div className="absolute left-0 top-full mt-1 bg-white rounded-lg shadow-lg border border-gray-200 z-20 min-w-[140px]">
+                  {/* القائمة المنسدلة - responsive */}
+                  <div className="absolute right-0 md:right-auto md:left-0 top-full mt-1 bg-white rounded-lg shadow-xl border border-gray-200 z-[101] min-w-[140px] md:min-w-[160px] whitespace-nowrap">
                     {canDelete && (
                       <button
                         type="button"
@@ -499,11 +538,11 @@ export default function RequestCard({ request, userProfile, onClick, onScheduleT
                           setShowMenu(false)
                           onDelete()
                         }}
-                        className="w-full px-3 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2 transition rounded-t-lg"
+                        className="w-full px-3 py-2.5 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2 transition rounded-t-lg"
                         title="حذف الطلب"
                       >
-                        <Trash2 className="w-3.5 h-3.5" />
-                        حذف
+                        <Trash2 className="w-3.5 h-3.5 flex-shrink-0" />
+                        <span>حذف</span>
                       </button>
                     )}
                     {canRestore && (
@@ -514,11 +553,11 @@ export default function RequestCard({ request, userProfile, onClick, onScheduleT
                           setShowMenu(false)
                           onRestore()
                         }}
-                        className={`w-full px-3 py-2 text-sm text-green-600 hover:bg-green-50 flex items-center gap-2 transition ${canDelete ? 'rounded-b-lg' : 'rounded-lg'}`}
+                        className={`w-full px-3 py-2.5 text-sm text-green-600 hover:bg-green-50 flex items-center gap-2 transition ${canDelete ? 'rounded-b-lg' : 'rounded-lg'}`}
                         title="استرجاع الطلب"
                       >
-                        <RotateCcw className="w-3.5 h-3.5" />
-                        استرجاع
+                        <RotateCcw className="w-3.5 h-3.5 flex-shrink-0" />
+                        <span>استرجاع</span>
                       </button>
                     )}
                   </div>

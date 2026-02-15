@@ -29,6 +29,24 @@ export default async function AdminPage() {
     redirect('/dashboard')
   }
 
+  // التحقق من أن المشرف نشط (إذا كان مشرف)
+  if (role === 'supervisor') {
+    const { data: permissions, error: permError } = await supabase
+      .from('supervisor_permissions')
+      .select('is_active')
+      .eq('supervisor_id', user.id)
+      .maybeSingle()
+
+    if (permError && permError.code !== 'PGRST116') {
+      console.error('Error checking supervisor status:', permError)
+    }
+
+    // إذا كان المشرف معطل (is_active = false)، منع الوصول
+    if (permissions && permissions.is_active === false) {
+      redirect('/dashboard')
+    }
+  }
+
   return <AdminDashboard />
 }
 
