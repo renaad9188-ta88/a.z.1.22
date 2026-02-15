@@ -24,6 +24,7 @@ type StopPointRow = { id: string; name: string; lat: number; lng: number; order_
 
 type PassengerRow = {
   id: string
+  user_id?: string | null
   visitor_name: string
   companions_count: number | null
   selected_dropoff_stop_id?: string | null
@@ -205,7 +206,7 @@ export default function DriverTripOverview({ tripId }: { tripId: string }) {
       const tripType = (tripData as any)?.trip_type || null
       const passengersWithStops = rows.map((r) => ({
         ...r,
-        profile: profilesMap[r.user_id] || { full_name: null, phone: null },
+        profile: r.user_id ? (profilesMap[r.user_id] || { full_name: null, phone: null }) : { full_name: null, phone: null },
         selectedDropoffStop: tripType === 'arrival' && r.selected_dropoff_stop_id ? stopsMap[r.selected_dropoff_stop_id] : null,
         selectedPickupStop: tripType === 'departure' && r.selected_pickup_stop_id ? stopsMap[r.selected_pickup_stop_id] : null,
       }))

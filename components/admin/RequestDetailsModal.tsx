@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { X, Save, User, Phone, Calendar, MapPin, FileText, Image as ImageIcon, MessageSquare, ZoomIn, ChevronLeft, ChevronRight } from 'lucide-react'
+import { X, Save, User, Phone, Calendar, MapPin, FileText, Image as ImageIcon, MessageSquare, ZoomIn, ChevronLeft, ChevronRight, Briefcase } from 'lucide-react'
 import { VisitRequest, UserProfile } from './types'
 import { parseAdminNotes } from '../request-details/utils'
 import { getSignedImageUrl } from '../request-details/utils'
@@ -822,7 +822,7 @@ export default function RequestDetailsModal({
                   />
                 </div>
                 <p className="text-[11px] text-gray-600 mt-1">
-                  المشرف سيشاهد هذا الطلب فقط داخل لوحة المشرف. استخدم "تعيين حسب الخدمة" أو "تعيين تلقائي" للبحث عن المشرف المناسب.
+                  المشرف سيشاهد هذا الطلب فقط داخل لوحة المشرف. استخدم &quot;تعيين حسب الخدمة&quot; أو &quot;تعيين تلقائي&quot; للبحث عن المشرف المناسب.
                 </p>
               </div>
 

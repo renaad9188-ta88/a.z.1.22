@@ -14,7 +14,9 @@ import {
   AlertCircle,
   ArrowRight,
   Users,
-  Key
+  Key,
+  MessageCircle,
+  Calendar
 } from 'lucide-react'
 
 export default function LoginForm() {
