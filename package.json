@@ -15,6 +15,10 @@
       "eslint": false
     }
   },
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=9.0.0"
+  },
   "dependencies": {
     "@supabase/ssr": "^0.0.10",
     "@supabase/supabase-js": "^2.38.0",
@@ -41,9 +45,6 @@
   },
   "overrides": {
     "rimraf": "^5.0.0",
-    "glob": "^10.0.0",
-    "@humanwhocodes/config-array": "npm:@eslint/config-array@^0.16.0",
-    "@humanwhocodes/object-schema": "npm:@eslint/object-schema@^2.1.0",
-    "eslint": "^8.57.1"
+    "glob": "^10.0.0"
   }
 }
