@@ -326,8 +326,13 @@ export default function HomeTransportMap() {
       const tripDateStr = new Date(userHint.trip_date + 'T00:00:00').toISOString().split('T')[0]
       const isTripToday = tripDateStr === today
       
-      // Show card if trip is today OR if driver is moving (has live location)
-      if (isTripToday || driverLocation) {
+      // حساب تاريخ الرحلة (اليوم أو في المستقبل القريب - حتى 7 أيام)
+      const tripDate = new Date(userHint.trip_date + 'T00:00:00')
+      const daysUntilTrip = Math.floor((tripDate.getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24))
+      const isTripSoon = daysUntilTrip >= 0 && daysUntilTrip <= 7
+      
+      // Show card if trip is today, soon, OR if driver is moving (has live location)
+      if (isTripToday || isTripSoon || driverLocation) {
         const peopleCount = 1 + (userHint.companions_count || 0)
         const routeInfo = userHint.start_location_name && userHint.end_location_name
           ? `${userHint.start_location_name} → ${userHint.end_location_name}`
@@ -377,7 +382,13 @@ export default function HomeTransportMap() {
           </div>
           ${userHint.meeting_time ? `<div style="color: #4b5563; font-size: ${smallFontSize}; margin-bottom: 4px; word-wrap: break-word;"><strong>وقت التجمع:</strong> ${userHint.meeting_time}</div>` : ''}
           ${userHint.departure_time ? `<div style="color: #4b5563; font-size: ${smallFontSize}; margin-bottom: 4px; word-wrap: break-word;"><strong>وقت الانطلاق:</strong> ${userHint.departure_time}</div>` : ''}
-          ${driverLocation ? '<div style="color: #059669; font-size: ' + (isMobile ? '10px' : '11px') + '; margin-top: 6px; font-weight: 600;">📍 يتم تتبع الرحلة الآن</div>' : ''}
+          ${driverLocation 
+            ? '<div style="color: #059669; font-size: ' + (isMobile ? '10px' : '11px') + '; margin-top: 6px; font-weight: 600;">📍 يتم تتبع الرحلة الآن</div>' 
+            : isTripToday 
+              ? '<div style="color: #f59e0b; font-size: ' + (isMobile ? '10px' : '11px') + '; margin-top: 6px; font-weight: 600;">⏳ في انتظار بدء التتبع (سيبدأ عند انطلاق الرحلة)</div>'
+              : isTripSoon
+                ? '<div style="color: #6366f1; font-size: ' + (isMobile ? '10px' : '11px') + '; margin-top: 6px; font-weight: 600;">📅 رحلتك قادمة - سيتم تفعيل التتبع تلقائياً</div>'
+                : ''}
           ${progressInfo}
           <div style="color: #2563eb; font-size: ${isMobile ? '10px' : '11px'}; margin-top: 8px; font-weight: 600; text-align: center; padding-top: 6px; border-top: 1px solid #e5e7eb;">
             اضغط لعرض التفاصيل الكاملة

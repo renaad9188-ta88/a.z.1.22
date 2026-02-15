@@ -3,6 +3,8 @@ import { createSupabaseBrowserClient } from './supabase'
 export interface SupervisorContact {
   supervisor_id: string
   supervisor_name: string
+  office_name: string | null
+  display_type: 'office' | 'supervisor'
   contact_phone: string | null
   whatsapp_phone: string | null
 }
@@ -26,7 +28,9 @@ export async function getSupervisorContactForCustomer(
         supervisor_permissions:supervisor_id (
           contact_phone,
           whatsapp_phone,
-          is_active
+          is_active,
+          office_name,
+          display_type
         ),
         profiles:supervisor_id (
           user_id,
@@ -59,6 +63,8 @@ export async function getSupervisorContactForCustomer(
       return {
         supervisor_id: customerData.supervisor_id,
         supervisor_name: profile?.full_name || 'مشرف',
+        office_name: permissions.office_name || null,
+        display_type: permissions.display_type || 'supervisor',
         contact_phone: permissions.contact_phone || null,
         whatsapp_phone: permissions.whatsapp_phone || null,
       }

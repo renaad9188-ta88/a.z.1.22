@@ -49,16 +49,19 @@ export default function TrackingStatusCard({
           <span className="text-gray-500">محطات التوقف</span>
           <span className="font-semibold tabular-nums">{stopsCount}</span>
         </div>
-        <div className="text-xs text-gray-500 bg-gray-50 border border-gray-200 rounded-lg p-2 leading-relaxed">
-          ملاحظة: سيتم تفعيل التتبع بعد الحجز والانطلاق.
-        </div>
+        {driverLocation ? (
+          <div className="text-xs text-green-700 bg-green-50 border border-green-200 rounded-lg p-2 leading-relaxed font-semibold">
+            ✅ يتم تتبع رحلتك الآن - موقع السائق محدث
+          </div>
+        ) : (
+          <div className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-2 leading-relaxed">
+            ⏳ في انتظار بدء التتبع - سيتم تفعيله تلقائياً عند انطلاق الرحلة
+          </div>
+        )}
         {!loading && stopsCount === 0 && !driverLocation && (
-          <div className="text-xs text-gray-500 space-y-1">
+          <div className="text-xs text-gray-500 space-y-1 mt-2">
             <p>
-              ملاحظة: يلزم تفعيل جداول التتبع في Supabase (سأجهز لك ملف SQL جاهز) ثم يبدأ الإدمن بإدخال نقاط السائق/التوقف.
-            </p>
-            <p>
-              سيتم إضافة تفاصيل التتبّع وموقع الراكب مع السائق على الخريطة لتتبّع الرحلة ومعرفة أماكن النزول للراكب.
+              💡 سيتم إضافة محطات التوقف وموقع السائق على الخريطة عند بدء الرحلة.
             </p>
             <p>نتمنى لكم السلامة وزيارة جميلة.</p>
           </div>

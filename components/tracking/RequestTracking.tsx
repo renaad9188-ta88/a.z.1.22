@@ -997,8 +997,12 @@ export default function RequestTracking({ requestId, userId }: { requestId: stri
               </h1>
               <p className="text-xs sm:text-sm text-gray-600 mt-1">
                 {tripInfo 
-                  ? `مشاهدة موقع ${tripInfo.trip_type === 'departure' ? 'الباص' : 'السائق'} ومحطات ${tripInfo.trip_type === 'departure' ? 'التحميل' : 'النزول'} (تحديث لحظي عند توفره)`
-                  : 'مشاهدة موقع السائق ومحطات التوقف (تحديث لحظي عند توفره)'}
+                  ? driverLocation
+                    ? `✅ يتم تتبع رحلتك الآن - موقع ${tripInfo.trip_type === 'departure' ? 'الباص' : 'السائق'} محدث لحظياً`
+                    : `⏳ في انتظار بدء التتبع - سيتم تفعيله تلقائياً عند انطلاق الرحلة (${tripInfo.trip_type === 'departure' ? 'الباص' : 'السائق'} ومحطات ${tripInfo.trip_type === 'departure' ? 'التحميل' : 'النزول'})`
+                  : driverLocation
+                    ? '✅ يتم تتبع رحلتك الآن - موقع السائق محدث لحظياً'
+                    : '⏳ في انتظار بدء التتبع - سيتم تفعيله تلقائياً عند انطلاق الرحلة'}
               </p>
             </div>
             <Link

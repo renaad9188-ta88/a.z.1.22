@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { createSupabaseBrowserClient } from '@/lib/supabase'
 import toast from 'react-hot-toast'
-import { X, Save, Shield, Phone, MessageCircle, Briefcase, CheckCircle2 } from 'lucide-react'
+import { X, Save, Shield, Phone, MessageCircle, Briefcase, CheckCircle2, Building2, User } from 'lucide-react'
 
 interface SupervisorPermissionsModalProps {
   supervisorId: string
@@ -21,6 +21,8 @@ interface Permissions {
   is_active: boolean
   contact_phone: string
   whatsapp_phone: string
+  office_name: string
+  display_type: 'office' | 'supervisor'
 }
 
 export default function SupervisorPermissionsModal({
@@ -41,6 +43,8 @@ export default function SupervisorPermissionsModal({
     is_active: true,
     contact_phone: '',
     whatsapp_phone: '',
+    office_name: '',
+    display_type: 'supervisor',
   })
   const [servicePermissions, setServicePermissions] = useState<Set<string>>(new Set())
   const [loadingServices, setLoadingServices] = useState(true)
@@ -71,6 +75,8 @@ export default function SupervisorPermissionsModal({
           is_active: data.is_active !== false,
           contact_phone: data.contact_phone || '',
           whatsapp_phone: data.whatsapp_phone || '',
+          office_name: data.office_name || '',
+          display_type: data.display_type || 'supervisor',
         })
       }
     } catch (e: any) {
@@ -103,12 +109,19 @@ export default function SupervisorPermissionsModal({
 
   const handleSave = async () => {
     try {
+      // التحقق من أن اسم المكتب مطلوب إذا كان النوع "مكتب"
+      if (permissions.display_type === 'office' && !permissions.office_name?.trim()) {
+        toast.error('يرجى إدخال اسم المكتب السياحي')
+        return
+      }
+
       setSaving(true)
       const { error } = await supabase
         .from('supervisor_permissions')
         .upsert({
           supervisor_id: supervisorId,
           ...permissions,
+          office_name: permissions.display_type === 'office' ? permissions.office_name.trim() : null,
           updated_at: new Date().toISOString(),
         }, {
           onConflict: 'supervisor_id',
@@ -280,6 +293,76 @@ export default function SupervisorPermissionsModal({
                     لم يتم اختيار أي خدمة. سيتم تعيين الطلبات يدوياً من الإدمن.
                   </p>
                 )}
+              </div>
+
+              {/* معلومات المكتب/المشرف */}
+              <div className="bg-green-50 rounded-lg p-4 border-2 border-green-200">
+                <h4 className="font-bold text-gray-900 mb-3 flex items-center gap-2">
+                  <Building2 className="w-4 h-4 text-green-600" />
+                  معلومات العرض للمستخدمين
+                </h4>
+                <p className="text-xs text-gray-600 mb-3">
+                  اختر كيف تريد أن يظهر للمستخدمين: كمكتب سياحي أو كمشرف
+                </p>
+                <div className="space-y-3">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      نوع العرض
+                    </label>
+                    <div className="grid grid-cols-2 gap-3">
+                      <label className={`flex items-center gap-3 p-3 rounded-lg border-2 cursor-pointer transition ${
+                        permissions.display_type === 'office'
+                          ? 'bg-green-100 border-green-400'
+                          : 'bg-white border-gray-200 hover:bg-gray-50'
+                      }`}>
+                        <input
+                          type="radio"
+                          name="display_type"
+                          value="office"
+                          checked={permissions.display_type === 'office'}
+                          onChange={(e) => setPermissions({ ...permissions, display_type: 'office' as 'office' | 'supervisor' })}
+                          className="w-4 h-4 text-green-600 focus:ring-green-500"
+                        />
+                        <Building2 className="w-5 h-5 text-green-600" />
+                        <span className="font-semibold text-gray-900">مكتب سياحي</span>
+                      </label>
+                      <label className={`flex items-center gap-3 p-3 rounded-lg border-2 cursor-pointer transition ${
+                        permissions.display_type === 'supervisor'
+                          ? 'bg-blue-100 border-blue-400'
+                          : 'bg-white border-gray-200 hover:bg-gray-50'
+                      }`}>
+                        <input
+                          type="radio"
+                          name="display_type"
+                          value="supervisor"
+                          checked={permissions.display_type === 'supervisor'}
+                          onChange={(e) => setPermissions({ ...permissions, display_type: 'supervisor' as 'office' | 'supervisor' })}
+                          className="w-4 h-4 text-blue-600 focus:ring-blue-500"
+                        />
+                        <User className="w-5 h-5 text-blue-600" />
+                        <span className="font-semibold text-gray-900">مشرف</span>
+                      </label>
+                    </div>
+                  </div>
+                  {permissions.display_type === 'office' && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        اسم المكتب السياحي *
+                      </label>
+                      <input
+                        type="text"
+                        value={permissions.office_name}
+                        onChange={(e) => setPermissions({ ...permissions, office_name: e.target.value })}
+                        placeholder="مثال: مكتب الأجنحة البيضاء للسياحة"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-sm"
+                        required
+                      />
+                      <p className="text-xs text-gray-500 mt-1">
+                        سيظهر هذا الاسم للمستخدمين بدلاً من اسم المشرف
+                      </p>
+                    </div>
+                  )}
+                </div>
               </div>
 
               {/* معلومات التواصل */}

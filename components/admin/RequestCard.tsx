@@ -132,7 +132,14 @@ export default function RequestCard({ request, userProfile, onClick, onScheduleT
   const isDraft = ((request.admin_notes || '') as string).startsWith('[DRAFT]')
 
   // البحث عن رقم المشرف المخصص (إذا كان المنتسب له مشرف)
-  const [supervisorContact, setSupervisorContact] = useState<{ contact_phone: string | null; whatsapp_phone: string | null; supervisor_name: string } | null>(null)
+  const [supervisorContact, setSupervisorContact] = useState<{ 
+    contact_phone: string | null
+    whatsapp_phone: string | null
+    supervisor_name: string
+    office_name: string | null
+    display_type: 'office' | 'supervisor'
+    display_name: string
+  } | null>(null)
   const [loadingSupervisorContact, setLoadingSupervisorContact] = useState(false)
 
   useEffect(() => {
@@ -142,10 +149,18 @@ export default function RequestCard({ request, userProfile, onClick, onScheduleT
       import('@/lib/supervisor-utils').then(({ getSupervisorContactForCustomer, getSupervisorWhatsAppNumber, getSupervisorCallNumber }) => {
         getSupervisorContactForCustomer(request.user_id).then((contact) => {
           if (contact) {
+            // تحديد الاسم للعرض: مكتب إذا كان display_type === 'office' و office_name موجود، وإلا اسم المشرف
+            const displayName = contact.display_type === 'office' && contact.office_name
+              ? contact.office_name
+              : contact.supervisor_name
+            
             setSupervisorContact({
               contact_phone: getSupervisorCallNumber(contact),
               whatsapp_phone: getSupervisorWhatsAppNumber(contact),
               supervisor_name: contact.supervisor_name,
+              office_name: contact.office_name,
+              display_type: contact.display_type,
+              display_name: displayName,
             })
           }
           setLoadingSupervisorContact(false)
@@ -277,7 +292,7 @@ export default function RequestCard({ request, userProfile, onClick, onScheduleT
                 <div className="flex flex-col gap-2 mb-2">
                   {supervisorContact && (
                     <div className="text-xs text-blue-700 font-semibold bg-blue-50 px-2 py-1 rounded">
-                      المشرف المخصص: {supervisorContact.supervisor_name}
+                      {supervisorContact.display_type === 'office' ? 'المكتب المخصص' : 'المشرف المخصص'}: {supervisorContact.display_name}
                     </div>
                   )}
                   <div className="flex flex-wrap gap-2">
@@ -288,7 +303,7 @@ export default function RequestCard({ request, userProfile, onClick, onScheduleT
                         rel="noopener noreferrer"
                         onClick={(e) => e.stopPropagation()}
                         className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-green-600 text-white hover:bg-green-700 transition text-xs font-bold"
-                        title={supervisorContact ? `واتساب المشرف: ${supervisorContact.supervisor_name}` : "فتح واتساب للتواصل"}
+                        title={supervisorContact ? `واتساب ${supervisorContact.display_type === 'office' ? 'المكتب' : 'المشرف'}: ${supervisorContact.display_name}` : "فتح واتساب للتواصل"}
                       >
                         <MessageCircle className="w-3.5 h-3.5" />
                         واتساب
@@ -299,7 +314,7 @@ export default function RequestCard({ request, userProfile, onClick, onScheduleT
                         href={`tel:${callDigits}`}
                         onClick={(e) => e.stopPropagation()}
                         className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gray-800 text-white hover:bg-black transition text-xs font-bold"
-                        title={supervisorContact ? `اتصال بالمشرف: ${supervisorContact.supervisor_name}` : "اتصال"}
+                        title={supervisorContact ? `اتصال ${supervisorContact.display_type === 'office' ? 'بالمكتب' : 'بالمشرف'}: ${supervisorContact.display_name}` : "اتصال"}
                       >
                         <Phone className="w-3.5 h-3.5" />
                         اتصال

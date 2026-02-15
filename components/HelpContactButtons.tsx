@@ -24,7 +24,14 @@ export default function HelpContactButtons({
   className = '',
   userId,
 }: Props) {
-  const [supervisorContact, setSupervisorContact] = useState<{ contact_phone: string | null; whatsapp_phone: string | null; supervisor_name: string } | null>(null)
+  const [supervisorContact, setSupervisorContact] = useState<{ 
+    contact_phone: string | null
+    whatsapp_phone: string | null
+    supervisor_name: string
+    office_name: string | null
+    display_type: 'office' | 'supervisor'
+    display_name: string
+  } | null>(null)
   const [loadingSupervisor, setLoadingSupervisor] = useState(false)
 
   useEffect(() => {
@@ -32,10 +39,18 @@ export default function HelpContactButtons({
       setLoadingSupervisor(true)
       getSupervisorContactForCustomer(userId).then((contact) => {
         if (contact) {
+          // تحديد الاسم للعرض: مكتب إذا كان display_type === 'office' و office_name موجود، وإلا اسم المشرف
+          const displayName = contact.display_type === 'office' && contact.office_name
+            ? contact.office_name
+            : contact.supervisor_name
+          
           setSupervisorContact({
             contact_phone: getSupervisorCallNumber(contact),
             whatsapp_phone: getSupervisorWhatsAppNumber(contact),
             supervisor_name: contact.supervisor_name,
+            office_name: contact.office_name,
+            display_type: contact.display_type,
+            display_name: displayName,
           })
         }
         setLoadingSupervisor(false)
@@ -64,7 +79,7 @@ export default function HelpContactButtons({
       </div>
       {supervisorContact && (
         <div className="mb-2 text-xs text-blue-700 font-semibold bg-blue-50 px-2 py-1 rounded">
-          المشرف المخصص: {supervisorContact.supervisor_name}
+          {supervisorContact.display_type === 'office' ? 'المكتب المخصص' : 'المشرف المخصص'}: {supervisorContact.display_name}
         </div>
       )}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
@@ -73,7 +88,7 @@ export default function HelpContactButtons({
           target="_blank"
           rel="noopener noreferrer"
           className="flex items-center justify-center gap-2 px-4 py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition text-sm font-semibold"
-          title={supervisorContact ? `واتساب المشرف: ${supervisorContact.supervisor_name}` : undefined}
+          title={supervisorContact ? `واتساب ${supervisorContact.display_type === 'office' ? 'المكتب' : 'المشرف'}: ${supervisorContact.display_name}` : undefined}
         >
           <MessageCircle className="w-4 h-4" />
           واتساب للمساعدة
@@ -81,7 +96,7 @@ export default function HelpContactButtons({
         <a
           href={`tel:${callDigits}`}
           className="flex items-center justify-center gap-2 px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm font-semibold"
-          title={supervisorContact ? `اتصال بالمشرف: ${supervisorContact.supervisor_name}` : undefined}
+          title={supervisorContact ? `اتصال ${supervisorContact.display_type === 'office' ? 'بالمكتب' : 'بالمشرف'}: ${supervisorContact.display_name}` : undefined}
         >
           <Phone className="w-4 h-4" />
           اتصال للمساعدة
@@ -89,7 +104,7 @@ export default function HelpContactButtons({
       </div>
       <p className="mt-2 text-[11px] sm:text-xs text-gray-600">
         {supervisorContact 
-          ? `تواصل مع مشرفك المخصص: ${supervisorContact.supervisor_name}`
+          ? `تواصل مع ${supervisorContact.display_type === 'office' ? 'مكتبك المخصص' : 'مشرفك المخصص'}: ${supervisorContact.display_name}`
           : 'إذا واجهت أي مشكلة، تواصل معنا وسنساعدك خطوة بخطوة.'}
       </p>
     </div>
