@@ -134,7 +134,7 @@ export default function CustomersManagement() {
   }
 
   const messageTemplate = (name?: string | null) =>
-    `${(name || 'أهلاً بك').trim()}\nيسرّنا تواصلك معنا عبر منصة خدمات السوريين.\nرابط المنصة: ${typeof window !== 'undefined' ? window.location.origin : ''}`
+    `${(name || 'أهلاً بك').trim()}\nيسرّنا تواصلك معنا عبر سوريا بلس (Syria Plus) خدمات.\nرابط المنصة: ${typeof window !== 'undefined' ? window.location.origin : ''}`
 
   return (
     <div className="space-y-4 sm:space-y-6">

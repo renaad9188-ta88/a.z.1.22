@@ -143,10 +143,10 @@ export default function RequestCard({ request, userProfile, onClick, onScheduleT
   const [loadingSupervisorContact, setLoadingSupervisorContact] = useState(false)
 
   useEffect(() => {
-    if (request.user_id && !isAdmin) {
-      // فقط للمنتسبين (ليس للإدمن)، البحث عن المشرف المخصص
+    // فقط للزيارات (visit) نبحث عن المشرف
+    if (request.user_id && !isAdmin && request.visit_type === 'visit') {
       setLoadingSupervisorContact(true)
-      import('@/lib/supervisor-utils').then(({ getSupervisorContactForCustomer, getSupervisorWhatsAppNumber, getSupervisorCallNumber }) => {
+      import('@/lib/supervisor-utils').then(({ getSupervisorContactForCustomer, getSupervisorWhatsAppNumber, getSupervisorCallNumber, getSupervisorWithFullPermissions }) => {
         getSupervisorContactForCustomer(request.user_id).then((contact) => {
           if (contact) {
             // تحديد الاسم للعرض: مكتب إذا كان display_type === 'office' و office_name موجود، وإلا اسم المشرف
@@ -162,22 +162,47 @@ export default function RequestCard({ request, userProfile, onClick, onScheduleT
               display_type: contact.display_type,
               display_name: displayName,
             })
+            setLoadingSupervisorContact(false)
+          } else {
+            // إذا لم يكن له مشرف مخصص، ابحث عن مشرف له صلاحيات كاملة
+            getSupervisorWithFullPermissions().then((fullPermsContact) => {
+              if (fullPermsContact) {
+                const displayName = fullPermsContact.display_type === 'office' && fullPermsContact.office_name
+                  ? fullPermsContact.office_name
+                  : fullPermsContact.supervisor_name
+                
+                setSupervisorContact({
+                  contact_phone: getSupervisorCallNumber(fullPermsContact),
+                  whatsapp_phone: getSupervisorWhatsAppNumber(fullPermsContact),
+                  supervisor_name: fullPermsContact.supervisor_name,
+                  office_name: fullPermsContact.office_name,
+                  display_type: fullPermsContact.display_type,
+                  display_name: displayName,
+                })
+              }
+              setLoadingSupervisorContact(false)
+            }).catch(() => {
+              setLoadingSupervisorContact(false)
+            })
           }
-          setLoadingSupervisorContact(false)
         }).catch(() => {
           setLoadingSupervisorContact(false)
         })
       })
+    } else {
+      setLoadingSupervisorContact(false)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [request.user_id, isAdmin])
+  }, [request.user_id, request.visit_type, isAdmin])
 
-  // تحديد الأرقام للعرض: المشرف أولاً، ثم الإدمن
-  const waDigits = supervisorContact?.whatsapp_phone 
-    || String(userProfile?.whatsapp_phone || adminInfo.syrianPhone || userProfile?.phone || adminInfo.jordanPhone || '')
-      .replace(/[^\d]/g, '')
-  const callDigits = supervisorContact?.contact_phone
-    || String(userProfile?.phone || adminInfo.syrianPhone || adminInfo.jordanPhone || '').replace(/[^\d+]/g, '')
+  // تحديد الأرقام للعرض: المشرف للزيارات فقط، الإدمن للباقي
+  const waDigits = (request.visit_type === 'visit' && supervisorContact?.whatsapp_phone)
+    ? supervisorContact.whatsapp_phone
+    : String(userProfile?.whatsapp_phone || adminInfo.syrianPhone || userProfile?.phone || adminInfo.jordanPhone || '')
+        .replace(/[^\d]/g, '')
+  const callDigits = (request.visit_type === 'visit' && supervisorContact?.contact_phone)
+    ? supervisorContact.contact_phone
+    : String(userProfile?.phone || adminInfo.syrianPhone || adminInfo.jordanPhone || '').replace(/[^\d+]/g, '')
   const waHref = waDigits ? `https://wa.me/${waDigits}` : ''
 
   // ملاحظة أداء: لا نعتمد على companions_data في بطاقة القائمة (قد تكون كبيرة وتبطّئ تحميل لوحة الأدمن).

@@ -102,3 +102,63 @@ export function getSupervisorCallNumber(supervisorContact: SupervisorContact | n
   return supervisorContact.contact_phone.replace(/[^\d+]/g, '')
 }
 
+/**
+ * البحث عن مشرف له صلاحيات كاملة (can_view_all_requests = true)
+ * يستخدم عندما لا يكون للمستخدم مشرف مخصص
+ * @returns معلومات التواصل للمشرف بصلاحيات كاملة أو null
+ */
+export async function getSupervisorWithFullPermissions(): Promise<SupervisorContact | null> {
+  try {
+    const supabase = createSupabaseBrowserClient()
+    
+    // البحث عن مشرف نشط له صلاحيات كاملة
+    const { data: permissionsData, error: permError } = await supabase
+      .from('supervisor_permissions')
+      .select(`
+        supervisor_id,
+        contact_phone,
+        whatsapp_phone,
+        is_active,
+        office_name,
+        display_type,
+        can_view_all_requests,
+        profiles:supervisor_id (
+          user_id,
+          full_name
+        )
+      `)
+      .eq('is_active', true)
+      .eq('can_view_all_requests', true)
+      .limit(1)
+      .maybeSingle()
+
+    if (permError && permError.code !== 'PGRST116') {
+      console.error('Error fetching supervisor with full permissions:', permError)
+      return null
+    }
+
+    if (!permissionsData || !permissionsData.supervisor_id) {
+      return null
+    }
+
+    const profile = permissionsData.profiles as any
+
+    // إذا كان هناك رقم تواصل، إرجاعه
+    if (permissionsData.contact_phone || permissionsData.whatsapp_phone) {
+      return {
+        supervisor_id: permissionsData.supervisor_id,
+        supervisor_name: profile?.full_name || 'مشرف',
+        office_name: permissionsData.office_name || null,
+        display_type: permissionsData.display_type || 'supervisor',
+        contact_phone: permissionsData.contact_phone || null,
+        whatsapp_phone: permissionsData.whatsapp_phone || null,
+      }
+    }
+
+    return null
+  } catch (error) {
+    console.error('Error in getSupervisorWithFullPermissions:', error)
+    return null
+  }
+}
+

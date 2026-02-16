@@ -202,6 +202,7 @@ export default function VisitRequestForm() {
 
           <HelpContactButtons
             className="mb-4 sm:mb-6"
+            visitType="visit"
             message="مرحباً، أحتاج مساعدة في تقديم طلب زيارة (رفع الجواز)."
           />
 

@@ -22,7 +22,7 @@ export default function HomePage() {
           <div className="w-20 sm:w-24 h-0.5 bg-blue-600 rounded-full mx-auto"></div>
         </div>
         <div className="max-w-3xl mx-auto bg-white p-4 sm:p-6 rounded-xl shadow-lg">
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 mb-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 mb-4">
             <a href="https://wa.me/962798905595" target="_blank" className="flex items-center gap-2 sm:gap-3 p-3 sm:p-4 bg-green-50 rounded-lg hover:bg-green-100 transition">
               <span className="text-xl sm:text-2xl">💬</span>
               <MessageCircle className="w-4 h-4 sm:w-5 sm:h-5 text-green-600 flex-shrink-0" />
@@ -37,14 +37,6 @@ export default function HomePage() {
               <div className="min-w-0">
                 <p className="font-semibold text-xs sm:text-sm mb-0.5">الهاتف</p>
                 <p className="text-gray-600 text-xs truncate">00962798905595</p>
-              </div>
-            </a>
-            <a href="tel:00962770460335" className="flex items-center gap-2 sm:gap-3 p-3 sm:p-4 bg-blue-50 rounded-lg hover:bg-blue-100 transition">
-              <span className="text-xl sm:text-2xl">📱</span>
-              <Phone className="w-4 h-4 sm:w-5 sm:h-5 text-blue-600 flex-shrink-0" />
-              <div className="min-w-0">
-                <p className="font-semibold text-xs sm:text-sm mb-0.5">الهاتف</p>
-                <p className="text-gray-600 text-xs truncate">00962770460335</p>
               </div>
             </a>
           </div>
@@ -68,8 +60,8 @@ export default function HomePage() {
                   </p>
                 </div>
                 <div className="flex items-center gap-2">
-                  <InvitePlatformButton title="منصة خدمات السوريين" />
-                  <QRCodeShare title="منصة خدمات السوريين" />
+                  <InvitePlatformButton title="سوريا بلس (Syria Plus) خدمات" />
+                  <QRCodeShare title="سوريا بلس (Syria Plus) خدمات" />
                 </div>
               </div>
             </div>
@@ -116,7 +108,7 @@ export default function HomePage() {
       {/* Footer */}
       <footer className="bg-gray-800 text-white py-6 sm:py-8">
         <div className="container mx-auto px-4 text-center">
-          <p className="mb-3 sm:mb-4 text-sm sm:text-base">© 2026 منصة خدمات السوريين - جميع الحقوق محفوظة</p>
+          <p className="mb-3 sm:mb-4 text-sm sm:text-base">© 2026 سوريا بلس (Syria Plus) خدمات - جميع الحقوق محفوظة</p>
           <div className="flex flex-col sm:flex-row justify-center gap-3 sm:gap-6 text-sm sm:text-base">
             <Link href="/terms" className="hover:text-blue-400 transition">الشروط والأحكام</Link>
             <Link href="/privacy" className="hover:text-blue-400 transition">الخصوصية</Link>

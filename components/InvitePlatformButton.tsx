@@ -6,7 +6,7 @@ import toast from 'react-hot-toast'
 
 export default function InvitePlatformButton({
   url,
-  title = 'منصة خدمات السوريين',
+  title = 'سوريا بلس (Syria Plus) خدمات',
 }: {
   url?: string
   title?: string

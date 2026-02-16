@@ -922,7 +922,7 @@ export default function RequestTracking({ requestId, userId }: { requestId: stri
       const mapsLink = `https://www.google.com/maps?q=${lat},${lng}`
       const code = requestId.slice(0, 8).toUpperCase()
       const msg =
-        `موقعي الحالي (منصة خدمات السوريين)\n` +
+        `موقعي الحالي (سوريا بلس (Syria Plus) خدمات)\n` +
         `كود الطلب: ${code}\n` +
         `الاسم: ${request?.visitor_name || ''}\n` +
         `${mapsLink}`

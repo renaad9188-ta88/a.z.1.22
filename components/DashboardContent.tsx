@@ -172,7 +172,7 @@ export default function DashboardContent({ userId }: { userId: string }) {
       setSharingRequestId(requestId)
       const { data, error } = await supabase
         .from('visit_requests')
-        .select('id, visitor_name, city, created_at, admin_notes, passport_image_url, companions_data, companions_count')
+        .select('id, visitor_name, city, created_at, admin_notes, passport_image_url, companions_data, companions_count, visit_type')
         .eq('id', requestId)
         .eq('user_id', userId)
         .maybeSingle()
@@ -205,7 +205,29 @@ export default function DashboardContent({ userId }: { userId: string }) {
         signedUrls.push(await getSignedImageUrl(u, supabase, 60 * 60 * 24 * 7))
       }
 
-      const platformWhatsapp = '962798905595' // 0798905595
+      // للزيارات فقط: البحث عن رقم المشرف، وإلا استخدام رقم الإدمن
+      let platformWhatsapp = '962798905595' // رقم الإدمن الافتراضي
+      const requestVisitType = (data as any)?.visit_type || 'visit' // افتراض visit إذا لم يكن محدد
+      if (requestVisitType === 'visit' && userId) {
+        try {
+          const { getSupervisorContactForCustomer, getSupervisorWhatsAppNumber, getSupervisorWithFullPermissions } = await import('@/lib/supervisor-utils')
+          const supervisorContact = await getSupervisorContactForCustomer(userId)
+          if (supervisorContact) {
+            const waNumber = getSupervisorWhatsAppNumber(supervisorContact)
+            if (waNumber) platformWhatsapp = waNumber
+          } else {
+            // إذا لم يكن له مشرف مخصص، ابحث عن مشرف له صلاحيات كاملة
+            const fullPermsContact = await getSupervisorWithFullPermissions()
+            if (fullPermsContact) {
+              const waNumber = getSupervisorWhatsAppNumber(fullPermsContact)
+              if (waNumber) platformWhatsapp = waNumber
+            }
+          }
+        } catch (e) {
+          console.error('Error getting supervisor contact:', e)
+          // استخدم رقم الإدمن في حالة الخطأ
+        }
+      }
 
       const msgLines: string[] = [
         'ملخص طلب الزيارة (الأردن)',

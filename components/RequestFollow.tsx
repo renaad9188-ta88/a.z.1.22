@@ -281,6 +281,8 @@ export default function RequestFollow({ requestId, userId }: { requestId: string
 
               <div className="mt-4">
                 <HelpContactButtons
+                  userId={userId}
+                  visitType={request?.visit_type}
                   message={`مرحباً، أحتاج مساعدة بخصوص متابعة طلب الزيارة رقم ${request.id.slice(0, 8).toUpperCase()}.\nالزائر: ${request.visitor_name}`}
                 />
                 <p className="mt-2 text-[11px] sm:text-xs text-gray-600">

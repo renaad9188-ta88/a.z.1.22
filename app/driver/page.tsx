@@ -132,7 +132,7 @@ export default function DriverDashboard() {
                 </div>
                 <div className="flex flex-col min-w-0">
                   <h1 className="text-xs sm:text-sm md:text-base lg:text-lg xl:text-xl font-bold bg-gradient-to-r from-green-600 via-gray-800 to-blue-600 bg-clip-text text-transparent leading-tight group-hover:from-green-500 group-hover:to-blue-500 transition-all truncate">
-                    منصة خدمات السوريين
+                    سوريا بلس (Syria Plus) خدمات
                   </h1>
                   <p className="text-[10px] sm:text-xs md:text-sm text-gray-600 truncate">لوحة تحكم السائق</p>
                   <div className="h-0.5 bg-gradient-to-r from-green-500 via-yellow-400 to-blue-600 rounded-full mt-0.5 opacity-60 group-hover:opacity-100 transition-opacity"></div>

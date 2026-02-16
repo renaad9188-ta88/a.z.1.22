@@ -2,7 +2,7 @@
 
 import { MessageCircle, Phone, HelpCircle } from 'lucide-react'
 import { useEffect, useState } from 'react'
-import { getSupervisorContactForCustomer, getSupervisorWhatsAppNumber, getSupervisorCallNumber } from '@/lib/supervisor-utils'
+import { getSupervisorContactForCustomer, getSupervisorWhatsAppNumber, getSupervisorCallNumber, getSupervisorWithFullPermissions } from '@/lib/supervisor-utils'
 
 type Props = {
   title?: string
@@ -11,6 +11,7 @@ type Props = {
   callNumber?: string // can include leading 00/+ digits
   className?: string
   userId?: string // معرف المستخدم للبحث عن المشرف المخصص
+  visitType?: 'visit' | 'umrah' | 'tourism' | 'goethe' | 'embassy' | 'visa' // نوع الخدمة
 }
 
 const DEFAULT_WA = '962798905595'
@@ -23,6 +24,7 @@ export default function HelpContactButtons({
   callNumber = DEFAULT_CALL,
   className = '',
   userId,
+  visitType,
 }: Props) {
   const [supervisorContact, setSupervisorContact] = useState<{ 
     contact_phone: string | null
@@ -35,7 +37,8 @@ export default function HelpContactButtons({
   const [loadingSupervisor, setLoadingSupervisor] = useState(false)
 
   useEffect(() => {
-    if (userId) {
+    // فقط للزيارات (visit) نبحث عن المشرف
+    if (userId && visitType === 'visit') {
       setLoadingSupervisor(true)
       getSupervisorContactForCustomer(userId).then((contact) => {
         if (contact) {
@@ -52,18 +55,46 @@ export default function HelpContactButtons({
             display_type: contact.display_type,
             display_name: displayName,
           })
+          setLoadingSupervisor(false)
+        } else {
+          // إذا لم يكن له مشرف مخصص، ابحث عن مشرف له صلاحيات كاملة
+          getSupervisorWithFullPermissions().then((fullPermsContact) => {
+            if (fullPermsContact) {
+              const displayName = fullPermsContact.display_type === 'office' && fullPermsContact.office_name
+                ? fullPermsContact.office_name
+                : fullPermsContact.supervisor_name
+              
+              setSupervisorContact({
+                contact_phone: getSupervisorCallNumber(fullPermsContact),
+                whatsapp_phone: getSupervisorWhatsAppNumber(fullPermsContact),
+                supervisor_name: fullPermsContact.supervisor_name,
+                office_name: fullPermsContact.office_name,
+                display_type: fullPermsContact.display_type,
+                display_name: displayName,
+              })
+            }
+            setLoadingSupervisor(false)
+          }).catch(() => {
+            setLoadingSupervisor(false)
+          })
         }
-        setLoadingSupervisor(false)
       }).catch(() => {
         setLoadingSupervisor(false)
       })
+    } else {
+      // للخدمات الأخرى، لا نبحث عن المشرف
+      setLoadingSupervisor(false)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [userId])
+  }, [userId, visitType])
 
-  // استخدام رقم المشرف إذا كان متاحاً، وإلا استخدام الرقم الافتراضي
-  const finalWaNumber = supervisorContact?.whatsapp_phone || waNumber
-  const finalCallNumber = supervisorContact?.contact_phone || callNumber
+  // استخدام رقم المشرف فقط للزيارات، وإلا استخدام الرقم الافتراضي (الإدمن)
+  const finalWaNumber = (visitType === 'visit' && supervisorContact?.whatsapp_phone) 
+    ? supervisorContact.whatsapp_phone 
+    : waNumber
+  const finalCallNumber = (visitType === 'visit' && supervisorContact?.contact_phone) 
+    ? supervisorContact.contact_phone 
+    : callNumber
 
   const waDigits = String(finalWaNumber).replace(/[^\d]/g, '')
   const callDigits = String(finalCallNumber).replace(/[^\d+]/g, '')

@@ -13,7 +13,7 @@ interface QRCodeShareProps {
 
 export default function QRCodeShare({ 
   url, 
-  title = 'منصة خدمات السوريين',
+  title = 'سوريا بلس (Syria Plus) خدمات',
   size = 200 
 }: QRCodeShareProps) {
   const [currentUrl, setCurrentUrl] = useState('')

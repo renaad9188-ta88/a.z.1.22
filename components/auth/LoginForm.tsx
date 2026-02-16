@@ -114,7 +114,7 @@ export default function LoginForm() {
                   تسجيل الدخول
                 </h1>
                 <p className="text-sm sm:text-base text-gray-600">
-                  مرحباً بك في منصة خدمات السوريين
+                  مرحباً بك في سوريا بلس (Syria Plus) خدمات
                 </p>
               </div>
 
@@ -222,7 +222,7 @@ export default function LoginForm() {
                 <div className="absolute inset-0 bg-gradient-to-t from-blue-600/60 via-purple-500/40 to-transparent"></div>
                 <div className="absolute bottom-4 left-4 right-4 text-white z-10">
                   <h2 className="text-xl sm:text-2xl font-bold mb-1 drop-shadow-lg">
-                    منصة خدمات السوريين
+                    سوريا بلس (Syria Plus) خدمات
                   </h2>
                   <p className="text-sm sm:text-base opacity-95 drop-shadow-md">
                     خدمات شاملة لجميع احتياجاتك

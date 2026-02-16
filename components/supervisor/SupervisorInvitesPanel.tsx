@@ -72,7 +72,7 @@ export default function SupervisorInvitesPanel({ supervisorId }: SupervisorInvit
   }, [])
 
   const [messageTpl, setMessageTpl] = useState<string>(
-    '{name}\nندعوك للتسجيل في منصة خدمات السوريين.\nرابط التسجيل: {link}\n\nإذا لا ترغب باستقبال الرسائل اكتب STOP.'
+    '{name}\nندعوك للتسجيل في سوريا بلس (Syria Plus) خدمات.\nرابط التسجيل: {link}\n\nإذا لا ترغب باستقبال الرسائل اكتب STOP.'
   )
 
   // جلب رقم المشرف من supervisor_permissions

@@ -120,6 +120,7 @@ export default function AvailableTripsModal({
           <div className="mb-3">
             <HelpContactButtons
               title="مساعدة في الحجز؟"
+              visitType={visitType as 'visit' | 'umrah' | 'tourism' | 'goethe' | 'embassy' | 'visa' | undefined}
               message="مرحباً، أحتاج مساعدة في اختيار الرحلة ونقطة الصعود/النزول."
             />
           </div>

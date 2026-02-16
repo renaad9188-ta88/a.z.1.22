@@ -16,6 +16,7 @@ import SupervisorsManagement from './admin/SupervisorsManagement'
 import InvitesManagement from './admin/InvitesManagement'
 import CustomersManagement from './admin/CustomersManagement'
 import BookingsManagement from './admin/BookingsManagement'
+import ContactMessagesManagement from './admin/ContactMessagesManagement'
 import SupervisorCustomersPanel from './supervisor/SupervisorCustomersPanel'
 import SupervisorInvitesPanel from './supervisor/SupervisorInvitesPanel'
 import { VisitRequest, UserProfile, AdminStats as StatsType } from './admin/types'
@@ -51,12 +52,13 @@ export default function AdminDashboard() {
   const [showInvitesManagement, setShowInvitesManagement] = useState(false)
   const [showCustomersManagement, setShowCustomersManagement] = useState(false)
   const [showBookingsManagement, setShowBookingsManagement] = useState(false)
+  const [showContactMessages, setShowContactMessages] = useState(false)
   const [showDeletedRequests, setShowDeletedRequests] = useState(false)
   const [showSupervisorCustomers, setShowSupervisorCustomers] = useState(false)
   const [showSupervisorInvites, setShowSupervisorInvites] = useState(false)
 
   // دالة موحدة للتنقل بين الأقسام
-  const handleSectionToggle = (section: 'routes' | 'invites' | 'bookings' | 'customers' | 'supervisors' | 'deleted' | 'supervisor-customers' | 'supervisor-invites') => {
+  const handleSectionToggle = (section: 'routes' | 'invites' | 'bookings' | 'customers' | 'supervisors' | 'deleted' | 'supervisor-customers' | 'supervisor-invites' | 'contact-messages') => {
     // التحقق من حالة القسم الحالي
     let isCurrentlyOpen = false
     switch (section) {
@@ -105,6 +107,7 @@ export default function AdminDashboard() {
     setShowBookingsManagement(false)
     setShowCustomersManagement(false)
     setShowSupervisorsManagement(false)
+    setShowContactMessages(false)
     setShowDeletedRequests(false)
     setShowSupervisorCustomers(false)
     setShowSupervisorInvites(false)
@@ -134,6 +137,9 @@ export default function AdminDashboard() {
         break
       case 'supervisor-invites':
         setShowSupervisorInvites(true)
+        break
+      case 'contact-messages':
+        setShowContactMessages(true)
         break
     }
   }
@@ -876,7 +882,7 @@ export default function AdminDashboard() {
               </div>
             </div>
             <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 md:gap-3 w-full sm:w-auto justify-end sm:justify-start">
-              <QRCodeShare title="منصة خدمات السوريين - لوحة الإدارة" />
+              <QRCodeShare title="سوريا بلس (Syria Plus) خدمات - لوحة الإدارة" />
               {(currentRole === 'admin' || (currentRole === 'supervisor' && supervisorPermissions?.can_manage_routes)) && (
                 <button
                   onClick={() => handleSectionToggle('routes')}
@@ -924,6 +930,19 @@ export default function AdminDashboard() {
                   }`}
                 >
                   المنتسبين
+                </button>
+              )}
+              {currentRole === 'admin' && (
+                <button
+                  onClick={() => handleSectionToggle('contact-messages')}
+                  className={`px-2 sm:px-3 md:px-4 py-1 sm:py-1.5 md:py-2 text-xs sm:text-sm md:text-base transition flex items-center gap-1 ${
+                    showContactMessages 
+                      ? 'text-cyan-600 bg-cyan-50 rounded-lg' 
+                      : 'text-gray-700 hover:text-cyan-600'
+                  }`}
+                >
+                  <MessageCircle className="w-3 h-3 sm:w-4 sm:h-4" />
+                  التواصل المباشر
                 </button>
               )}
               {currentRole === 'admin' && (
@@ -1125,6 +1144,24 @@ export default function AdminDashboard() {
             </div>
             <div className="bg-white rounded-xl shadow-md p-4 sm:p-6">
               <BookingsManagement />
+            </div>
+          </div>
+        ) : showContactMessages ? (
+          <div className="mb-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
+              <div className="flex items-center gap-2">
+                <MessageCircle className="w-5 h-5 text-cyan-600" />
+                <h2 className="text-base sm:text-lg md:text-xl font-extrabold text-gray-900">التواصل المباشر</h2>
+              </div>
+              <button
+                onClick={() => setShowContactMessages(false)}
+                className="w-full sm:w-auto px-4 py-2 bg-gray-200 rounded-lg hover:bg-gray-300 font-bold transition"
+              >
+                العودة للطلبات
+              </button>
+            </div>
+            <div className="bg-white rounded-xl shadow-md p-4 sm:p-6">
+              <ContactMessagesManagement />
             </div>
           </div>
         ) : (
