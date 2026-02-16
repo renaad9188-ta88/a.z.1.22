@@ -60,7 +60,6 @@ export default function InvitesManagement() {
   const [q, setQ] = useState('')
   const [importText, setImportText] = useState('')
   const [importing, setImporting] = useState(false)
-  const [sending, setSending] = useState(false)
   const [addForm, setAddForm] = useState<{ full_name: string; phone: string; country: string }>({
     full_name: '',
     phone: '',
@@ -241,36 +240,6 @@ export default function InvitesManagement() {
     }
   }
 
-  const queueNext100 = async () => {
-    try {
-      setSending(true)
-      // Fetch next 100 new invites
-      const { data: next, error: e1 } = await supabase
-        .from('invites')
-        .select('id')
-        .eq('status', 'new')
-        .order('created_at', { ascending: true })
-        .limit(100)
-      if (e1) throw e1
-      const ids = (next || []).map((x: any) => x.id)
-      if (ids.length === 0) {
-        toast('لا يوجد أرقام جديدة')
-        return
-      }
-      const { error: e2 } = await supabase
-        .from('invites')
-        .update({ status: 'queued', updated_at: new Date().toISOString() })
-        .in('id', ids)
-      if (e2) throw e2
-      toast.success(`تم تجهيز ${ids.length} رقم لليوم (queued)`)
-      await load()
-    } catch (e: any) {
-      console.error('queueNext100 error:', e)
-      toast.error(e?.message || 'تعذر تجهيز قائمة اليوم')
-    } finally {
-      setSending(false)
-    }
-  }
 
   // إنشاء مجموعة جديدة يدوياً
   const createNewBatch = async () => {
@@ -898,7 +867,7 @@ export default function InvitesManagement() {
               الدعوات (100 يومياً عبر واتساب)
             </h3>
             <p className="text-xs sm:text-sm text-gray-600 mt-1">
-              استيراد أرقام → تجهيز 100 رقم يومياً → مراسلة واتساب → تتبع joined تلقائياً بعد التسجيل
+              استيراد أرقام → إنشاء مجموعات → إضافة الأرقام للمجموعات → مراسلة واتساب → تتبع joined تلقائياً بعد التسجيل
             </p>
           </div>
           <div className="flex flex-col sm:flex-row gap-2 w-full lg:w-auto">
@@ -909,15 +878,6 @@ export default function InvitesManagement() {
             >
               <Plus className="w-4 h-4" />
               إنشاء مجموعة جديدة
-            </button>
-            <button
-              type="button"
-              onClick={queueNext100}
-              disabled={sending}
-              className="w-full sm:w-auto px-4 py-2 rounded-lg bg-blue-600 text-white font-extrabold text-sm hover:bg-blue-700 transition disabled:opacity-50 inline-flex items-center justify-center gap-2"
-            >
-              <RefreshCw className="w-4 h-4" />
-              تجهيز 100 رقم اليوم
             </button>
             <button
               type="button"
