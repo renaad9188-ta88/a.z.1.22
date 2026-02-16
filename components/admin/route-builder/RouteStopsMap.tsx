@@ -85,12 +85,20 @@ export default function RouteStopsMap({
         mapTypeControl: true,
         streetViewControl: false,
         fullscreenControl: true,
-        gestureHandling: 'greedy',
+        gestureHandling: 'cooperative', // cooperative يسمح بالنقر أثناء السحب على الأجهزة المحمولة
+        clickableIcons: false,
+        disableDoubleClickZoom: false,
       })
     }
 
-    // click add
+    // click add - يعمل على click و tap (للأجهزة المحمولة)
     const map = mapRef.current
+    
+    // تحديث gestureHandling عند تغيير addMode
+    map.setOptions({ 
+      gestureHandling: addMode ? 'cooperative' : 'greedy' 
+    })
+    
     const clickListener = map.addListener('click', (e: google.maps.MapMouseEvent) => {
       if (!addMode) return
       if (!e.latLng) return
@@ -213,16 +221,20 @@ export default function RouteStopsMap({
       <div className="px-3 py-2 border-b border-gray-100 flex items-center justify-between gap-2">
         <p className="text-xs sm:text-sm font-extrabold text-gray-900">{title}</p>
         {addMode ? (
-          <span className="text-[11px] sm:text-xs px-2 py-1 rounded-full bg-blue-50 border border-blue-200 text-blue-800 font-extrabold">
-            وضع الإضافة: انقر على الخريطة
+          <span className="text-[10px] sm:text-[11px] md:text-xs px-2 py-1 rounded-full bg-blue-50 border border-blue-200 text-blue-800 font-extrabold whitespace-nowrap">
+            وضع الإضافة: اضغط على الخريطة
           </span>
         ) : (
-          <span className="text-[11px] sm:text-xs px-2 py-1 rounded-full bg-gray-50 border border-gray-200 text-gray-700 font-extrabold">
+          <span className="text-[10px] sm:text-[11px] md:text-xs px-2 py-1 rounded-full bg-gray-50 border border-gray-200 text-gray-700 font-extrabold whitespace-nowrap">
             خط متصل + محطات
           </span>
         )}
       </div>
-      <div ref={mapElRef} className="w-full h-[320px] sm:h-[420px]" />
+      <div 
+        ref={mapElRef} 
+        className="w-full h-[320px] sm:h-[420px] touch-none" 
+        style={{ touchAction: addMode ? 'manipulation' : 'auto' }}
+      />
       {!apiKey && (
         <div className="p-3 bg-yellow-50 border-t border-yellow-200 text-xs text-yellow-800 font-bold">
           مفتاح Google Maps غير موجود.

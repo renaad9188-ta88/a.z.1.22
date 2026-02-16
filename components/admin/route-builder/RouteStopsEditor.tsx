@@ -30,13 +30,14 @@ export default function RouteStopsEditor({
         <button
           type="button"
           onClick={onToggleAddMode}
-          className={`px-3 py-2 rounded-xl text-xs font-extrabold inline-flex items-center gap-2 border transition ${
-            addMode ? 'bg-gray-900 text-white border-gray-900' : `bg-white ${colorClass} border-gray-200 hover:bg-gray-50`
+          className={`px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl text-xs sm:text-sm font-extrabold inline-flex items-center gap-1.5 sm:gap-2 border transition touch-manipulation ${
+            addMode ? 'bg-gray-900 text-white border-gray-900' : `bg-white ${colorClass} border-gray-200 hover:bg-gray-50 active:bg-gray-100`
           }`}
           title={addMode ? 'إلغاء وضع الإضافة' : 'إضافة محطة من الخريطة'}
+          style={{ touchAction: 'manipulation' }}
         >
-          <Plus className="w-4 h-4" />
-          {addMode ? 'إلغاء الإضافة' : 'إضافة محطة'}
+          <Plus className="w-3.5 h-3.5 sm:w-4 sm:h-4 flex-shrink-0" />
+          <span className="whitespace-nowrap">{addMode ? 'إلغاء الإضافة' : 'إضافة محطة'}</span>
         </button>
       </div>
 
@@ -61,35 +62,39 @@ export default function RouteStopsEditor({
                   type="button"
                   onClick={() => onMove(idx, -1)}
                   disabled={idx === 0}
-                  className="p-2 rounded-lg border border-gray-200 hover:bg-white disabled:opacity-30"
+                  className="p-1.5 sm:p-2 rounded-lg border border-gray-200 hover:bg-white active:bg-gray-100 disabled:opacity-30 touch-manipulation"
                   title="أعلى"
+                  style={{ touchAction: 'manipulation', minWidth: '36px', minHeight: '36px' }}
                 >
-                  <ArrowUp className="w-4 h-4" />
+                  <ArrowUp className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                 </button>
                 <button
                   type="button"
                   onClick={() => onMove(idx, 1)}
                   disabled={idx === stops.length - 1}
-                  className="p-2 rounded-lg border border-gray-200 hover:bg-white disabled:opacity-30"
+                  className="p-1.5 sm:p-2 rounded-lg border border-gray-200 hover:bg-white active:bg-gray-100 disabled:opacity-30 touch-manipulation"
                   title="أسفل"
+                  style={{ touchAction: 'manipulation', minWidth: '36px', minHeight: '36px' }}
                 >
-                  <ArrowDown className="w-4 h-4" />
+                  <ArrowDown className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                 </button>
                 <button
                   type="button"
                   onClick={() => onEdit(idx)}
-                  className="p-2 rounded-lg border border-gray-200 hover:bg-white"
+                  className="p-1.5 sm:p-2 rounded-lg border border-gray-200 hover:bg-white active:bg-gray-100 touch-manipulation"
                   title="تعديل الاسم"
+                  style={{ touchAction: 'manipulation', minWidth: '36px', minHeight: '36px' }}
                 >
-                  <Edit className="w-4 h-4 text-blue-700" />
+                  <Edit className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-blue-700" />
                 </button>
                 <button
                   type="button"
                   onClick={() => onDelete(idx)}
-                  className="p-2 rounded-lg border border-gray-200 hover:bg-white"
+                  className="p-1.5 sm:p-2 rounded-lg border border-gray-200 hover:bg-white active:bg-gray-100 touch-manipulation"
                   title="حذف"
+                  style={{ touchAction: 'manipulation', minWidth: '36px', minHeight: '36px' }}
                 >
-                  <Trash2 className="w-4 h-4 text-red-700" />
+                  <Trash2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-red-700" />
                 </button>
               </div>
             </div>
