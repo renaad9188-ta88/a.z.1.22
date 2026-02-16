@@ -5,8 +5,8 @@
 export const carouselImages = {
   // 1. النقل البري - الطريق الذهبي (قافلة الحافلات)
   roadTransport: {
-    url: 'https://images.unsplash.com/photo-1511632765486-a01980e01a18?w=1200&h=600&fit=crop&q=80',
-    // صورة قافلة حافلات بيضاء على طريق سريع
+    url: 'https://images.unsplash.com/photo-1544620347-c4fd4a3d5957?w=1200&h=600&fit=crop&q=80',
+    // صورة حافلات فاخرة على الطريق
     // للصور المحلية: '/images/carousel/road-transport.jpg'
     title: 'الطريق الذهبي للنقل',
     subtitle: 'قوافل حافلات منظمة وآمنة',
@@ -33,7 +33,8 @@ export const carouselImages = {
   
   // 3. المعابر والحدود
   borderCrossing: {
-    url: 'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=1200&h=600&fit=crop&q=80',
+    url: 'https://images.unsplash.com/photo-1582213782179-e0d53f98f2ca?w=1200&h=600&fit=crop&q=80',
+    // صورة معبر حدودي حديث مع حافلة - بدون أعلام
     // للصور المحلية: '/images/carousel/border-crossing.jpg'
     title: 'معبر جابر',
     subtitle: 'عبور سريع وآمن للحدود',
@@ -49,9 +50,10 @@ export const carouselImages = {
     description: 'نساعدك في الحصول على التأشيرات بكل سهولة وضمان',
   },
   
-  // 5. الزيارات السورية (شهر)
+  // 5. الزيارات السورية (شهر) - قافلة الحافلات
   syrianVisits: {
-    url: 'https://images.unsplash.com/photo-1488646953014-85cb44e25828?w=1200&h=600&fit=crop&q=80',
+    url: 'https://images.unsplash.com/photo-1511632765486-a01980e01a18?w=1200&h=600&fit=crop&q=80',
+    // صورة قافلة حافلات بيضاء على طريق سريع
     // للصور المحلية: '/images/carousel/syrian-visits.jpg'
     title: 'زيارات سورية لمدة شهر',
     subtitle: 'خدمات منظمة ومتكاملة',
@@ -60,7 +62,8 @@ export const carouselImages = {
   
   // 6. خدمات شاملة
   comprehensiveServices: {
-    url: 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=1200&h=600&fit=crop&q=80',
+    url: 'https://images.unsplash.com/photo-1511632765486-a01980e01a18?w=1200&h=600&fit=crop&q=80',
+    // صورة قافلة حافلات بدلاً من صورة الأشخاص
     // للصور المحلية: '/images/carousel/comprehensive-services.jpg'
     title: 'خدمات شاملة ومتكاملة',
     subtitle: 'نوفر لك كل ما تحتاجه',
@@ -76,14 +79,16 @@ export const carouselImages = {
   },
   
   border: {
-    url: 'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=1200&h=600&fit=crop&q=80',
+    url: 'https://images.unsplash.com/photo-1582213782179-e0d53f98f2ca?w=1200&h=600&fit=crop&q=80',
+    // صورة معبر حدودي عام بدون أعلام
     title: 'معبر جابر',
     subtitle: 'عبور سريع وآمن للحدود',
     description: 'تسهيلات عبور الحدود مع متابعة مستمرة ودعم كامل',
   },
   
   arrivals: {
-    url: 'https://images.unsplash.com/photo-1488646953014-85cb44e25828?w=1200&h=600&fit=crop&q=80',
+    url: 'https://images.unsplash.com/photo-1511632765486-a01980e01a18?w=1200&h=600&fit=crop&q=80',
+    // صورة قافلة حافلات بدلاً من صورة الأشخاص
     title: 'تتبع رحلتك أولاً بأول',
     subtitle: 'متابعة لحظية',
     description: 'راقب رحلتك على الخريطة مباشرة',
@@ -97,7 +102,8 @@ export const carouselImages = {
   },
   
   travelers: {
-    url: 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=1200&h=600&fit=crop&q=80',
+    url: 'https://images.unsplash.com/photo-1511632765486-a01980e01a18?w=1200&h=600&fit=crop&q=80',
+    // صورة قافلة حافلات بدلاً من صورة الأشخاص
     title: 'خدمات شاملة ومتكاملة',
     subtitle: 'نوفر لك كل ما تحتاجه',
     description: 'من التنظيم إلى المتابعة - كل شيء في مكان واحد',
@@ -110,10 +116,10 @@ export const alternativeBorderImages = [
   'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=1200&h=600&fit=crop&q=80',
 ]
 
-// صور بديلة للمسافرين
+// صور بديلة للمسافرين - قافلة الحافلات
 export const alternativeTravelerImages = [
-  'https://images.unsplash.com/photo-1488646953014-85cb44e25828?w=1200&h=600&fit=crop&q=80',
-  'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=1200&h=600&fit=crop&q=80',
+  'https://images.unsplash.com/photo-1511632765486-a01980e01a18?w=1200&h=600&fit=crop&q=80',
+  'https://images.unsplash.com/photo-1511632765486-a01980e01a18?w=1200&h=600&fit=crop&q=80',
   'https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?w=1200&h=600&fit=crop&q=80',
 ]
 
