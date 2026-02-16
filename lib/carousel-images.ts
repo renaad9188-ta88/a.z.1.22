@@ -33,12 +33,13 @@ export const carouselImages = {
   
   // 3. المعابر والحدود
   borderCrossing: {
+    // TODO: ضع صورة معبر جابر في: public/images/carousel/border-crossing-jaber.jpg
+    // ثم استبدل الرابط أدناه بـ: '/images/carousel/border-crossing-jaber.jpg'
     url: 'https://images.unsplash.com/photo-1582213782179-e0d53f98f2ca?w=1200&h=600&fit=crop&q=80',
-    // صورة معبر حدودي حديث مع حافلة - بدون أعلام
-    // للصور المحلية: '/images/carousel/border-crossing.jpg'
-    title: 'معبر جابر',
-    subtitle: 'عبور سريع وآمن للحدود',
-    description: 'تسهيلات عبور الحدود مع متابعة مستمرة ودعم كامل',
+    // صورة معبر جابر مع أعلام الأردن وسوريا
+    title: 'خدمات الزيارات السورية للأردن',
+    subtitle: 'سياحة شهر ( 30 ) يوم',
+    description: 'نظم زيارتك للأردن بكل سهولة مع متابعة مستمرة ودعم كامل',
   },
   
   // 4. الفيزا والتأشيرات
@@ -79,11 +80,13 @@ export const carouselImages = {
   },
   
   border: {
+    // TODO: ضع صورة معبر جابر في: public/images/carousel/border-crossing-jaber.jpg
+    // ثم استبدل الرابط أدناه بـ: '/images/carousel/border-crossing-jaber.jpg'
     url: 'https://images.unsplash.com/photo-1582213782179-e0d53f98f2ca?w=1200&h=600&fit=crop&q=80',
-    // صورة معبر حدودي عام بدون أعلام
-    title: 'معبر جابر',
-    subtitle: 'عبور سريع وآمن للحدود',
-    description: 'تسهيلات عبور الحدود مع متابعة مستمرة ودعم كامل',
+    // صورة معبر جابر مع أعلام الأردن وسوريا
+    title: 'خدمات الزيارات السورية للأردن',
+    subtitle: 'سياحة شهر ( 30 ) يوم',
+    description: 'نظم زيارتك للأردن بكل سهولة مع متابعة مستمرة ودعم كامل',
   },
   
   arrivals: {
