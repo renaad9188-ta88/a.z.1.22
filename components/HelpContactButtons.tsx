@@ -11,7 +11,7 @@ type Props = {
   callNumber?: string // can include leading 00/+ digits
   className?: string
   userId?: string // معرف المستخدم للبحث عن المشرف المخصص
-  visitType?: 'visit' | 'umrah' | 'tourism' | 'goethe' | 'embassy' | 'visa' // نوع الخدمة
+  visitType?: 'visit' | 'umrah' | 'tourism' | 'goethe' | 'embassy' | 'visa' | null // نوع الخدمة
 }
 
 const DEFAULT_WA = '962798905595'
