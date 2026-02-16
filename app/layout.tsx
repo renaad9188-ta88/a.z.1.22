@@ -31,8 +31,8 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <html lang="ar" dir="rtl" style={{ colorScheme: 'light' }}>
-      <body className={cairo.className} style={{ colorScheme: 'light' }}>
+    <html lang="ar" dir="rtl" style={{ colorScheme: 'light' }} className="notranslate">
+      <body className={`${cairo.className} notranslate`} style={{ colorScheme: 'light' }}>
         <Header />
         {/* Padding top matches fixed header height (reduced after header optimization) */}
         <div className="pt-12 sm:pt-14">
