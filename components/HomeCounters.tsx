@@ -9,10 +9,16 @@ type CountersRow = {
   total_departures_people_count: number | null
 }
 
+// البيانات الوهمية (الرقم الصفري للموقع)
+const BASELINE_ARRIVALS = 345 // الرقم الأساسي للقادمون
+const BASELINE_DEPARTURES = 235 // الرقم الأساسي للمغادرون
+
 export default function HomeCounters() {
   const supabase = createSupabaseBrowserClient()
   const [loading, setLoading] = useState(true)
   const [row, setRow] = useState<CountersRow | null>(null)
+  const [animatedArrivals, setAnimatedArrivals] = useState(BASELINE_ARRIVALS)
+  const [animatedDepartures, setAnimatedDepartures] = useState(BASELINE_DEPARTURES)
 
   useEffect(() => {
     let mounted = true
@@ -37,10 +43,45 @@ export default function HomeCounters() {
     }
   }, [supabase])
 
-  const arrivalsCount =
-    loading ? '…' : row?.total_arrivals_people_count != null ? String(row.total_arrivals_people_count) : '—'
-  const departuresCount =
-    loading ? '…' : row?.total_departures_people_count != null ? String(row.total_departures_people_count) : '—'
+  // حساب العدد النهائي (البيانات الوهمية + البيانات الفعلية)
+  const finalArrivalsCount = loading 
+    ? BASELINE_ARRIVALS 
+    : BASELINE_ARRIVALS + (row?.total_arrivals_people_count || 0)
+  
+  const finalDeparturesCount = loading 
+    ? BASELINE_DEPARTURES 
+    : BASELINE_DEPARTURES + (row?.total_departures_people_count || 0)
+
+  // تأثير العد المتحرك
+  useEffect(() => {
+    if (loading) return
+
+    const duration = 2000 // مدة العد بالمللي ثانية
+    const steps = 60 // عدد الخطوات
+    const stepDuration = duration / steps
+    const startArrivals = BASELINE_ARRIVALS
+    const startDepartures = BASELINE_DEPARTURES
+    const arrivalsIncrement = (finalArrivalsCount - startArrivals) / steps
+    const departuresIncrement = (finalDeparturesCount - startDepartures) / steps
+
+    let currentStep = 0
+    const interval = setInterval(() => {
+      currentStep++
+      if (currentStep >= steps) {
+        setAnimatedArrivals(finalArrivalsCount)
+        setAnimatedDepartures(finalDeparturesCount)
+        clearInterval(interval)
+      } else {
+        setAnimatedArrivals(Math.floor(startArrivals + arrivalsIncrement * currentStep))
+        setAnimatedDepartures(Math.floor(startDepartures + departuresIncrement * currentStep))
+      }
+    }, stepDuration)
+
+    return () => clearInterval(interval)
+  }, [loading, finalArrivalsCount, finalDeparturesCount])
+
+  const arrivalsCount = loading ? '…' : String(animatedArrivals)
+  const departuresCount = loading ? '…' : String(animatedDepartures)
 
   return (
     <div className="max-w-6xl mx-auto mb-5 sm:mb-6">
