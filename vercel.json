@@ -2,6 +2,5 @@
   "buildCommand": "npm run build",
   "installCommand": "npm install --legacy-peer-deps --no-audit --no-fund",
   "framework": "nextjs",
-  "nodeVersion": "20.x",
   "ignoreCommand": "git diff --quiet HEAD^ HEAD ./"
 }
