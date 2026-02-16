@@ -1,9 +1,12 @@
 -- نظام المجموعات للدعوات (Batches System)
 -- Run in Supabase SQL Editor.
 
+-- تفعيل extension للـ UUID (إذا لم يكن مفعلاً)
+CREATE EXTENSION IF NOT EXISTS "pgcrypto";
+
 -- 1) إنشاء جدول invite_batches أولاً (قبل إضافة Foreign Key)
 CREATE TABLE IF NOT EXISTS public.invite_batches (
-  id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   scheduled_at timestamptz,
   sent_at timestamptz,
   total_count integer DEFAULT 0,

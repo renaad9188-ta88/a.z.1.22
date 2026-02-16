@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState, useCallback } from 'react'
 import toast from 'react-hot-toast'
 import { createSupabaseBrowserClient } from '@/lib/supabase'
-import { Phone, MessageCircle, Upload, Search, CheckCircle2, UserPlus, RefreshCw, Plus, Pencil, Clock, Send, Zap, Users, X, Edit2, Eye, Trash2, Save } from 'lucide-react'
+import { Phone, MessageCircle, Upload, Search, CheckCircle2, UserPlus, RefreshCw, Plus, Pencil, Clock, Send, Zap, Users, X, Edit2, Eye, Trash2, Save, AlertTriangle, ArrowRight, FileText, Calendar, User } from 'lucide-react'
 
 type InviteRow = {
   id: string
@@ -81,6 +81,8 @@ export default function InvitesManagement() {
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
   const [editingInvite, setEditingInvite] = useState<string | null>(null)
   const [editForm, setEditForm] = useState<{ full_name: string; phone: string; country: string }>({ full_name: '', phone: '', country: '' })
+  const [movingInvite, setMovingInvite] = useState<string | null>(null)
+  const [batchSentDetails, setBatchSentDetails] = useState<string | null>(null)
   const fileRef = useRef<HTMLInputElement | null>(null)
 
   const baseUrl = useMemo(() => {
@@ -410,12 +412,16 @@ export default function InvitesManagement() {
         }
       }
 
-      // تحديث إحصائيات المجموعة
+      // تحديث إحصائيات المجموعة مع حفظ نص الرسالة
+      const firstInvite = batchInvites[0] as InviteRow
+      const messageText = inviteMessage(firstInvite)
+      
       await supabase
         .from('invite_batches')
         .update({
           sent_at: new Date().toISOString(),
           sent_count: sentCount,
+          last_message_sent: messageText,
           updated_at: new Date().toISOString(),
         })
         .eq('id', batchId)
@@ -571,6 +577,131 @@ export default function InvitesManagement() {
     }
   }
 
+  // حذف مجموعة كاملة
+  const deleteBatch = async (batchId: string) => {
+    const batch = batches.find((b: any) => b.id === batchId)
+    if (!batch) return
+
+    const hasInvites = (batch.total_count || 0) > 0
+    const confirmMessage = hasInvites
+      ? `هل أنت متأكد من حذف المجموعة "${batch.name}"؟\n\nتحذير: سيتم إزالة ${batch.total_count} رقم من هذه المجموعة (لن يتم حذف الأرقام نفسها، فقط إزالة الربط).`
+      : `هل أنت متأكد من حذف المجموعة "${batch.name}"؟`
+
+    if (!confirm(confirmMessage)) return
+
+    try {
+      // إزالة الربط من جميع الدعوات في هذه المجموعة
+      if (hasInvites) {
+        await supabase
+          .from('invites')
+          .update({
+            batch_id: null,
+            batch_scheduled_at: null,
+            batch_sent_at: null,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('batch_id', batchId)
+      }
+
+      // حذف المجموعة
+      const { error } = await supabase
+        .from('invite_batches')
+        .delete()
+        .eq('id', batchId)
+
+      if (error) throw error
+
+      toast.success(`تم حذف المجموعة "${batch.name}"`)
+      await loadBatches()
+      if (selectedBatch === batchId) {
+        setSelectedBatch(null)
+        setBatchInvites([])
+      }
+    } catch (e: any) {
+      console.error('deleteBatch error:', e)
+      toast.error(e?.message || 'تعذر حذف المجموعة')
+    }
+  }
+
+  // نقل رقم إلى مجموعة أخرى
+  const moveToBatch = async (inviteId: string, targetBatchId: string | null) => {
+    try {
+      // الحصول على الرقم الحالي لمعرفة المجموعة القديمة
+      const { data: currentInvite } = await supabase
+        .from('invites')
+        .select('batch_id')
+        .eq('id', inviteId)
+        .single()
+
+      const oldBatchId = currentInvite?.batch_id
+
+      // تحديث الرقم
+      const { error } = await supabase
+        .from('invites')
+        .update({
+          batch_id: targetBatchId,
+          batch_scheduled_at: targetBatchId ? new Date().toISOString() : null,
+          batch_sent_at: null, // إعادة تعيين حالة الإرسال
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', inviteId)
+      
+      if (error) throw error
+
+      // تحديث عدد المجموعة القديمة
+      if (oldBatchId) {
+        const { data: oldBatch } = await supabase
+          .from('invite_batches')
+          .select('total_count')
+          .eq('id', oldBatchId)
+          .single()
+        
+        if (oldBatch) {
+          await supabase
+            .from('invite_batches')
+            .update({
+              total_count: Math.max(0, (oldBatch.total_count || 0) - 1),
+              updated_at: new Date().toISOString(),
+            })
+            .eq('id', oldBatchId)
+        }
+      }
+
+      // تحديث عدد المجموعة الجديدة
+      if (targetBatchId) {
+        const { data: newBatch } = await supabase
+          .from('invite_batches')
+          .select('total_count')
+          .eq('id', targetBatchId)
+          .single()
+        
+        if (newBatch) {
+          await supabase
+            .from('invite_batches')
+            .update({
+              total_count: (newBatch.total_count || 0) + 1,
+              updated_at: new Date().toISOString(),
+            })
+            .eq('id', targetBatchId)
+        }
+      }
+
+      // تحديث القوائم
+      await load()
+      await loadBatches()
+      if (selectedBatch) {
+        await loadBatchInvites(selectedBatch)
+      }
+      
+      setMovingInvite(null)
+      toast.success(targetBatchId ? 'تم نقل الرقم للمجموعة الجديدة' : 'تم إزالة الرقم من المجموعة')
+    } catch (e: any) {
+      console.error('Error moving to batch:', e)
+      toast.error(e?.message || 'تعذر نقل الرقم')
+      setMovingInvite(null)
+    }
+  }
+
   // حذف رقم من المجموعة
   const removeFromBatch = async (inviteId: string) => {
     if (!confirm('هل أنت متأكد من حذف هذا الرقم من المجموعة؟')) return
@@ -672,6 +803,51 @@ export default function InvitesManagement() {
   const handleBatchClick = async (batchId: string) => {
     setSelectedBatch(batchId)
     await loadBatchInvites(batchId)
+  }
+
+  // تأكيد إرسال المجموعة يدوياً
+  const confirmBatchSent = async (batchId: string) => {
+    if (!currentUserId || !currentUserRole) {
+      toast.error('يجب تسجيل الدخول')
+      return
+    }
+
+    try {
+      // الحصول على نص الرسالة من أول دعوة في المجموعة
+      const { data: firstInvite } = await supabase
+        .from('invites')
+        .select('*')
+        .eq('batch_id', batchId)
+        .limit(1)
+        .maybeSingle()
+
+      const messageText = firstInvite ? inviteMessage(firstInvite as InviteRow) : messageTpl
+
+      const { error } = await supabase
+        .from('invite_batches')
+        .update({
+          confirmed_sent_by: currentUserId,
+          confirmed_sent_at: new Date().toISOString(),
+          confirmed_sent_role: currentUserRole,
+          last_message_sent: messageText,
+          sent_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', batchId)
+
+      if (error) throw error
+
+      await loadBatches()
+      toast.success('تم تأكيد إرسال المجموعة')
+    } catch (e: any) {
+      console.error('Error confirming batch sent:', e)
+      toast.error(e?.message || 'تعذر تأكيد الإرسال')
+    }
+  }
+
+  // عرض تفاصيل إرسال المجموعة
+  const showBatchSentDetails = (batchId: string) => {
+    setBatchSentDetails(batchId)
   }
 
   const markSent = async (id: string) => {
@@ -854,40 +1030,78 @@ export default function InvitesManagement() {
                     </span>
                   </div>
                 </div>
-                <div className="mt-2 flex gap-2">
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      handleBatchClick(batch.id)
-                    }}
-                    className="flex-1 px-3 py-1.5 rounded-lg bg-blue-600 text-white font-extrabold text-xs hover:bg-blue-700 transition inline-flex items-center justify-center gap-1"
-                  >
-                    <Eye className="w-3 h-3" />
-                    عرض
-                  </button>
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      sendBatch(batch.id)
-                    }}
-                    disabled={sendingBatch === batch.id || batch.sent_at}
-                    className="flex-1 px-3 py-1.5 rounded-lg bg-purple-600 text-white font-extrabold text-xs hover:bg-purple-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {sendingBatch === batch.id ? (
-                      <span className="flex items-center justify-center gap-1">
+                <div className="mt-2 flex flex-col gap-1.5">
+                  <div className="flex gap-1.5">
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        handleBatchClick(batch.id)
+                      }}
+                      className="flex-1 px-2 sm:px-3 py-1.5 rounded-lg bg-blue-600 text-white font-extrabold text-[10px] sm:text-xs hover:bg-blue-700 transition inline-flex items-center justify-center gap-1"
+                    >
+                      <Eye className="w-3 h-3" />
+                      <span className="hidden sm:inline">عرض</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        sendBatch(batch.id)
+                      }}
+                      disabled={sendingBatch === batch.id || batch.sent_at}
+                      className="flex-1 px-2 sm:px-3 py-1.5 rounded-lg bg-purple-600 text-white font-extrabold text-[10px] sm:text-xs hover:bg-purple-700 transition disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center justify-center gap-1"
+                    >
+                      {sendingBatch === batch.id ? (
                         <RefreshCw className="w-3 h-3 animate-spin" />
-                        جاري...
-                      </span>
-                    ) : batch.sent_at ? (
-                      'تم'
-                    ) : (
-                      <span className="flex items-center justify-center gap-1">
-                        <Send className="w-3 h-3" />
-                        إرسال
-                      </span>
-                    )}
+                      ) : batch.sent_at ? (
+                        <CheckCircle2 className="w-3 h-3" />
+                      ) : (
+                        <>
+                          <Send className="w-3 h-3" />
+                          <span className="hidden sm:inline">إرسال</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                  {(batch.sent_at || batch.confirmed_sent_at) ? (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        showBatchSentDetails(batch.id)
+                      }}
+                      className="w-full px-2 sm:px-3 py-1.5 rounded-lg bg-green-600 text-white font-extrabold text-[10px] sm:text-xs hover:bg-green-700 transition inline-flex items-center justify-center gap-1"
+                      title="عرض تفاصيل الإرسال"
+                    >
+                      <FileText className="w-3 h-3" />
+                      <span>تفاصيل الإرسال</span>
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        confirmBatchSent(batch.id)
+                      }}
+                      className="w-full px-2 sm:px-3 py-1.5 rounded-lg bg-amber-600 text-white font-extrabold text-[10px] sm:text-xs hover:bg-amber-700 transition inline-flex items-center justify-center gap-1"
+                      title="تأكيد إرسال المجموعة يدوياً"
+                    >
+                      <CheckCircle2 className="w-3 h-3" />
+                      <span>تم الإرسال</span>
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      deleteBatch(batch.id)
+                    }}
+                    className="w-full px-2 sm:px-3 py-1.5 rounded-lg bg-red-600 text-white font-extrabold text-[10px] sm:text-xs hover:bg-red-700 transition inline-flex items-center justify-center gap-1"
+                    title="حذف المجموعة"
+                  >
+                    <Trash2 className="w-3 h-3" />
+                    <span>حذف المجموعة</span>
                   </button>
                 </div>
               </div>
@@ -1011,13 +1225,29 @@ export default function InvitesManagement() {
                 <Users className="w-4 h-4 sm:w-5 sm:h-5 text-purple-600 flex-shrink-0" />
                 <span className="truncate">{batches.find((b: any) => b.id === selectedBatch)?.name || 'تفاصيل المجموعة'}</span>
               </h3>
-              <button
-                type="button"
-                onClick={() => setSelectedBatch(null)}
-                className="text-gray-400 hover:text-gray-600 transition flex-shrink-0 ml-2"
-              >
-                <X className="w-5 h-5 sm:w-6 sm:h-6" />
-              </button>
+              <div className="flex items-center gap-2 flex-shrink-0">
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    if (confirm('هل أنت متأكد من حذف هذه المجموعة؟ سيتم إزالة جميع الأرقام من المجموعة.')) {
+                      deleteBatch(selectedBatch)
+                    }
+                  }}
+                  className="px-3 py-1.5 rounded-lg bg-red-600 text-white text-xs sm:text-sm font-extrabold hover:bg-red-700 transition inline-flex items-center gap-1.5"
+                  title="حذف المجموعة"
+                >
+                  <Trash2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                  <span className="hidden sm:inline">حذف</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSelectedBatch(null)}
+                  className="text-gray-400 hover:text-gray-600 transition flex-shrink-0"
+                >
+                  <X className="w-5 h-5 sm:w-6 sm:h-6" />
+                </button>
+              </div>
             </div>
             
             <div className="flex-1 overflow-y-auto p-3 sm:p-4 md:p-6">
@@ -1129,25 +1359,25 @@ export default function InvitesManagement() {
                                 </span>
                               )}
                               </div>
-                              <div className="text-[10px] sm:text-xs md:text-sm text-gray-700 flex flex-wrap gap-x-3 sm:gap-x-4 gap-y-1 mb-1.5 sm:mb-2">
-                                <span className="inline-flex items-center gap-1">
-                                  <Phone className="w-3 h-3 sm:w-4 sm:h-4 text-gray-500 flex-shrink-0" />
-                                  <span className="break-all">{r.phone}</span>
+                              <div className="text-[10px] sm:text-xs md:text-sm text-gray-700 flex flex-wrap gap-2 sm:gap-2.5 mb-2 sm:mb-3">
+                                <span className="inline-flex items-center gap-1.5 px-2 py-1 bg-gray-50 rounded-lg border border-gray-200">
+                                  <Phone className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-gray-500 flex-shrink-0" />
+                                  <span className="font-semibold text-gray-800 break-all">{r.phone}</span>
                                 </span>
                                 {r.whatsapp_phone && r.whatsapp_phone !== r.phone && (
-                                  <span className="inline-flex items-center gap-1">
-                                    <MessageCircle className="w-3 h-3 sm:w-4 sm:h-4 text-gray-500 flex-shrink-0" />
-                                    <span className="break-all">{r.whatsapp_phone}</span>
+                                  <span className="inline-flex items-center gap-1.5 px-2 py-1 bg-green-50 rounded-lg border border-green-200">
+                                    <MessageCircle className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-green-600 flex-shrink-0" />
+                                    <span className="font-semibold text-green-800 break-all">{r.whatsapp_phone}</span>
                                   </span>
                                 )}
                                 {r.invited_at && (
-                                  <span className="text-gray-500 text-[10px] sm:text-xs">
-                                    إرسال: {new Date(r.invited_at).toLocaleDateString('ar-JO', { month: 'short', day: 'numeric' })}
+                                  <span className="inline-flex items-center px-2 py-1 bg-blue-50 rounded-lg border border-blue-200 text-gray-600 text-[10px] sm:text-xs">
+                                    📤 {new Date(r.invited_at).toLocaleDateString('ar-JO', { month: 'short', day: 'numeric' })}
                                   </span>
                                 )}
                                 {r.joined_at && (
-                                  <span className="text-gray-500 text-[10px] sm:text-xs">
-                                    انضم: {new Date(r.joined_at).toLocaleDateString('ar-JO', { month: 'short', day: 'numeric' })}
+                                  <span className="inline-flex items-center px-2 py-1 bg-green-50 rounded-lg border border-green-200 text-green-700 text-[10px] sm:text-xs font-semibold">
+                                    ✅ {new Date(r.joined_at).toLocaleDateString('ar-JO', { month: 'short', day: 'numeric' })}
                                   </span>
                                 )}
                               </div>
@@ -1169,33 +1399,33 @@ export default function InvitesManagement() {
                                 </label>
                               </div>
                             </div>
-                            <div className="flex gap-1.5 sm:gap-2 flex-shrink-0 justify-end sm:justify-start">
+                            <div className="flex flex-wrap gap-1.5 sm:gap-2 flex-shrink-0 justify-end sm:justify-start">
                               <button
                                 type="button"
                                 onClick={() => openWhatsApp(r)}
-                                className="px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg bg-green-600 text-white text-[10px] sm:text-xs md:text-sm font-extrabold hover:bg-green-700 transition inline-flex items-center justify-center gap-1 sm:gap-2"
+                                className="px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-lg bg-green-600 text-white text-[10px] sm:text-xs md:text-sm font-extrabold hover:bg-green-700 transition inline-flex items-center justify-center gap-1 sm:gap-1.5 shadow-sm hover:shadow-md"
                                 title="واتساب"
                               >
-                                <MessageCircle className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                                <span className="hidden sm:inline">واتساب</span>
+                                <MessageCircle className="w-3.5 h-3.5 sm:w-4 sm:h-4 flex-shrink-0" />
+                                <span className="hidden sm:inline whitespace-nowrap">واتساب</span>
                               </button>
                               <button
                                 type="button"
                                 onClick={() => startEdit(r)}
-                                className="px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg bg-blue-600 text-white text-[10px] sm:text-xs md:text-sm font-extrabold hover:bg-blue-700 transition inline-flex items-center justify-center gap-1 sm:gap-2"
+                                className="px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-lg bg-blue-600 text-white text-[10px] sm:text-xs md:text-sm font-extrabold hover:bg-blue-700 transition inline-flex items-center justify-center gap-1 sm:gap-1.5 shadow-sm hover:shadow-md"
                                 title="تعديل"
                               >
-                                <Edit2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                                <span className="hidden sm:inline">تعديل</span>
+                                <Edit2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 flex-shrink-0" />
+                                <span className="hidden sm:inline whitespace-nowrap">تعديل</span>
                               </button>
                               <button
                                 type="button"
                                 onClick={() => removeFromBatch(r.id)}
-                                className="px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg bg-red-600 text-white text-[10px] sm:text-xs md:text-sm font-extrabold hover:bg-red-700 transition inline-flex items-center justify-center gap-1 sm:gap-2"
-                                title="حذف"
+                                className="px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-lg bg-red-600 text-white text-[10px] sm:text-xs md:text-sm font-extrabold hover:bg-red-700 transition inline-flex items-center justify-center gap-1 sm:gap-1.5 shadow-sm hover:shadow-md"
+                                title="حذف من المجموعة"
                               >
-                                <Trash2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                                <span className="hidden sm:inline">حذف</span>
+                                <Trash2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 flex-shrink-0" />
+                                <span className="hidden sm:inline whitespace-nowrap">حذف</span>
                               </button>
                             </div>
                           </div>
@@ -1205,109 +1435,180 @@ export default function InvitesManagement() {
                   ))}
                   
                   {/* إضافة رقم جديد للمجموعة */}
-                  <div className="border-2 border-dashed border-purple-300 rounded-lg p-3 sm:p-4 bg-purple-50">
-                    <div className="text-xs sm:text-sm font-extrabold text-gray-900 mb-2 sm:mb-3 flex items-center gap-1.5 sm:gap-2">
-                      <Plus className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-purple-600 flex-shrink-0" />
-                      <span>إضافة رقم جديد للمجموعة</span>
+                  <div className="border-2 border-dashed border-purple-300 rounded-xl p-3 sm:p-4 md:p-5 bg-gradient-to-br from-purple-50 to-blue-50">
+                    <div className="flex items-center gap-2 sm:gap-3 mb-3 sm:mb-4">
+                      <div className="flex-shrink-0 w-8 h-8 sm:w-9 sm:h-9 bg-purple-600 rounded-lg flex items-center justify-center">
+                        <Plus className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
+                      </div>
+                      <div>
+                        <h5 className="text-sm sm:text-base md:text-lg font-extrabold text-gray-900">
+                          إضافة رقم جديد للمجموعة
+                        </h5>
+                        <p className="text-xs sm:text-sm text-gray-600 mt-0.5">
+                          أدخل بيانات الرقم لإضافته مباشرة
+                        </p>
+                      </div>
                     </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                      <input
-                        value={addForm.full_name}
-                        onChange={(e) => setAddForm((p) => ({ ...p, full_name: e.target.value }))}
-                        className="px-3 py-2 text-xs sm:text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                        placeholder="الاسم (اختياري)"
-                      />
-                      <input
-                        value={addForm.phone}
-                        onChange={(e) => setAddForm((p) => ({ ...p, phone: e.target.value }))}
-                        className="px-3 py-2 text-xs sm:text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                        placeholder="رقم الهاتف *"
-                      />
-                      <div className="flex flex-col sm:flex-row gap-2">
+                    <div className="space-y-3">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 sm:gap-3">
+                        <input
+                          value={addForm.full_name}
+                          onChange={(e) => setAddForm((p) => ({ ...p, full_name: e.target.value }))}
+                          className="px-3 sm:px-4 py-2.5 sm:py-3 text-sm sm:text-base border-2 border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition"
+                          placeholder="👤 الاسم (اختياري)"
+                        />
+                        <input
+                          value={addForm.phone}
+                          onChange={(e) => setAddForm((p) => ({ ...p, phone: e.target.value }))}
+                          className="px-3 sm:px-4 py-2.5 sm:py-3 text-sm sm:text-base border-2 border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition"
+                          placeholder="📱 رقم الهاتف *"
+                          required
+                        />
                         <input
                           value={addForm.country}
                           onChange={(e) => setAddForm((p) => ({ ...p, country: e.target.value }))}
-                          className="flex-1 px-3 py-2 text-xs sm:text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                          placeholder="الدولة"
+                          className="px-3 sm:px-4 py-2.5 sm:py-3 text-sm sm:text-base border-2 border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition"
+                          placeholder="🌍 الدولة"
                         />
-                        <button
-                          type="button"
-                          onClick={async () => {
-                            const phone = normalizeDigits(addForm.phone)
-                            if (!phone || phone.length < 9) {
-                              toast.error('أدخل رقم هاتف صحيح')
-                              return
-                            }
-                            try {
-                              setSavingOne(true)
-                              // إضافة أو تحديث الرقم
-                              const { data: existing } = await supabase
-                                .from('invites')
-                                .select('id')
-                                .eq('phone', phone)
-                                .maybeSingle()
-                              
-                              if (existing) {
-                                // تحديث الرقم الموجود وإضافته للمجموعة
-                                await supabase
-                                  .from('invites')
-                                  .update({
-                                    batch_id: selectedBatch,
-                                    full_name: addForm.full_name.trim() || null,
-                                    country: addForm.country.trim() || null,
-                                    status: 'queued',
-                                    updated_at: new Date().toISOString(),
-                                  })
-                                  .eq('id', existing.id)
-                              } else {
-                                // إضافة رقم جديد
-                                await supabase
-                                  .from('invites')
-                                  .insert({
-                                    phone,
-                                    whatsapp_phone: phone,
-                                    full_name: addForm.full_name.trim() || null,
-                                    country: addForm.country.trim() || null,
-                                    batch_id: selectedBatch,
-                                    status: 'queued',
-                                    updated_at: new Date().toISOString(),
-                                  })
-                              }
-                              
-                              // تحديث عدد المجموعة
-                              const { data: batch } = await supabase
-                                .from('invite_batches')
-                                .select('total_count')
-                                .eq('id', selectedBatch)
-                                .single()
-                              
+                      </div>
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          const phone = normalizeDigits(addForm.phone)
+                          if (!phone || phone.length < 9) {
+                            toast.error('أدخل رقم هاتف صحيح')
+                            return
+                          }
+                          try {
+                            setSavingOne(true)
+                            // إضافة أو تحديث الرقم
+                            const { data: existing } = await supabase
+                              .from('invites')
+                              .select('id')
+                              .eq('phone', phone)
+                              .maybeSingle()
+                            
+                            if (existing) {
+                              // تحديث الرقم الموجود وإضافته للمجموعة
                               await supabase
-                                .from('invite_batches')
+                                .from('invites')
                                 .update({
-                                  total_count: (batch?.total_count || 0) + 1,
+                                  batch_id: selectedBatch,
+                                  full_name: addForm.full_name.trim() || null,
+                                  country: addForm.country.trim() || null,
+                                  status: 'queued',
                                   updated_at: new Date().toISOString(),
                                 })
-                                .eq('id', selectedBatch)
-                              
-                              toast.success('تم إضافة الرقم للمجموعة')
-                              setAddForm({ full_name: '', phone: '', country: '' })
-                              await loadBatchInvites(selectedBatch)
-                              await loadBatches()
-                            } catch (e: any) {
-                              console.error('Error adding to batch:', e)
-                              toast.error(e?.message || 'تعذر إضافة الرقم')
-                            } finally {
-                              setSavingOne(false)
+                                .eq('id', existing.id)
+                            } else {
+                              // إضافة رقم جديد
+                              await supabase
+                                .from('invites')
+                                .insert({
+                                  phone,
+                                  whatsapp_phone: phone,
+                                  full_name: addForm.full_name.trim() || null,
+                                  country: addForm.country.trim() || null,
+                                  batch_id: selectedBatch,
+                                  status: 'queued',
+                                  updated_at: new Date().toISOString(),
+                                })
                             }
-                          }}
-                          disabled={savingOne}
-                          className="w-full sm:w-auto px-4 py-2 rounded-lg bg-purple-600 text-white font-extrabold text-xs sm:text-sm hover:bg-purple-700 transition disabled:opacity-50 whitespace-nowrap"
-                        >
-                          {savingOne ? 'جاري...' : 'إضافة'}
-                        </button>
-                      </div>
+                            
+                            // تحديث عدد المجموعة
+                            const { data: batch } = await supabase
+                              .from('invite_batches')
+                              .select('total_count')
+                              .eq('id', selectedBatch)
+                              .single()
+                            
+                            await supabase
+                              .from('invite_batches')
+                              .update({
+                                total_count: (batch?.total_count || 0) + 1,
+                                updated_at: new Date().toISOString(),
+                              })
+                              .eq('id', selectedBatch)
+                            
+                            toast.success('تم إضافة الرقم للمجموعة')
+                            setAddForm({ full_name: '', phone: '', country: '' })
+                            await loadBatchInvites(selectedBatch)
+                            await loadBatches()
+                          } catch (e: any) {
+                            console.error('Error adding to batch:', e)
+                            toast.error(e?.message || 'تعذر إضافة الرقم')
+                          } finally {
+                            setSavingOne(false)
+                          }
+                        }}
+                        disabled={savingOne}
+                        className="w-full sm:w-auto sm:min-w-[140px] px-4 sm:px-6 py-2.5 sm:py-3 rounded-lg bg-gradient-to-r from-purple-600 to-purple-700 text-white font-extrabold text-sm sm:text-base hover:from-purple-700 hover:to-purple-800 transition disabled:opacity-50 disabled:cursor-not-allowed shadow-md hover:shadow-lg flex items-center justify-center gap-2"
+                      >
+                        {savingOne ? (
+                          <>
+                            <RefreshCw className="w-4 h-4 animate-spin" />
+                            <span>جاري الإضافة...</span>
+                          </>
+                        ) : (
+                          <>
+                            <Plus className="w-4 h-4 sm:w-5 sm:h-5" />
+                            <span>إضافة للمجموعة</span>
+                          </>
+                        )}
+                      </button>
                     </div>
                   </div>
+
+                  {/* نص الرسالة المرسلة للمجموعة */}
+                  {(() => {
+                    const currentBatch = batches.find((b: any) => b.id === selectedBatch)
+                    return currentBatch?.last_message_sent ? (
+                      <div className="border-2 border-dashed border-green-300 rounded-xl p-3 sm:p-4 md:p-5 bg-gradient-to-br from-green-50 to-emerald-50">
+                        <div className="flex items-center gap-2 sm:gap-3 mb-3 sm:mb-4">
+                          <div className="flex-shrink-0 w-8 h-8 sm:w-9 sm:h-9 bg-green-600 rounded-lg flex items-center justify-center">
+                            <MessageCircle className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <h5 className="text-sm sm:text-base md:text-lg font-extrabold text-gray-900">
+                              نص الرسالة المرسلة لهذه المجموعة
+                            </h5>
+                            <p className="text-xs sm:text-sm text-gray-600 mt-0.5">
+                              آخر رسالة تم إرسالها لهذه المجموعة
+                            </p>
+                          </div>
+                        </div>
+                        <div className="bg-white border border-green-200 rounded-lg p-3 sm:p-4 mb-3">
+                          <pre className="text-xs sm:text-sm text-gray-700 whitespace-pre-wrap font-medium leading-relaxed max-h-[200px] sm:max-h-[250px] overflow-y-auto">
+                            {currentBatch.last_message_sent}
+                          </pre>
+                        </div>
+                        <div className="flex flex-col sm:flex-row gap-2">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              navigator.clipboard.writeText(currentBatch.last_message_sent)
+                              toast.success('تم نسخ نص الرسالة')
+                            }}
+                            className="flex-1 px-4 py-2.5 rounded-lg bg-green-600 text-white font-extrabold text-sm hover:bg-green-700 transition inline-flex items-center justify-center gap-2"
+                          >
+                            <FileText className="w-4 h-4" />
+                            نسخ نص الرسالة
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setMessageTpl(currentBatch.last_message_sent)
+                              toast.success('تم تحميل نص الرسالة للتعديل')
+                            }}
+                            className="flex-1 px-4 py-2.5 rounded-lg bg-blue-600 text-white font-extrabold text-sm hover:bg-blue-700 transition inline-flex items-center justify-center gap-2"
+                          >
+                            <Edit2 className="w-4 h-4" />
+                            تحميل للتعديل
+                          </button>
+                        </div>
+                      </div>
+                    ) : null
+                  })()}
                 </div>
               )}
             </div>
@@ -1317,36 +1618,67 @@ export default function InvitesManagement() {
 
       {/* إضافة أرقام لمجموعة */}
       {selectedInvites.size > 0 && batches.length > 0 && (
-        <div className="bg-white rounded-xl shadow-md border border-purple-200 p-4 sm:p-5">
-          <div className="flex items-center justify-between mb-3">
-            <h4 className="text-sm sm:text-base font-extrabold text-gray-900 flex items-center gap-2">
-              <Users className="w-4 h-4 text-purple-600" />
-              إضافة {selectedInvites.size} رقم لمجموعة
-            </h4>
+        <div className="bg-gradient-to-r from-purple-50 to-blue-50 rounded-xl shadow-lg border-2 border-purple-300 p-3 sm:p-4 md:p-5">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-3 sm:mb-4">
+            <div className="flex items-center gap-2 sm:gap-3 flex-1 min-w-0">
+              <div className="flex-shrink-0 w-8 h-8 sm:w-10 sm:h-10 bg-purple-600 rounded-lg flex items-center justify-center">
+                <Users className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
+              </div>
+              <div className="min-w-0">
+                <h4 className="text-sm sm:text-base md:text-lg font-extrabold text-gray-900">
+                  إضافة {selectedInvites.size} رقم لمجموعة
+                </h4>
+                <p className="text-xs sm:text-sm text-gray-600 mt-0.5">
+                  اختر المجموعة لإضافة الأرقام المحددة
+                </p>
+              </div>
+            </div>
             <button
               type="button"
               onClick={() => setSelectedInvites(new Set())}
-              className="text-gray-400 hover:text-gray-600"
+              className="flex-shrink-0 w-8 h-8 sm:w-9 sm:h-9 flex items-center justify-center rounded-lg bg-white border border-gray-300 text-gray-500 hover:text-gray-700 hover:bg-gray-50 transition"
+              title="إلغاء التحديد"
             >
-              <X className="w-4 h-4" />
+              <X className="w-4 h-4 sm:w-5 sm:h-5" />
             </button>
           </div>
-          <select
-            onChange={(e) => {
-              if (e.target.value) {
-                addInvitesToBatch(e.target.value)
-              }
-            }}
-            className="w-full px-4 py-2 border border-purple-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-            defaultValue=""
-          >
-            <option value="">اختر المجموعة...</option>
-            {batches.map((batch: any) => (
-              <option key={batch.id} value={batch.id}>
-                {batch.name} ({batch.total_count || 0} رقم)
-              </option>
-            ))}
-          </select>
+          <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
+            <select
+              onChange={(e) => {
+                if (e.target.value) {
+                  addInvitesToBatch(e.target.value)
+                }
+              }}
+              className="flex-1 px-3 sm:px-4 py-2.5 sm:py-3 text-sm sm:text-base border-2 border-purple-300 rounded-lg bg-white focus:ring-2 focus:ring-purple-500 focus:border-purple-500 font-semibold"
+              defaultValue=""
+            >
+              <option value="">📋 اختر المجموعة...</option>
+              {batches.map((batch: any) => (
+                <option key={batch.id} value={batch.id}>
+                  {batch.name} ({batch.total_count || 0} رقم)
+                </option>
+              ))}
+            </select>
+          </div>
+          {selectedInvites.size <= 5 && (
+            <div className="mt-3 pt-3 border-t border-purple-200">
+              <p className="text-xs sm:text-sm text-gray-600 mb-2 font-semibold">الأرقام المحددة:</p>
+              <div className="flex flex-wrap gap-2">
+                {Array.from(selectedInvites).slice(0, 5).map((id) => {
+                  const invite = rows.find((r) => r.id === id)
+                  return invite ? (
+                    <span
+                      key={id}
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1.5 bg-white border border-purple-200 rounded-lg text-xs sm:text-sm font-semibold text-gray-700"
+                    >
+                      <UserPlus className="w-3 h-3 text-purple-600" />
+                      {invite.full_name || 'بدون اسم'} ({invite.phone.slice(-4)})
+                    </span>
+                  ) : null
+                })}
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -1384,28 +1716,31 @@ export default function InvitesManagement() {
 
         <div className="mt-4 grid gap-3">
           {filtered.slice(0, 300).map((r) => (
-            <div key={r.id} className={`border rounded-xl p-3 sm:p-4 ${selectedInvites.has(r.id) ? 'border-purple-400 bg-purple-50' : 'border-gray-200'}`}>
+            <div key={r.id} className={`border-2 rounded-xl p-3 sm:p-4 transition-all ${selectedInvites.has(r.id) ? 'border-purple-500 bg-gradient-to-br from-purple-50 to-blue-50 shadow-md' : 'border-gray-200 hover:border-gray-300 hover:shadow-sm'}`}>
               <div className="flex flex-col lg:flex-row justify-between gap-3">
-                <div className="min-w-0 flex-1 flex items-start gap-3">
-                  <input
-                    type="checkbox"
-                    checked={selectedInvites.has(r.id)}
-                    onChange={(e) => {
-                      const newSet = new Set(selectedInvites)
-                      if (e.target.checked) {
-                        newSet.add(r.id)
-                      } else {
-                        newSet.delete(r.id)
-                      }
-                      setSelectedInvites(newSet)
-                    }}
-                    className="mt-1 w-4 h-4 text-purple-600 border-gray-300 rounded focus:ring-purple-500"
-                  />
-                  <div className="flex-1">
+                <div className="min-w-0 flex-1 flex items-start gap-2 sm:gap-3">
+                  <label className="flex items-center cursor-pointer mt-0.5 sm:mt-1 flex-shrink-0">
+                    <input
+                      type="checkbox"
+                      checked={selectedInvites.has(r.id)}
+                      onChange={(e) => {
+                        const newSet = new Set(selectedInvites)
+                        if (e.target.checked) {
+                          newSet.add(r.id)
+                        } else {
+                          newSet.delete(r.id)
+                        }
+                        setSelectedInvites(newSet)
+                      }}
+                      className="w-5 h-5 sm:w-5 sm:h-5 md:w-6 md:h-6 text-purple-600 border-2 border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500 focus:ring-offset-1 cursor-pointer transition"
+                    />
+                    <span className="sr-only">تحديد {r.full_name || r.phone}</span>
+                  </label>
+                  <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <div className="font-extrabold text-gray-900 truncate">
+                    <div className="font-extrabold text-sm sm:text-base text-gray-900 truncate">
                       {r.full_name || 'بدون اسم'}{' '}
-                      <span className="text-xs text-gray-500 font-bold">({r.country || '—'})</span>
+                      <span className="text-xs sm:text-sm text-gray-500 font-bold">({r.country || '—'})</span>
                     </div>
                     <span
                       className={[
@@ -1430,47 +1765,93 @@ export default function InvitesManagement() {
                       </span>
                     )}
                   </div>
-                  <div className="mt-2 text-xs sm:text-sm text-gray-700 flex flex-wrap gap-x-4 gap-y-1">
-                    <span className="inline-flex items-center gap-1">
-                      <Phone className="w-4 h-4 text-gray-500" />
-                      {r.phone}
+                  <div className="mt-2 sm:mt-3 text-xs sm:text-sm text-gray-700 flex flex-wrap gap-x-3 sm:gap-x-4 gap-y-1.5 sm:gap-y-2">
+                    <span className="inline-flex items-center gap-1.5 px-2 py-1 bg-gray-50 rounded-lg border border-gray-200">
+                      <Phone className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-gray-500 flex-shrink-0" />
+                      <span className="font-semibold text-gray-800 break-all">{r.phone}</span>
                     </span>
-                    {r.whatsapp_phone && (
-                      <span className="inline-flex items-center gap-1">
-                        <MessageCircle className="w-4 h-4 text-gray-500" />
-                        {r.whatsapp_phone}
+                    {r.whatsapp_phone && r.whatsapp_phone !== r.phone && (
+                      <span className="inline-flex items-center gap-1.5 px-2 py-1 bg-green-50 rounded-lg border border-green-200">
+                        <MessageCircle className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-green-600 flex-shrink-0" />
+                        <span className="font-semibold text-green-800 break-all">{r.whatsapp_phone}</span>
                       </span>
                     )}
-                    {r.invited_at && <span className="text-gray-500">آخر إرسال: {new Date(r.invited_at).toLocaleString('ar-JO')}</span>}
-                    {r.joined_at && <span className="text-gray-500">انضم: {new Date(r.joined_at).toLocaleString('ar-JO')}</span>}
+                    {r.invited_at && (
+                      <span className="inline-flex items-center px-2 py-1 bg-blue-50 rounded-lg border border-blue-200 text-gray-600 text-[10px] sm:text-xs">
+                        📤 آخر إرسال: {new Date(r.invited_at).toLocaleDateString('ar-JO', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                      </span>
+                    )}
+                    {r.joined_at && (
+                      <span className="inline-flex items-center px-2 py-1 bg-green-50 rounded-lg border border-green-200 text-green-700 text-[10px] sm:text-xs font-semibold">
+                        ✅ انضم: {new Date(r.joined_at).toLocaleDateString('ar-JO', { month: 'short', day: 'numeric' })}
+                      </span>
+                    )}
                     {r.batch_id && (
-                      <span className="text-xs text-purple-600 font-bold">
-                        مجموعة: {batches.find((b: any) => b.id === r.batch_id)?.name || r.batch_id}
+                      <span className="inline-flex items-center px-2 py-1 bg-purple-50 rounded-lg border border-purple-200 text-purple-700 text-[10px] sm:text-xs font-bold">
+                        📋 {batches.find((b: any) => b.id === r.batch_id)?.name || r.batch_id}
                       </span>
                     )}
                   </div>
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 sm:flex sm:flex-wrap gap-2">
+                <div className="flex flex-col sm:flex-row gap-2 sm:gap-2">
                   <button
                     type="button"
                     onClick={() => openWhatsApp(r)}
-                    className="px-3 py-2 rounded-lg bg-green-600 text-white text-xs sm:text-sm font-extrabold hover:bg-green-700 transition inline-flex items-center justify-center gap-2"
+                    className="flex-1 sm:flex-none px-3 sm:px-4 py-2 sm:py-2.5 rounded-lg bg-green-600 text-white text-xs sm:text-sm font-extrabold hover:bg-green-700 transition inline-flex items-center justify-center gap-1.5 sm:gap-2 shadow-sm hover:shadow-md"
                     title="فتح واتساب برسالة دعوة جاهزة"
                   >
-                    <MessageCircle className="w-4 h-4" />
-                    واتساب
+                    <MessageCircle className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                    <span className="whitespace-nowrap">واتساب</span>
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => markSent(r.id)}
-                    className="px-3 py-2 rounded-lg bg-blue-600 text-white text-xs sm:text-sm font-extrabold hover:bg-blue-700 transition inline-flex items-center justify-center gap-2"
-                    title="تعليم كمرسلة (بعد الإرسال)"
-                  >
-                    <CheckCircle2 className="w-4 h-4" />
-                    تم الإرسال
-                  </button>
+                  {batches.length > 0 && (
+                    <div className="relative flex-1 sm:flex-none min-w-[120px]">
+                      {movingInvite === r.id ? (
+                        <div className="flex gap-1.5 sm:gap-2">
+                          <select
+                            onChange={(e) => {
+                              const targetBatchId = e.target.value || null
+                              if (targetBatchId === 'CANCEL') {
+                                setMovingInvite(null)
+                              } else {
+                                moveToBatch(r.id, targetBatchId)
+                              }
+                            }}
+                            className="flex-1 px-2.5 sm:px-3 py-2 sm:py-2.5 text-xs sm:text-sm border-2 border-purple-400 rounded-lg bg-white focus:ring-2 focus:ring-purple-500 focus:border-purple-500 font-semibold shadow-sm"
+                            autoFocus
+                          >
+                            <option value="CANCEL">❌ إلغاء</option>
+                            <option value="">🗑️ إزالة من المجموعة</option>
+                            {batches.map((batch: any) => (
+                              <option key={batch.id} value={batch.id} disabled={batch.id === r.batch_id}>
+                                {batch.id === r.batch_id ? `✓ ${batch.name} (الحالية)` : `→ ${batch.name} (${batch.total_count || 0} رقم)`}
+                              </option>
+                            ))}
+                          </select>
+                          <button
+                            type="button"
+                            onClick={() => setMovingInvite(null)}
+                            className="px-2 sm:px-2.5 py-2 sm:py-2.5 rounded-lg bg-gray-200 text-gray-700 hover:bg-gray-300 transition text-xs sm:text-sm font-extrabold flex-shrink-0"
+                            title="إلغاء"
+                          >
+                            <X className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => setMovingInvite(r.id)}
+                          className="w-full sm:w-auto px-3 sm:px-4 py-2 sm:py-2.5 rounded-lg bg-purple-600 text-white text-xs sm:text-sm font-extrabold hover:bg-purple-700 transition inline-flex items-center justify-center gap-1.5 sm:gap-2 shadow-sm hover:shadow-md"
+                          title="نقل إلى مجموعة أخرى"
+                        >
+                          <ArrowRight className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                          <span className="whitespace-nowrap hidden sm:inline">نقل</span>
+                          <span className="whitespace-nowrap sm:hidden">نقل</span>
+                        </button>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -1489,6 +1870,123 @@ export default function InvitesManagement() {
           )}
         </div>
       </div>
+
+      {/* Modal تفاصيل إرسال المجموعة */}
+      {batchSentDetails && (() => {
+        const batch = batches.find((b: any) => b.id === batchSentDetails)
+        if (!batch) return null
+        
+        return (
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setBatchSentDetails(null)}>
+            <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+              <div className="sticky top-0 bg-white border-b border-gray-200 p-4 sm:p-6 flex items-center justify-between">
+                <h3 className="text-lg sm:text-xl font-extrabold text-gray-900 flex items-center gap-2">
+                  <FileText className="w-5 h-5 text-green-600" />
+                  تفاصيل إرسال المجموعة: {batch.name}
+                </h3>
+                <button
+                  type="button"
+                  onClick={() => setBatchSentDetails(null)}
+                  className="w-8 h-8 flex items-center justify-center rounded-lg bg-gray-100 hover:bg-gray-200 transition"
+                >
+                  <X className="w-5 h-5 text-gray-600" />
+                </button>
+              </div>
+              
+              <div className="p-4 sm:p-6 space-y-4 sm:space-y-6">
+                {/* معلومات الإرسال */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 sm:p-4">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Calendar className="w-4 h-4 text-blue-600" />
+                      <span className="text-xs sm:text-sm font-extrabold text-blue-800">تاريخ الإرسال</span>
+                    </div>
+                    <div className="text-sm sm:text-base font-bold text-blue-900">
+                      {batch.sent_at || batch.confirmed_sent_at
+                        ? new Date(batch.sent_at || batch.confirmed_sent_at).toLocaleString('ar-JO', {
+                            year: 'numeric',
+                            month: 'long',
+                            day: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit',
+                          })
+                        : 'غير محدد'}
+                    </div>
+                  </div>
+                  
+                  {batch.confirmed_sent_by && (
+                    <div className="bg-green-50 border border-green-200 rounded-lg p-3 sm:p-4">
+                      <div className="flex items-center gap-2 mb-2">
+                        <User className="w-4 h-4 text-green-600" />
+                        <span className="text-xs sm:text-sm font-extrabold text-green-800">أكد الإرسال</span>
+                      </div>
+                      <div className="text-sm sm:text-base font-bold text-green-900">
+                        {batch.confirmed_sent_role === 'admin' ? 'أدمن' : 'مشرف'}
+                        {batch.confirmed_sent_at && (
+                          <span className="block text-xs text-green-700 mt-1">
+                            {new Date(batch.confirmed_sent_at).toLocaleString('ar-JO', {
+                              month: 'short',
+                              day: 'numeric',
+                              hour: '2-digit',
+                              minute: '2-digit',
+                            })}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                  
+                  <div className="bg-purple-50 border border-purple-200 rounded-lg p-3 sm:p-4">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Send className="w-4 h-4 text-purple-600" />
+                      <span className="text-xs sm:text-sm font-extrabold text-purple-800">عدد المرسلة</span>
+                    </div>
+                    <div className="text-sm sm:text-base font-bold text-purple-900 tabular-nums">
+                      {batch.sent_count || 0} من {batch.total_count || 0}
+                    </div>
+                  </div>
+                  
+                  <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 sm:p-4">
+                    <div className="flex items-center gap-2 mb-2">
+                      <CheckCircle2 className="w-4 h-4 text-amber-600" />
+                      <span className="text-xs sm:text-sm font-extrabold text-amber-800">انضم</span>
+                    </div>
+                    <div className="text-sm sm:text-base font-bold text-amber-900 tabular-nums">
+                      {batch.joined_count || 0} شخص
+                    </div>
+                  </div>
+                </div>
+
+                {/* نص الرسالة */}
+                {batch.last_message_sent && (
+                  <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 sm:p-5">
+                    <div className="flex items-center gap-2 mb-3">
+                      <MessageCircle className="w-5 h-5 text-gray-600" />
+                      <h4 className="text-sm sm:text-base font-extrabold text-gray-900">نص الرسالة المرسلة</h4>
+                    </div>
+                    <div className="bg-white border border-gray-200 rounded-lg p-3 sm:p-4">
+                      <pre className="text-xs sm:text-sm text-gray-700 whitespace-pre-wrap font-medium leading-relaxed">
+                        {batch.last_message_sent}
+                      </pre>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        navigator.clipboard.writeText(batch.last_message_sent)
+                        toast.success('تم نسخ نص الرسالة')
+                      }}
+                      className="mt-3 w-full px-4 py-2 rounded-lg bg-gray-200 text-gray-800 font-extrabold text-sm hover:bg-gray-300 transition inline-flex items-center justify-center gap-2"
+                    >
+                      <FileText className="w-4 h-4" />
+                      نسخ نص الرسالة
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )
+      })()}
     </div>
   )
 }
