@@ -34,8 +34,8 @@ export default function RootLayout({
     <html lang="ar" dir="rtl" style={{ colorScheme: 'light' }}>
       <body className={cairo.className} style={{ colorScheme: 'light' }}>
         <Header />
-        {/* Padding top matches fixed header height (header is taller due to back button) */}
-        <div className="pt-20 sm:pt-24">
+        {/* Padding top matches fixed header height (reduced after header optimization) */}
+        <div className="pt-12 sm:pt-14">
           {children}
         </div>
         <Toaster position="top-center" />

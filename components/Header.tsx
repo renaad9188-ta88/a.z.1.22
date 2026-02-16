@@ -122,12 +122,12 @@ export default function Header() {
 
   return (
     <header className="bg-white/95 backdrop-blur-sm shadow-sm fixed top-0 left-0 right-0 z-50">
-      <div className="container mx-auto px-2 sm:px-3 md:px-4 py-1">
-        <div className="flex justify-between items-center gap-2">
-          <div className="flex flex-col items-start gap-1 flex-shrink-0">
-            <Link href="/" className="flex items-center gap-1.5 sm:gap-2 group">
+      <div className="container mx-auto px-2 sm:px-3 md:px-4 py-0.5">
+        <div className="flex justify-between items-center gap-1.5">
+          <div className="flex flex-col items-start gap-0.5 flex-shrink-0">
+            <Link href="/" className="flex items-center gap-1 sm:gap-1.5 group">
               {/* شعار جميل - أيقونة تمثل الوحدة والخدمات */}
-              <div className="relative w-8 h-8 sm:w-9 sm:h-9 md:w-10 md:h-10 flex items-center justify-center">
+              <div className="relative w-7 h-7 sm:w-8 sm:h-8 md:w-9 md:h-9 flex items-center justify-center">
                 {/* خلفية متدرجة بألوان علم سوريا مع تأثير ثلاثي الأبعاد */}
                 <div className="absolute inset-0 bg-gradient-to-br from-red-600 via-red-500 to-red-700 rounded-xl shadow-lg group-hover:shadow-xl transition-all duration-300 group-hover:scale-105"></div>
                 {/* طبقة بيضاء في الوسط */}
@@ -148,7 +148,7 @@ export default function Header() {
                 <div className="absolute -inset-0.5 border-2 border-yellow-400/50 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity"></div>
               </div>
               <div className="flex flex-col">
-                <h1 className="text-sm sm:text-base md:text-lg lg:text-xl font-extrabold bg-gradient-to-r from-red-600 via-gray-800 to-green-600 bg-clip-text text-transparent leading-tight group-hover:from-red-500 group-hover:to-green-500 transition-all">
+                <h1 className="text-xs sm:text-sm md:text-base lg:text-lg font-extrabold bg-gradient-to-r from-red-600 via-gray-800 to-green-600 bg-clip-text text-transparent leading-tight group-hover:from-red-500 group-hover:to-green-500 transition-all">
                   سوريا بلس (Syria Plus) خدمات
                 </h1>
                 <div className="h-0.5 bg-gradient-to-r from-red-500 via-yellow-400 to-green-600 rounded-full mt-0.5 opacity-60 group-hover:opacity-100 transition-opacity"></div>
@@ -159,16 +159,16 @@ export default function Header() {
             <button
               type="button"
               onClick={handleBack}
-              className="inline-flex items-center gap-2 text-sm sm:text-base font-bold text-gray-700 hover:text-blue-700 transition px-3 py-1.5 rounded-xl hover:bg-blue-50 border border-transparent hover:border-blue-100"
+              className="inline-flex items-center gap-1.5 text-xs sm:text-sm font-bold text-gray-700 hover:text-blue-700 transition px-2 py-1 rounded-lg hover:bg-blue-50 border border-transparent hover:border-blue-100"
               aria-label="رجوع"
               title="رجوع"
             >
-              <ArrowLeft className="w-5 h-5 sm:w-5.5 sm:h-5.5" />
+              <ArrowLeft className="w-4 h-4 sm:w-4.5 sm:h-4.5" />
               <span>رجوع</span>
             </button>
           </div>
           
-          <div className="flex items-center gap-1 sm:gap-1.5 md:gap-2 min-w-0 flex-1 justify-end">
+          <div className="flex items-center gap-1 sm:gap-1.5 md:gap-2 min-w-0 flex-1 justify-end mt-6 sm:mt-7 md:mt-8">
             {loading ? (
               <div className="w-16 h-6 bg-gray-200 animate-pulse rounded"></div>
             ) : user ? (
