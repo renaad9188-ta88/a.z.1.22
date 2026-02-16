@@ -836,9 +836,23 @@ export default function InvitesManagement() {
                   )}
                 </div>
                 <div className="space-y-1 text-xs text-gray-600">
-                  <div>الإجمالي: <span className="font-bold text-gray-900">{batch.total_count || 0}</span></div>
-                  <div>مرسلة: <span className="font-bold text-amber-600">{batch.sent_count || 0}</span></div>
-                  <div>انضم: <span className="font-bold text-green-600">{batch.joined_count || 0}</span></div>
+                  <div className="flex items-center justify-between">
+                    <span>الإجمالي:</span>
+                    <span className="font-bold text-gray-900 tabular-nums">{batch.total_count || 0}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span>مرسلة:</span>
+                    <span className="font-bold text-amber-600 tabular-nums">{batch.sent_count || 0}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span>انضم:</span>
+                    <span className={`font-bold tabular-nums ${(batch.joined_count || 0) > 0 ? 'text-green-600' : 'text-gray-400'}`}>
+                      {batch.joined_count || 0}
+                      {(batch.joined_count || 0) > 0 && (
+                        <span className="mr-1 text-[10px]">✓</span>
+                      )}
+                    </span>
+                  </div>
                 </div>
                 <div className="mt-2 flex gap-2">
                   <button
@@ -1028,8 +1042,15 @@ export default function InvitesManagement() {
                       <div className="text-base sm:text-lg md:text-xl font-black text-amber-900 tabular-nums">{batchInvites.filter((r) => r.status === 'sent').length}</div>
                     </div>
                     <div className="bg-green-50 border border-green-200 rounded-lg p-2 sm:p-3">
-                      <div className="text-[10px] sm:text-xs font-extrabold text-green-800 mb-1">انضم</div>
-                      <div className="text-base sm:text-lg md:text-xl font-black text-green-900 tabular-nums">{batchInvites.filter((r) => r.joined_user_id).length}</div>
+                      <div className="text-[10px] sm:text-xs font-extrabold text-green-800 mb-1 flex items-center gap-1">
+                        <span>انضم</span>
+                        {batchInvites.filter((r) => r.joined_user_id).length > 0 && (
+                          <CheckCircle2 className="w-3 h-3 text-green-600" />
+                        )}
+                      </div>
+                      <div className="text-base sm:text-lg md:text-xl font-black text-green-900 tabular-nums">
+                        {batchInvites.filter((r) => r.joined_user_id).length}
+                      </div>
                     </div>
                   </div>
                   
@@ -1101,11 +1122,12 @@ export default function InvitesManagement() {
                                 >
                                   {r.status}
                                 </span>
-                                {r.joined_user_id && (
-                                  <span className="text-[10px] sm:text-[11px] px-1.5 sm:px-2 py-0.5 rounded-full border bg-blue-50 text-blue-800 border-blue-200 font-extrabold whitespace-nowrap">
-                                    مربوط
-                                  </span>
-                                )}
+                              {r.joined_user_id && (
+                                <span className="text-[10px] sm:text-[11px] px-1.5 sm:px-2 py-0.5 rounded-full border bg-green-50 text-green-800 border-green-200 font-extrabold whitespace-nowrap flex items-center gap-1">
+                                  <CheckCircle2 className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
+                                  تم الانتساب
+                                </span>
+                              )}
                               </div>
                               <div className="text-[10px] sm:text-xs md:text-sm text-gray-700 flex flex-wrap gap-x-3 sm:gap-x-4 gap-y-1 mb-1.5 sm:mb-2">
                                 <span className="inline-flex items-center gap-1">
@@ -1402,8 +1424,9 @@ export default function InvitesManagement() {
                       {r.status}
                     </span>
                     {r.joined_user_id && (
-                      <span className="text-[11px] px-2 py-0.5 rounded-full border bg-blue-50 text-blue-800 border-blue-200 font-extrabold">
-                        مربوط بحساب
+                      <span className="text-[11px] px-2 py-0.5 rounded-full border bg-green-50 text-green-800 border-green-200 font-extrabold flex items-center gap-1">
+                        <CheckCircle2 className="w-3 h-3" />
+                        تم الانتساب للموقع
                       </span>
                     )}
                   </div>
