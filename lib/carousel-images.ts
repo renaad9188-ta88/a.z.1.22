@@ -8,8 +8,8 @@ export const carouselImages = {
     url: 'https://images.unsplash.com/photo-1544620347-c4fd4a3d5957?w=1200&h=600&fit=crop&q=80',
     // للصور المحلية: '/images/carousel/road-transport.jpg'
     title: 'الطريق الذهبي للنقل',
-    subtitle: 'نقل بري فاخر ومريح',
-    description: 'حافلات VIP بأعلى معايير الراحة والأمان',
+    subtitle: 'نقل بري فاخر برفاهية عالية',
+    description: 'حافلات VIP مريحة وآمنة مع أفضل الخدمات',
   },
   
   // 2. النقل الجوي
@@ -17,8 +17,8 @@ export const carouselImages = {
     url: 'https://images.unsplash.com/photo-1436491865332-7a61a109cc05?w=1200&h=600&fit=crop&q=80',
     // للصور المحلية: '/images/carousel/air-transport.jpg'
     title: 'نقل جوي سريع وآمن',
-    subtitle: 'رحلات جوية مريحة',
-    description: 'أسرع وأسهل طريقة للوصول إلى وجهتك',
+    subtitle: 'رحلات جوية مريحة ومضمونة',
+    description: 'أسرع وأسهل طريقة للوصول إلى وجهتك بأمان تام',
   },
   
   // 3. المعابر والحدود
@@ -26,8 +26,8 @@ export const carouselImages = {
     url: 'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=1200&h=600&fit=crop&q=80',
     // للصور المحلية: '/images/carousel/border-crossing.jpg'
     title: 'معبر جابر',
-    subtitle: 'عبور سريع وآمن',
-    description: 'تسهيلات عبور الحدود مع متابعة مستمرة',
+    subtitle: 'عبور سريع وآمن للحدود',
+    description: 'تسهيلات عبور الحدود مع متابعة مستمرة ودعم كامل',
   },
   
   // 4. الفيزا والتأشيرات
@@ -36,7 +36,7 @@ export const carouselImages = {
     // للصور المحلية: '/images/carousel/visa-services.jpg'
     title: 'خدمات الفيزا والتأشيرات',
     subtitle: 'إجراءات سريعة ومضمونة',
-    description: 'نساعدك في الحصول على التأشيرات بكل سهولة',
+    description: 'نساعدك في الحصول على التأشيرات بكل سهولة وضمان',
   },
   
   // 5. الزيارات السورية (شهر)
@@ -45,14 +45,14 @@ export const carouselImages = {
     // للصور المحلية: '/images/carousel/syrian-visits.jpg'
     title: 'زيارات سورية لمدة شهر',
     subtitle: 'خدمات منظمة ومتكاملة',
-    description: 'نظم زيارتك العائلية بكل تفاصيلها',
+    description: 'نظم زيارتك العائلية بكل تفاصيلها مع متابعة مستمرة',
   },
   
   // 6. خدمات شاملة
   comprehensiveServices: {
     url: 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=1200&h=600&fit=crop&q=80',
     // للصور المحلية: '/images/carousel/comprehensive-services.jpg'
-    title: 'خدمات شاملة',
+    title: 'خدمات شاملة ومتكاملة',
     subtitle: 'نوفر لك كل ما تحتاجه',
     description: 'من التنظيم إلى المتابعة - كل شيء في مكان واحد',
   },
@@ -61,15 +61,15 @@ export const carouselImages = {
   main: {
     url: 'https://images.unsplash.com/photo-1544620347-c4fd4a3d5957?w=1200&h=600&fit=crop&q=80',
     title: 'الطريق الذهبي للنقل',
-    subtitle: 'نقل بري فاخر ومريح',
-    description: 'حافلات VIP بأعلى معايير الراحة والأمان',
+    subtitle: 'نقل بري فاخر برفاهية عالية',
+    description: 'حافلات VIP مريحة وآمنة مع أفضل الخدمات',
   },
   
   border: {
     url: 'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=1200&h=600&fit=crop&q=80',
     title: 'معبر جابر',
-    subtitle: 'عبور سريع وآمن',
-    description: 'تسهيلات عبور الحدود مع متابعة مستمرة',
+    subtitle: 'عبور سريع وآمن للحدود',
+    description: 'تسهيلات عبور الحدود مع متابعة مستمرة ودعم كامل',
   },
   
   arrivals: {
@@ -88,7 +88,7 @@ export const carouselImages = {
   
   travelers: {
     url: 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=1200&h=600&fit=crop&q=80',
-    title: 'خدمات شاملة',
+    title: 'خدمات شاملة ومتكاملة',
     subtitle: 'نوفر لك كل ما تحتاجه',
     description: 'من التنظيم إلى المتابعة - كل شيء في مكان واحد',
   },
