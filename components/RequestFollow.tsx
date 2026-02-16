@@ -282,7 +282,7 @@ export default function RequestFollow({ requestId, userId }: { requestId: string
               <div className="mt-4">
                 <HelpContactButtons
                   userId={userId}
-                  visitType={request?.visit_type}
+                  visitType={request?.visit_type as 'visit' | 'umrah' | 'tourism' | 'goethe' | 'embassy' | 'visa' | undefined}
                   message={`مرحباً، أحتاج مساعدة بخصوص متابعة طلب الزيارة رقم ${request.id.slice(0, 8).toUpperCase()}.\nالزائر: ${request.visitor_name}`}
                 />
                 <p className="mt-2 text-[11px] sm:text-xs text-gray-600">
@@ -577,7 +577,7 @@ export default function RequestFollow({ requestId, userId }: { requestId: string
         isOpen={showAvailableTrips}
         loading={loadingTrips}
         trips={availableTrips}
-        visitType={request?.visit_type}
+        visitType={request?.visit_type as 'visit' | 'umrah' | 'tourism' | 'goethe' | 'embassy' | 'visa' | undefined}
         bookingStep={bookingStep}
         calculatedDepartureDate={calculatedDepartureDate}
         expandedTripId={expandedTripId}
