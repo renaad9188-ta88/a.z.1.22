@@ -39,6 +39,7 @@ export default function RouteStopsMap({
   polylineColor = '#3B82F6',
   addMode,
   onAddStop,
+  onStopDrag,
 }: {
   title: string
   apiKey: string
@@ -48,12 +49,16 @@ export default function RouteStopsMap({
   polylineColor?: string
   addMode: boolean
   onAddStop: (p: { name: string; lat: number; lng: number }) => void
+  onStopDrag?: (stopId: string, newLat: number, newLng: number) => void
 }) {
   const mapElRef = useRef<HTMLDivElement | null>(null)
+  const searchInputRef = useRef<HTMLInputElement | null>(null)
+  const autocompleteRef = useRef<google.maps.places.Autocomplete | null>(null)
   const mapRef = useRef<google.maps.Map | null>(null)
   const markersRef = useRef<google.maps.Marker[]>([])
   const directionsRendererRef = useRef<google.maps.DirectionsRenderer | null>(null)
   const [ready, setReady] = useState(false)
+  const [showSearch, setShowSearch] = useState(false)
 
   useEffect(() => {
     let mounted = true
@@ -72,6 +77,46 @@ export default function RouteStopsMap({
     }
   }, [apiKey])
 
+  // Initialize Google Places Autocomplete
+  useEffect(() => {
+    if (!ready || !searchInputRef.current || !(window as any).google?.maps?.places) return
+    const googleMaps = (window as any).google.maps as typeof google.maps
+
+    if (!autocompleteRef.current && searchInputRef.current) {
+      autocompleteRef.current = new googleMaps.places.Autocomplete(searchInputRef.current, {
+        fields: ['formatted_address', 'geometry'],
+        language: 'ar',
+      })
+
+      autocompleteRef.current.addListener('place_changed', () => {
+        const place = autocompleteRef.current?.getPlace()
+        if (!place?.geometry?.location) return
+
+        const lat = place.geometry.location.lat()
+        const lng = place.geometry.location.lng()
+        const name = place.formatted_address || 'محطة'
+
+        if (addMode) {
+          onAddStop({ name, lat, lng })
+          toast.success('تمت إضافة المحطة من البحث')
+          if (searchInputRef.current) {
+            searchInputRef.current.value = ''
+          }
+        } else if (mapRef.current) {
+          mapRef.current.setCenter({ lat, lng })
+          mapRef.current.setZoom(15)
+          toast.success('تم الانتقال إلى الموقع')
+        }
+      })
+    }
+
+    return () => {
+      if (autocompleteRef.current) {
+        googleMaps.event.clearInstanceListeners(autocompleteRef.current)
+      }
+    }
+  }, [ready, addMode, onAddStop])
+
   useEffect(() => {
     if (!ready || !mapElRef.current || !(window as any).google?.maps) return
     const googleMaps = (window as any).google.maps as typeof google.maps
@@ -85,13 +130,16 @@ export default function RouteStopsMap({
         mapTypeControl: true,
         streetViewControl: false,
         fullscreenControl: true,
-        gestureHandling: 'cooperative', // cooperative يسمح بالنقر أثناء السحب على الأجهزة المحمولة
+        gestureHandling: 'cooperative',
         clickableIcons: false,
         disableDoubleClickZoom: false,
+        zoomControl: true,
+        zoomControlOptions: {
+          position: googleMaps.ControlPosition.RIGHT_CENTER,
+        },
       })
     }
 
-    // click add - يعمل على click و tap (للأجهزة المحمولة)
     const map = mapRef.current
     
     // تحديث gestureHandling عند تغيير addMode
@@ -144,6 +192,7 @@ export default function RouteStopsMap({
         map,
         position: { lat: s.lat, lng: s.lng },
         title: s.name,
+        draggable: true,
         label: {
           text: String(idx + 1),
           color: 'white',
@@ -159,6 +208,18 @@ export default function RouteStopsMap({
           strokeWeight: 2,
         },
       })
+
+      // Add drag listener
+      if (onStopDrag) {
+        m.addListener('dragend', (e: google.maps.MapMouseEvent) => {
+          if (e.latLng) {
+            const newLat = e.latLng.lat()
+            const newLng = e.latLng.lng()
+            onStopDrag(s.id, newLat, newLng)
+          }
+        })
+      }
+
       markersRef.current.push(m)
       bounds.extend({ lat: s.lat, lng: s.lng })
     })
@@ -218,23 +279,56 @@ export default function RouteStopsMap({
 
   return (
     <div className="rounded-2xl border border-gray-200 overflow-hidden bg-white">
-      <div className="px-3 py-2 border-b border-gray-100 flex items-center justify-between gap-2">
+      <div className="px-2 sm:px-3 py-2 border-b border-gray-100 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
         <p className="text-xs sm:text-sm font-extrabold text-gray-900">{title}</p>
-        {addMode ? (
-          <span className="text-[10px] sm:text-[11px] md:text-xs px-2 py-1 rounded-full bg-blue-50 border border-blue-200 text-blue-800 font-extrabold whitespace-nowrap">
-            وضع الإضافة: اضغط على الخريطة
-          </span>
-        ) : (
-          <span className="text-[10px] sm:text-[11px] md:text-xs px-2 py-1 rounded-full bg-gray-50 border border-gray-200 text-gray-700 font-extrabold whitespace-nowrap">
-            خط متصل + محطات
-          </span>
+        <div className="flex items-center gap-2 w-full sm:w-auto">
+          {addMode && (
+            <button
+              type="button"
+              onClick={() => setShowSearch(!showSearch)}
+              className="text-[10px] sm:text-[11px] md:text-xs px-2 py-1 rounded-lg bg-indigo-50 border border-indigo-200 text-indigo-800 font-extrabold whitespace-nowrap hover:bg-indigo-100 transition"
+            >
+              {showSearch ? 'إخفاء البحث' : 'بحث عن موقع'}
+            </button>
+          )}
+          {addMode ? (
+            <span className="text-[10px] sm:text-[11px] md:text-xs px-2 py-1 rounded-full bg-blue-50 border border-blue-200 text-blue-800 font-extrabold whitespace-nowrap">
+              اضغط على الخريطة
+            </span>
+          ) : (
+            <span className="text-[10px] sm:text-[11px] md:text-xs px-2 py-1 rounded-full bg-gray-50 border border-gray-200 text-gray-700 font-extrabold whitespace-nowrap">
+              اسحب المحطات لتحريكها
+            </span>
+          )}
+        </div>
+      </div>
+      
+      {/* Search Bar */}
+      {showSearch && addMode && ready && (
+        <div className="px-2 sm:px-3 py-2 bg-gray-50 border-b border-gray-200">
+          <input
+            ref={searchInputRef}
+            type="text"
+            placeholder="ابحث عن موقع..."
+            className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            dir="rtl"
+          />
+        </div>
+      )}
+
+      <div className="relative">
+        <div 
+          ref={mapElRef} 
+          className="w-full h-[320px] sm:h-[420px] touch-none" 
+          style={{ touchAction: addMode ? 'manipulation' : 'auto' }}
+        />
+        {!ready && (
+          <div className="absolute inset-0 flex items-center justify-center bg-gray-100">
+            <p className="text-sm text-gray-600 font-bold">جاري تحميل الخريطة...</p>
+          </div>
         )}
       </div>
-      <div 
-        ref={mapElRef} 
-        className="w-full h-[320px] sm:h-[420px] touch-none" 
-        style={{ touchAction: addMode ? 'manipulation' : 'auto' }}
-      />
+      
       {!apiKey && (
         <div className="p-3 bg-yellow-50 border-t border-yellow-200 text-xs text-yellow-800 font-bold">
           مفتاح Google Maps غير موجود.

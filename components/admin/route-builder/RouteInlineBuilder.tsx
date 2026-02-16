@@ -18,6 +18,7 @@ type RouteStopRow = {
   order_index: number
   is_active: boolean
   stop_kind?: StopKind | null
+  image_url?: string | null
 }
 
 export default function RouteInlineBuilder({
@@ -57,7 +58,7 @@ export default function RouteInlineBuilder({
       try {
         const { data, error } = await supabase
           .from('route_stop_points')
-          .select('id,route_id,name,lat,lng,order_index,is_active,stop_kind')
+          .select('id,route_id,name,lat,lng,order_index,is_active,stop_kind,image_url')
           .eq('route_id', route.id)
           .eq('is_active', true)
           .in('stop_kind', [stopKindForTrip, 'both'] as any)
@@ -67,7 +68,7 @@ export default function RouteInlineBuilder({
       } catch {
         const { data, error } = await supabase
           .from('route_stop_points')
-          .select('id,route_id,name,lat,lng,order_index,is_active')
+          .select('id,route_id,name,lat,lng,order_index,is_active,image_url')
           .eq('route_id', route.id)
           .eq('is_active', true)
           .order('order_index', { ascending: true })
@@ -123,6 +124,33 @@ export default function RouteInlineBuilder({
     } finally {
       setSaving(false)
       setAddMode(false)
+    }
+  }
+
+  const onStopDrag = async (stopId: string, newLat: number, newLng: number) => {
+    try {
+      setSaving(true)
+      const geocoder = new (window as any).google.maps.Geocoder()
+      geocoder.geocode({ location: { lat: newLat, lng: newLng } }, async (results: any[], status: string) => {
+        const newName = status === 'OK' && results && results[0] ? results[0].formatted_address : undefined
+        const updateData: any = {
+          lat: newLat,
+          lng: newLng,
+          updated_at: new Date().toISOString(),
+        }
+        if (newName) {
+          updateData.name = newName
+        }
+        const { error } = await supabase.from('route_stop_points').update(updateData).eq('id', stopId)
+        if (error) throw error
+        await loadStops()
+        toast.success('تم تحديث موقع المحطة')
+      })
+    } catch (e: any) {
+      console.error('drag stop error:', e)
+      toast.error(e?.message || 'تعذر تحديث موقع المحطة')
+    } finally {
+      setSaving(false)
     }
   }
 
@@ -182,6 +210,23 @@ export default function RouteInlineBuilder({
     }
   }
 
+  const onImageUpload = async (stopId: string, imageUrl: string) => {
+    try {
+      setSaving(true)
+      const { error } = await supabase
+        .from('route_stop_points')
+        .update({ image_url: imageUrl || null, updated_at: new Date().toISOString() } as any)
+        .eq('id', stopId)
+      if (error) throw error
+      await loadStops()
+    } catch (e: any) {
+      console.error('update stop image error:', e)
+      toast.error(e?.message || 'تعذر تحديث الصورة')
+    } finally {
+      setSaving(false)
+    }
+  }
+
   return (
     <div className="mt-4 border-t border-gray-200 pt-4 space-y-3">
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
@@ -194,18 +239,20 @@ export default function RouteInlineBuilder({
           polylineColor={color}
           addMode={addMode}
           onAddStop={onAddStop}
+          onStopDrag={onStopDrag}
         />
 
         <div className="space-y-3">
           <RouteStopsEditor
             title={title}
             colorClass={colorClass}
-            stops={visibleStops.map((s) => ({ id: s.id, name: s.name }))}
+            stops={visibleStops.map((s) => ({ id: s.id, name: s.name, image_url: s.image_url }))}
             addMode={addMode}
             onToggleAddMode={() => setAddMode((p) => !p)}
             onMove={move}
             onEdit={edit}
             onDelete={del}
+            onImageUpload={onImageUpload}
           />
 
           <TripBatchCreator

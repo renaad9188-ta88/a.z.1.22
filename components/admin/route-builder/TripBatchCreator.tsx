@@ -33,6 +33,7 @@ export default function TripBatchCreator({
   const [days, setDays] = useState(7)
   const [meetingTime, setMeetingTime] = useState('')
   const [departureTime, setDepartureTime] = useState('07:00')
+  const [isApproved, setIsApproved] = useState(false)
 
   const dates = useMemo(() => {
     if (!startDate) return []
@@ -71,12 +72,15 @@ export default function TripBatchCreator({
           end_location_name: end.name,
           end_lat: end.lat,
           end_lng: end.lng,
-          is_active: true,
+          is_active: isApproved,
         })
         if (error) throw error
       }
 
-      toast.success(`تم إنشاء ${dates.length} رحلة`)
+      toast.success(`تم ${isApproved ? 'إنشاء واعتماد' : 'إنشاء'} ${dates.length} رحلة`)
+      if (isApproved) {
+        setIsApproved(false)
+      }
       onCreated?.()
     } catch (e: any) {
       console.error('batch create error:', e)
@@ -150,21 +154,35 @@ export default function TripBatchCreator({
         </div>
       </div>
 
-      <div className="mt-3 flex items-center justify-between gap-2">
-        <p className="text-xs text-gray-700 font-bold">
-          سيتم إنشاء: <span className="font-extrabold">{dates.length}</span> رحلة
-        </p>
-        <button
-          type="button"
-          onClick={create}
-          disabled={saving}
-          className={`px-4 py-2 rounded-xl text-sm font-extrabold text-white inline-flex items-center gap-2 transition ${
-            tripType === 'arrival' ? 'bg-blue-600 hover:bg-blue-700' : 'bg-purple-600 hover:bg-purple-700'
-          } disabled:opacity-50`}
-        >
-          <Plus className="w-4 h-4" />
-          {saving ? 'جارٍ الإنشاء...' : 'إنشاء الرحلات'}
-        </button>
+      <div className="mt-3 space-y-2">
+        <div className="flex items-center gap-2">
+          <input
+            type="checkbox"
+            id="approve-trips"
+            checked={isApproved}
+            onChange={(e) => setIsApproved(e.target.checked)}
+            className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+          />
+          <label htmlFor="approve-trips" className="text-xs sm:text-sm text-gray-700 font-bold cursor-pointer">
+            اعتماد الرحلات مباشرة (تفعيلها)
+          </label>
+        </div>
+        <div className="flex items-center justify-between gap-2 flex-wrap">
+          <p className="text-xs text-gray-700 font-bold">
+            سيتم {isApproved ? 'إنشاء واعتماد' : 'إنشاء'}: <span className="font-extrabold">{dates.length}</span> رحلة
+          </p>
+          <button
+            type="button"
+            onClick={create}
+            disabled={saving}
+            className={`px-3 sm:px-4 py-2 rounded-xl text-xs sm:text-sm font-extrabold text-white inline-flex items-center gap-2 transition ${
+              tripType === 'arrival' ? 'bg-blue-600 hover:bg-blue-700' : 'bg-purple-600 hover:bg-purple-700'
+            } disabled:opacity-50`}
+          >
+            <Plus className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+            {saving ? 'جارٍ الإنشاء...' : isApproved ? 'إنشاء واعتماد' : 'إنشاء الرحلات'}
+          </button>
+        </div>
       </div>
     </div>
   )
