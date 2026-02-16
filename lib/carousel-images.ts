@@ -3,13 +3,23 @@
 // أو استخدم URLs للصور من الإنترنت
 
 export const carouselImages = {
-  // 1. النقل البري - الطريق الذهبي
+  // 1. النقل البري - الطريق الذهبي (قافلة الحافلات)
   roadTransport: {
-    url: 'https://images.unsplash.com/photo-1544620347-c4fd4a3d5957?w=1200&h=600&fit=crop&q=80',
+    url: 'https://images.unsplash.com/photo-1511632765486-a01980e01a18?w=1200&h=600&fit=crop&q=80',
+    // صورة قافلة حافلات بيضاء على طريق سريع
     // للصور المحلية: '/images/carousel/road-transport.jpg'
     title: 'الطريق الذهبي للنقل',
-    subtitle: 'نقل بري فاخر برفاهية عالية',
+    subtitle: 'قوافل حافلات منظمة وآمنة',
     description: 'حافلات VIP مريحة وآمنة مع أفضل الخدمات',
+  },
+  
+  // 1.1. قافلة الحافلات - صورة إضافية رائعة
+  busConvoy: {
+    url: 'https://images.unsplash.com/photo-1511632765486-a01980e01a18?w=1200&h=600&fit=crop&q=80',
+    // أو صورة محلية: '/images/carousel/bus-convoy.jpg'
+    title: 'قافلة الحافلات الذهبية',
+    subtitle: 'نقل جماعي منظم وآمن',
+    description: 'رحلات منظمة بقوافل حافلات مريحة وآمنة',
   },
   
   // 2. النقل الجوي

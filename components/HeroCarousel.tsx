@@ -26,6 +26,14 @@ const slides: Slide[] = [
   },
   {
     id: 2,
+    title: carouselImages.busConvoy.title,
+    subtitle: carouselImages.busConvoy.subtitle,
+    description: carouselImages.busConvoy.description,
+    imageUrl: carouselImages.busConvoy.url,
+    textColor: 'text-white',
+  },
+  {
+    id: 3,
     title: carouselImages.airTransport.title,
     subtitle: carouselImages.airTransport.subtitle,
     description: carouselImages.airTransport.description,
@@ -33,7 +41,7 @@ const slides: Slide[] = [
     textColor: 'text-white',
   },
   {
-    id: 3,
+    id: 4,
     title: carouselImages.borderCrossing.title,
     subtitle: carouselImages.borderCrossing.subtitle,
     description: carouselImages.borderCrossing.description,
@@ -41,7 +49,7 @@ const slides: Slide[] = [
     textColor: 'text-white',
   },
   {
-    id: 4,
+    id: 5,
     title: carouselImages.visaServices.title,
     subtitle: carouselImages.visaServices.subtitle,
     description: carouselImages.visaServices.description,
@@ -49,7 +57,7 @@ const slides: Slide[] = [
     textColor: 'text-white',
   },
   {
-    id: 5,
+    id: 6,
     title: carouselImages.syrianVisits.title,
     subtitle: carouselImages.syrianVisits.subtitle,
     description: carouselImages.syrianVisits.description,
@@ -57,7 +65,7 @@ const slides: Slide[] = [
     textColor: 'text-white',
   },
   {
-    id: 6,
+    id: 7,
     title: carouselImages.comprehensiveServices.title,
     subtitle: carouselImages.comprehensiveServices.subtitle,
     description: carouselImages.comprehensiveServices.description,
