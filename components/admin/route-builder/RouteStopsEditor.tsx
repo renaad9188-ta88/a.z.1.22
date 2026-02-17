@@ -202,6 +202,7 @@ export default function RouteStopsEditor({
                           onError={(e) => {
                             console.error('Image load error:', s.image_url)
                             // محاولة استخدام signed URL إذا فشل public URL
+                            if (!s.image_url) return
                             const urlParts = s.image_url.split('/')
                             const fileName = urlParts.slice(urlParts.indexOf('route-stops')).join('/')
                             if (fileName && fileName !== s.image_url) {
