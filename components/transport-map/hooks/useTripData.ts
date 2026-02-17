@@ -63,10 +63,12 @@ export function useTripData() {
               .order('order_index', { ascending: true })
             const tripStopsRows = (stopsData || []) as any[]
             let stops = tripStopsRows.map((s: any) => ({
+              id: s.id,
               name: s.name,
               lat: s.lat,
               lng: s.lng,
               order_index: s.order_index || 0,
+              image_url: null, // trip stops don't have images, use route stops
             }))
 
             // Fallback: use route default stops if trip has no custom points
@@ -76,29 +78,33 @@ export function useTripData() {
               try {
                 const { data: routeStops } = await supabase
                   .from('route_stop_points')
-                  .select('id,name,lat,lng,order_index,stop_kind')
+                  .select('id,name,lat,lng,order_index,stop_kind,image_url')
                   .eq('route_id', tripData.route_id)
                   .eq('is_active', true)
                   .in('stop_kind', allowedKinds as any)
                   .order('order_index', { ascending: true })
                 stops = (routeStops || []).map((s: any) => ({
+                  id: s.id,
                   name: s.name,
                   lat: s.lat,
                   lng: s.lng,
                   order_index: s.order_index || 0,
+                  image_url: s.image_url || null,
                 }))
               } catch {
                 const { data: routeStops } = await supabase
                   .from('route_stop_points')
-                  .select('id,name,lat,lng,order_index')
+                  .select('id,name,lat,lng,order_index,image_url')
                   .eq('route_id', tripData.route_id)
                   .eq('is_active', true)
                   .order('order_index', { ascending: true })
                 stops = (routeStops || []).map((s: any) => ({
+                  id: s.id,
                   name: s.name,
                   lat: s.lat,
                   lng: s.lng,
                   order_index: s.order_index || 0,
+                  image_url: s.image_url || null,
                 }))
               }
             }

@@ -49,8 +49,23 @@ export default function RouteStopsEditor({
 
       if (uploadError) throw uploadError
 
-      const { data } = supabase.storage.from('passports').getPublicUrl(fileName)
-      const imageUrl = data.publicUrl
+      // محاولة استخدام public URL أولاً
+      const { data: publicData } = supabase.storage.from('passports').getPublicUrl(fileName)
+      let imageUrl = publicData.publicUrl
+
+      // إذا كان الـ bucket ليس public، استخدم signed URL
+      try {
+        const { data: signedData, error: signedError } = await supabase.storage
+          .from('passports')
+          .createSignedUrl(fileName, 31536000) // سنة واحدة
+        
+        if (!signedError && signedData?.signedUrl) {
+          imageUrl = signedData.signedUrl
+        }
+      } catch (e) {
+        // إذا فشل signed URL، استخدم public URL
+        console.warn('Failed to create signed URL, using public URL:', e)
+      }
 
       if (onImageUpload) {
         onImageUpload(stopId, imageUrl)
@@ -179,11 +194,32 @@ export default function RouteStopsEditor({
                   />
                   {s.image_url ? (
                     <div className="flex items-center gap-2 flex-1">
-                      <img
-                        src={s.image_url}
-                        alt={s.name}
-                        className="w-12 h-12 sm:w-16 sm:h-16 object-cover rounded-lg border border-gray-300"
-                      />
+                      <div className="relative">
+                        <img
+                          src={s.image_url}
+                          alt={s.name}
+                          className="w-12 h-12 sm:w-16 sm:h-16 object-cover rounded-lg border border-gray-300"
+                          onError={(e) => {
+                            console.error('Image load error:', s.image_url)
+                            // محاولة استخدام signed URL إذا فشل public URL
+                            const urlParts = s.image_url.split('/')
+                            const fileName = urlParts.slice(urlParts.indexOf('route-stops')).join('/')
+                            if (fileName && fileName !== s.image_url) {
+                              supabase.storage
+                                .from('passports')
+                                .createSignedUrl(fileName, 3600)
+                                .then(({ data, error }) => {
+                                  if (!error && data?.signedUrl) {
+                                    e.currentTarget.src = data.signedUrl
+                                  }
+                                })
+                                .catch((err) => {
+                                  console.error('Failed to get signed URL:', err)
+                                })
+                            }
+                          }}
+                        />
+                      </div>
                       <button
                         type="button"
                         onClick={() => handleDeleteImage(s.id, s.image_url!)}

@@ -49,7 +49,23 @@ function TripMiniCard({
 }) {
   const isArr = variant === 'arrivals'
   const weekday = formatArabicWeekday(date)
-  const countText = loading ? '…' : people != null ? `${people}` : '—'
+  
+  // توليد رقم عشوائي ثابت لكل نوع رحلة (يولد مرة واحدة فقط)
+  // القادمين: 22 + رقم عشوائي (5-20) = بين 27 و 42 (أرقام أعلى)
+  // المغادرين: 17 + رقم عشوائي (0-8) = بين 17 و 25 (أرقام أقل)
+  const placeholderCount = useMemo(() => {
+    if (isArr) {
+      // القادمين: 22 + (5 إلى 20) = بين 27 و 42
+      const randomOffset = Math.floor(Math.random() * 16) + 5 // رقم عشوائي بين 5 و 20
+      return 22 + randomOffset
+    } else {
+      // المغادرين: 17 + (0 إلى 8) = بين 17 و 25
+      const randomOffset = Math.floor(Math.random() * 9) // رقم عشوائي بين 0 و 8
+      return 17 + randomOffset
+    }
+  }, [isArr])
+  
+  const countText = loading ? '…' : people != null ? `${people}` : `${placeholderCount}`
 
   const borderClass = isArr ? 'from-blue-500 to-blue-600' : 'from-green-500 to-green-600'
   const badgeClass = isArr

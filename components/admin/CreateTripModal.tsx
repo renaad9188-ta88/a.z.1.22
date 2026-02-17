@@ -65,6 +65,7 @@ export default function CreateTripModal({
   // Trip basic info
   const [meetingTime, setMeetingTime] = useState('')
   const [departureTime, setDepartureTime] = useState('')
+  const [isActive, setIsActive] = useState(true)
 
   // Locations (editable by dragging + name prompt)
   const [startLocation, setStartLocation] = useState<LocationPoint | null>(defaultStart || null)
@@ -137,6 +138,7 @@ export default function CreateTripModal({
     }
     setMeetingTime(tripData.meeting_time || '')
     setDepartureTime(tripData.departure_time || '')
+    setIsActive(tripData.is_active !== undefined ? tripData.is_active : true)
     setStartLocation({
       name: tripData.start_location_name,
       lat: tripData.start_lat,
@@ -446,7 +448,8 @@ export default function CreateTripModal({
       endLocation,
       stopPoints,
       useRouteDefaultStops,
-      editTripId
+      editTripId,
+      isActive
     )
   }
 
@@ -708,6 +711,58 @@ export default function CreateTripModal({
                     required
                   />
                 </div>
+              </div>
+
+              {/* Trip Summary */}
+              {(tripDate || selectedDates.length > 0) && (meetingTime || departureTime) && (
+                <div className="border border-blue-200 rounded-xl p-4 bg-blue-50">
+                  <p className="text-sm font-extrabold text-blue-900 mb-3">ملخص الرحلة:</p>
+                  <div className="space-y-2 text-xs sm:text-sm">
+                    {createMode === 'single' && tripDate && (
+                      <div className="flex items-center gap-2">
+                        <span className="font-bold text-gray-700">التاريخ:</span>
+                        <span className="font-extrabold text-gray-900" lang="en" dir="ltr">{tripDate}</span>
+                      </div>
+                    )}
+                    {createMode !== 'single' && selectedDates.length > 0 && (
+                      <div className="flex items-center gap-2">
+                        <span className="font-bold text-gray-700">عدد الرحلات:</span>
+                        <span className="font-extrabold text-gray-900">{selectedDates.length} رحلة</span>
+                        {selectedDates.length <= 5 && (
+                          <span className="text-gray-600" lang="en" dir="ltr">
+                            ({selectedDates.join(', ')})
+                          </span>
+                        )}
+                      </div>
+                    )}
+                    {meetingTime && (
+                      <div className="flex items-center gap-2">
+                        <span className="font-bold text-gray-700">وقت التجمع:</span>
+                        <span className="font-extrabold text-gray-900">{meetingTime}</span>
+                      </div>
+                    )}
+                    {departureTime && (
+                      <div className="flex items-center gap-2">
+                        <span className="font-bold text-gray-700">وقت الانطلاق:</span>
+                        <span className="font-extrabold text-gray-900">{departureTime}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Activate Trip Checkbox */}
+              <div className="flex items-center gap-2 p-3 border border-gray-200 rounded-xl bg-gray-50">
+                <input
+                  type="checkbox"
+                  id="isActive"
+                  checked={isActive}
+                  onChange={(e) => setIsActive(e.target.checked)}
+                  className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                />
+                <label htmlFor="isActive" className="text-sm font-extrabold text-gray-900 cursor-pointer">
+                  اعتمد هذه الرحلة (تفعيلها مباشرة)
+                </label>
               </div>
 
 

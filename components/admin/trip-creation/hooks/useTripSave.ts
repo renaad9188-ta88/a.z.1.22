@@ -20,7 +20,8 @@ export function useTripSave(
     endLocation: LocationPoint | null,
     stopPoints: StopPoint[],
     useRouteDefaultStops: boolean,
-    editTripId?: string | null
+    editTripId?: string | null,
+    isActive: boolean = true
   ) => {
     if (!departureTime) {
       toast.error('يرجى تحديد وقت الانطلاق')
@@ -57,6 +58,7 @@ export function useTripSave(
             end_location_name: endLocation.name,
             end_lat: endLocation.lat,
             end_lng: endLocation.lng,
+            is_active: isActive,
             updated_at: new Date().toISOString(),
           })
           .eq('id', editTripId)
@@ -93,7 +95,7 @@ export function useTripSave(
             end_location_name: endLocation.name,
             end_lat: endLocation.lat,
             end_lng: endLocation.lng,
-            is_active: true,
+            is_active: isActive,
           })
           .select('id')
           .single()

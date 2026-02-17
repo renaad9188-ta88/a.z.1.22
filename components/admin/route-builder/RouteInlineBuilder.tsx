@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import toast from 'react-hot-toast'
 import { createSupabaseBrowserClient } from '@/lib/supabase'
+import { formatDateTime } from '@/lib/date-utils'
 import RouteStopsMap, { type BuilderStop } from './RouteStopsMap'
 import RouteStopsEditor from './RouteStopsEditor'
 import TripBatchCreator from './TripBatchCreator'
@@ -50,6 +51,7 @@ export default function RouteInlineBuilder({
   const [saving, setSaving] = useState(false)
   const [stops, setStops] = useState<RouteStopRow[]>([])
   const [addMode, setAddMode] = useState(false)
+  const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null)
 
   const loadStops = async () => {
     try {
@@ -118,6 +120,8 @@ export default function RouteInlineBuilder({
       } as any)
       if (error) throw error
       await loadStops()
+      setLastSavedAt(new Date())
+      toast.success('تم حفظ المحطة')
     } catch (e: any) {
       console.error('add stop error:', e)
       toast.error(e?.message || 'تعذر إضافة المحطة')
@@ -144,7 +148,8 @@ export default function RouteInlineBuilder({
         const { error } = await supabase.from('route_stop_points').update(updateData).eq('id', stopId)
         if (error) throw error
         await loadStops()
-        toast.success('تم تحديث موقع المحطة')
+        setLastSavedAt(new Date())
+        toast.success('تم حفظ التغييرات')
       })
     } catch (e: any) {
       console.error('drag stop error:', e)
@@ -167,6 +172,8 @@ export default function RouteInlineBuilder({
       if (e1) throw e1
       if (e2) throw e2
       await loadStops()
+      setLastSavedAt(new Date())
+      toast.success('تم حفظ الترتيب')
     } catch (e: any) {
       console.error('move stop error:', e)
       toast.error(e?.message || 'تعذر تغيير الترتيب')
@@ -185,6 +192,8 @@ export default function RouteInlineBuilder({
       const { error } = await supabase.from('route_stop_points').update({ name, updated_at: new Date().toISOString() } as any).eq('id', s.id)
       if (error) throw error
       await loadStops()
+      setLastSavedAt(new Date())
+      toast.success('تم حفظ التعديل')
     } catch (e: any) {
       console.error('edit stop error:', e)
       toast.error(e?.message || 'تعذر تعديل المحطة')
@@ -202,6 +211,8 @@ export default function RouteInlineBuilder({
       const { error } = await supabase.from('route_stop_points').delete().eq('id', s.id)
       if (error) throw error
       await loadStops()
+      setLastSavedAt(new Date())
+      toast.success('تم حذف المحطة')
     } catch (e: any) {
       console.error('delete stop error:', e)
       toast.error(e?.message || 'تعذر حذف المحطة')
@@ -219,6 +230,8 @@ export default function RouteInlineBuilder({
         .eq('id', stopId)
       if (error) throw error
       await loadStops()
+      setLastSavedAt(new Date())
+      toast.success('تم حفظ الصورة')
     } catch (e: any) {
       console.error('update stop image error:', e)
       toast.error(e?.message || 'تعذر تحديث الصورة')
@@ -240,37 +253,53 @@ export default function RouteInlineBuilder({
           addMode={addMode}
           onAddStop={onAddStop}
           onStopDrag={onStopDrag}
+          lastSavedAt={lastSavedAt}
         />
 
         <div className="space-y-3">
-          <RouteStopsEditor
-            title={title}
-            colorClass={colorClass}
-            stops={visibleStops.map((s) => ({ id: s.id, name: s.name, image_url: s.image_url }))}
-            addMode={addMode}
-            onToggleAddMode={() => setAddMode((p) => !p)}
-            onMove={move}
-            onEdit={edit}
-            onDelete={del}
-            onImageUpload={onImageUpload}
-          />
-
-          <TripBatchCreator
-            routeId={route.id}
-            tripType={tripType}
-            start={{ name: route.start_location_name, lat: route.start_lat, lng: route.start_lng }}
-            end={{ name: route.end_location_name, lat: route.end_lat, lng: route.end_lng }}
-            colorClass={colorClass}
-            onCreated={onCreatedTrips}
-          />
-
-          {(loading || saving) && (
-            <div className="text-center text-xs text-gray-500 font-bold">
-              {loading ? 'جاري تحميل...' : 'جارٍ حفظ التغييرات...'}
-            </div>
-          )}
+          {/* قسم إدارة المحطات */}
+          <div>
+            <h3 className="text-sm font-extrabold text-gray-700 mb-3 px-1">
+              إدارة محطات النزول
+            </h3>
+            <RouteStopsEditor
+              title={title}
+              colorClass={colorClass}
+              stops={visibleStops.map((s) => ({ id: s.id, name: s.name, image_url: s.image_url }))}
+              addMode={addMode}
+              onToggleAddMode={() => setAddMode((p) => !p)}
+              onMove={move}
+              onEdit={edit}
+              onDelete={del}
+              onImageUpload={onImageUpload}
+            />
+          </div>
         </div>
       </div>
+
+      {/* خط فاصل واضح بين قسم المحطات وقسم إنشاء الرحلات */}
+      <div className="my-8 border-t-2 border-gray-300"></div>
+
+      {/* قسم إنشاء الرحلات */}
+      <div className="mt-8">
+        <h3 className="text-sm font-extrabold text-gray-700 mb-3 px-1">
+          إنشاء رحلات متعددة
+        </h3>
+        <TripBatchCreator
+          routeId={route.id}
+          tripType={tripType}
+          start={{ name: route.start_location_name, lat: route.start_lat, lng: route.start_lng }}
+          end={{ name: route.end_location_name, lat: route.end_lat, lng: route.end_lng }}
+          colorClass={colorClass}
+          onCreated={onCreatedTrips}
+        />
+      </div>
+
+      {(loading || saving) && (
+        <div className="text-center text-xs text-gray-500 font-bold mt-4">
+          {loading ? 'جاري تحميل...' : 'جارٍ حفظ التغييرات...'}
+        </div>
+      )}
     </div>
   )
 }

@@ -2,6 +2,8 @@
 
 import { useEffect, useRef, useState } from 'react'
 import toast from 'react-hot-toast'
+import { CheckCircle2, Clock } from 'lucide-react'
+import { formatDateTime } from '@/lib/date-utils'
 
 type LatLng = { lat: number; lng: number }
 
@@ -40,6 +42,7 @@ export default function RouteStopsMap({
   addMode,
   onAddStop,
   onStopDrag,
+  lastSavedAt,
 }: {
   title: string
   apiKey: string
@@ -50,6 +53,7 @@ export default function RouteStopsMap({
   addMode: boolean
   onAddStop: (p: { name: string; lat: number; lng: number }) => void
   onStopDrag?: (stopId: string, newLat: number, newLng: number) => void
+  lastSavedAt?: Date | null
 }) {
   const mapElRef = useRef<HTMLDivElement | null>(null)
   const searchInputRef = useRef<HTMLInputElement | null>(null)
@@ -280,7 +284,20 @@ export default function RouteStopsMap({
   return (
     <div className="rounded-2xl border border-gray-200 overflow-hidden bg-white">
       <div className="px-2 sm:px-3 py-2 border-b border-gray-100 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
-        <p className="text-xs sm:text-sm font-extrabold text-gray-900">{title}</p>
+        <div className="flex items-center gap-2 min-w-0">
+          <p className="text-xs sm:text-sm font-extrabold text-gray-900">{title}</p>
+          {lastSavedAt && (
+            <div className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-green-50 border border-green-200 text-green-700 flex-shrink-0">
+              <CheckCircle2 className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
+              <div className="flex flex-col items-start">
+                <span className="text-[9px] sm:text-[10px] font-extrabold leading-tight">تم الحفظ</span>
+                <span className="text-[8px] sm:text-[9px] font-semibold leading-tight tabular-nums">
+                  {formatDateTime(lastSavedAt)}
+                </span>
+              </div>
+            </div>
+          )}
+        </div>
         <div className="flex items-center gap-2 w-full sm:w-auto">
           {addMode && (
             <button

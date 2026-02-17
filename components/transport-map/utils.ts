@@ -24,7 +24,14 @@ export function loadGoogleMaps(apiKey: string): Promise<void> {
   })
 }
 
-export function normalizeStops(raw: any): Array<{ name: string; lat: number; lng: number; order_index: number }> {
+export function normalizeStops(raw: any): Array<{ 
+  name: string
+  lat: number
+  lng: number
+  order_index: number
+  id?: string
+  image_url?: string | null
+}> {
   if (!raw) return []
   if (Array.isArray(raw)) return raw
   // sometimes comes as json string

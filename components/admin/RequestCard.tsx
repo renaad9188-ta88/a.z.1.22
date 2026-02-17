@@ -199,7 +199,7 @@ export default function RequestCard({ request, userProfile, onClick, onScheduleT
   const waDigits = (request.visit_type === 'visit' && supervisorContact?.whatsapp_phone)
     ? supervisorContact.whatsapp_phone
     : String(userProfile?.whatsapp_phone || adminInfo.syrianPhone || userProfile?.phone || adminInfo.jordanPhone || '')
-        .replace(/[^\d]/g, '')
+      .replace(/[^\d]/g, '')
   const callDigits = (request.visit_type === 'visit' && supervisorContact?.contact_phone)
     ? supervisorContact.contact_phone
     : String(userProfile?.phone || adminInfo.syrianPhone || adminInfo.jordanPhone || '').replace(/[^\d+]/g, '')
