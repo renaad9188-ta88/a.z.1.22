@@ -18,6 +18,14 @@ interface Slide {
 const slides: Slide[] = [
   {
     id: 1,
+    title: carouselImages.arrivalServices.title,
+    subtitle: carouselImages.arrivalServices.subtitle,
+    description: carouselImages.arrivalServices.description,
+    imageUrl: carouselImages.arrivalServices.url,
+    textColor: 'text-white',
+  },
+  {
+    id: 2,
     title: carouselImages.roadTransport.title,
     subtitle: carouselImages.roadTransport.subtitle,
     description: carouselImages.roadTransport.description,
@@ -25,7 +33,7 @@ const slides: Slide[] = [
     textColor: 'text-white',
   },
   {
-    id: 2,
+    id: 3,
     title: carouselImages.airTransport.title,
     subtitle: carouselImages.airTransport.subtitle,
     description: carouselImages.airTransport.description,
@@ -33,7 +41,7 @@ const slides: Slide[] = [
     textColor: 'text-white',
   },
   {
-    id: 3,
+    id: 4,
     title: carouselImages.borderCrossing.title,
     subtitle: carouselImages.borderCrossing.subtitle,
     description: carouselImages.borderCrossing.description,
@@ -41,7 +49,7 @@ const slides: Slide[] = [
     textColor: 'text-white',
   },
   {
-    id: 4,
+    id: 5,
     title: carouselImages.visaServices.title,
     subtitle: carouselImages.visaServices.subtitle,
     description: carouselImages.visaServices.description,

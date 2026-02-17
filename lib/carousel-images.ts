@@ -97,6 +97,15 @@ export const carouselImages = {
     description: 'راقب رحلتك على الخريطة مباشرة',
   },
   
+  // خدمة القدوم والزيارات - التركيز على القدوم
+  arrivalServices: {
+    url: 'https://images.unsplash.com/photo-1511632765486-a01980e01a18?w=1200&h=600&fit=crop&q=80',
+    // صورة قافلة حافلات
+    title: 'خدمات القدوم والزيارات',
+    subtitle: 'نظم قدومك للأردن بكل سهولة',
+    description: 'رحلات منظمة - تتبع مباشر - خدمات شاملة للقدوم والذهاب',
+  },
+  
   departures: {
     url: 'https://images.unsplash.com/photo-1436491865332-7a61a109cc05?w=1200&h=600&fit=crop&q=80',
     title: 'رحلة آمنة ومريحة',

@@ -4,10 +4,14 @@ import HeroCarousel from '@/components/HeroCarousel'
 import ServicesSection from '@/components/ServicesSection'
 import QRCodeShare from '@/components/QRCodeShare'
 import InvitePlatformButton from '@/components/InvitePlatformButton'
+import WelcomeGuide from '@/components/WelcomeGuide'
+import HelpFloatingButton from '@/components/HelpFloatingButton'
 
 export default function HomePage() {
   return (
     <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white">
+      <WelcomeGuide />
+      <HelpFloatingButton />
 
       {/* Hero Carousel - Starts from top */}
       <HeroCarousel />
@@ -160,6 +164,70 @@ export default function HomePage() {
                     نوفر لك جميع الخدمات اللازمة من تأشيرات، فنادق، نقل، وسياحة. 
                     كل ما تحتاجه في مكان واحد مع متابعة مستمرة لحالة طلبك.
                   </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* How It Works Section */}
+      <section className="bg-white py-6 sm:py-8 md:py-10">
+        <div className="container mx-auto px-4">
+          <div className="text-center mb-6 sm:mb-8">
+            <h2 className="text-xl sm:text-2xl md:text-3xl font-bold text-gray-800 mb-2">
+              كيف نبدأ؟
+            </h2>
+            <div className="w-20 sm:w-24 h-0.5 bg-gradient-to-r from-blue-500 to-green-500 rounded-full mx-auto mb-2"></div>
+            <p className="text-gray-600 text-xs sm:text-sm">خطوات بسيطة لتنظيم قدومك</p>
+          </div>
+          
+          <div className="max-w-4xl mx-auto">
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-4 md:gap-6">
+              {/* Step 1 */}
+              <div className="flex items-center gap-3 sm:gap-4 w-full sm:w-auto bg-gradient-to-br from-blue-50 to-blue-100 rounded-lg sm:rounded-xl p-3 sm:p-4 shadow-sm hover:shadow-md transition-all">
+                <div className="w-10 h-10 sm:w-12 sm:h-12 bg-blue-600 rounded-full flex items-center justify-center flex-shrink-0 shadow-md">
+                  <span className="text-lg sm:text-xl">1️⃣</span>
+                </div>
+                <div className="text-right sm:text-center flex-1 sm:flex-initial">
+                  <h3 className="font-bold text-sm sm:text-base mb-1 text-gray-800">اختر الخدمة</h3>
+                  <p className="text-xs sm:text-sm text-gray-600">زيارة، عمرة، فيز، أو خدمات أخرى</p>
+                </div>
+              </div>
+              
+              {/* Arrow */}
+              <div className="hidden sm:block text-gray-400">
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                </svg>
+              </div>
+              
+              {/* Step 2 */}
+              <div className="flex items-center gap-3 sm:gap-4 w-full sm:w-auto bg-gradient-to-br from-green-50 to-green-100 rounded-lg sm:rounded-xl p-3 sm:p-4 shadow-sm hover:shadow-md transition-all">
+                <div className="w-10 h-10 sm:w-12 sm:h-12 bg-green-600 rounded-full flex items-center justify-center flex-shrink-0 shadow-md">
+                  <span className="text-lg sm:text-xl">2️⃣</span>
+                </div>
+                <div className="text-right sm:text-center flex-1 sm:flex-initial">
+                  <h3 className="font-bold text-sm sm:text-base mb-1 text-gray-800">املأ البيانات</h3>
+                  <p className="text-xs sm:text-sm text-gray-600">معلومات بسيطة وصورة الجواز</p>
+                </div>
+              </div>
+              
+              {/* Arrow */}
+              <div className="hidden sm:block text-gray-400">
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                </svg>
+              </div>
+              
+              {/* Step 3 */}
+              <div className="flex items-center gap-3 sm:gap-4 w-full sm:w-auto bg-gradient-to-br from-purple-50 to-purple-100 rounded-lg sm:rounded-xl p-3 sm:p-4 shadow-sm hover:shadow-md transition-all">
+                <div className="w-10 h-10 sm:w-12 sm:h-12 bg-purple-600 rounded-full flex items-center justify-center flex-shrink-0 shadow-md">
+                  <span className="text-lg sm:text-xl">3️⃣</span>
+                </div>
+                <div className="text-right sm:text-center flex-1 sm:flex-initial">
+                  <h3 className="font-bold text-sm sm:text-base mb-1 text-gray-800">تابع رحلتك</h3>
+                  <p className="text-xs sm:text-sm text-gray-600">تتبع مباشر على الخريطة</p>
                 </div>
               </div>
             </div>
