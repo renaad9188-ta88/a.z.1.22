@@ -103,6 +103,74 @@ export function getSupervisorCallNumber(supervisorContact: SupervisorContact | n
 }
 
 /**
+ * الحصول على معلومات التواصل للمشرف المخصص لخدمة معينة
+ * @param serviceType - نوع الخدمة ('visit', 'umrah', 'tourism', 'goethe', 'embassy', 'visa', 'other')
+ * @returns معلومات التواصل للمشرف أو null إذا لم يكن هناك مشرف
+ */
+export async function getSupervisorForService(
+  serviceType: 'visit' | 'umrah' | 'tourism' | 'goethe' | 'embassy' | 'visa' | 'other'
+): Promise<SupervisorContact | null> {
+  try {
+    const supabase = createSupabaseBrowserClient()
+    
+    // البحث عن المشرف المخصص لهذه الخدمة (نشط فقط)
+    const { data: servicePerms, error: serviceError } = await supabase
+      .from('supervisor_service_permissions')
+      .select(`
+        supervisor_id,
+        supervisor_permissions:supervisor_id (
+          contact_phone,
+          whatsapp_phone,
+          is_active,
+          office_name,
+          display_type
+        ),
+        profiles:supervisor_id (
+          user_id,
+          full_name
+        )
+      `)
+      .eq('service_type', serviceType)
+      .limit(1)
+      .maybeSingle()
+
+    if (serviceError && serviceError.code !== 'PGRST116') {
+      console.error('Error fetching supervisor for service:', serviceError)
+      return null
+    }
+
+    if (!servicePerms || !servicePerms.supervisor_id) {
+      return null
+    }
+
+    const permissions = servicePerms.supervisor_permissions as any
+    const profile = servicePerms.profiles as any
+
+    // التحقق من أن المشرف نشط
+    if (permissions && permissions.is_active === false) {
+      return null
+    }
+
+    // إذا كان هناك رقم تواصل، إرجاعه
+    if (permissions && (permissions.contact_phone || permissions.whatsapp_phone)) {
+      return {
+        supervisor_id: servicePerms.supervisor_id,
+        supervisor_name: profile?.full_name || 'مشرف',
+        office_name: permissions.office_name || null,
+        display_type: permissions.display_type || 'supervisor',
+        contact_phone: permissions.contact_phone || null,
+        whatsapp_phone: permissions.whatsapp_phone || null,
+      }
+    }
+
+    return null
+  } catch (error) {
+    console.error('Error in getSupervisorForService:', error)
+    return null
+  }
+}
+
+/**
  * البحث عن مشرف له صلاحيات كاملة (can_view_all_requests = true)
  * يستخدم عندما لا يكون للمستخدم مشرف مخصص
  * @returns معلومات التواصل للمشرف بصلاحيات كاملة أو null
