@@ -72,39 +72,39 @@ export default function WelcomeGuide() {
   if (!showGuide) return null
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto">
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-2 sm:p-4">
+      <div className="bg-white rounded-xl sm:rounded-2xl shadow-2xl max-w-lg w-full max-h-[95vh] sm:max-h-[90vh] overflow-y-auto">
         {/* Header */}
-        <div className="sticky top-0 bg-gradient-to-r from-blue-600 to-blue-700 text-white p-4 sm:p-6 rounded-t-2xl flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center">
-              <span className="text-2xl">{steps[currentStep].icon}</span>
+        <div className="sticky top-0 bg-gradient-to-r from-blue-600 to-blue-700 text-white p-3 sm:p-4 md:p-6 rounded-t-xl sm:rounded-t-2xl flex items-center justify-between">
+          <div className="flex items-center gap-2 sm:gap-3">
+            <div className="w-8 h-8 sm:w-10 sm:h-10 bg-white/20 rounded-full flex items-center justify-center flex-shrink-0">
+              <span className="text-xl sm:text-2xl">{steps[currentStep].icon}</span>
             </div>
-            <div>
-              <h3 className="text-lg sm:text-xl font-bold">دليل الاستخدام</h3>
-              <p className="text-xs sm:text-sm text-blue-100">
+            <div className="min-w-0">
+              <h3 className="text-base sm:text-lg md:text-xl font-bold truncate">دليل الاستخدام</h3>
+              <p className="text-[10px] sm:text-xs md:text-sm text-blue-100">
                 {currentStep + 1} من {steps.length}
               </p>
             </div>
           </div>
           <button
             onClick={handleClose}
-            className="w-8 h-8 bg-white/20 hover:bg-white/30 rounded-full flex items-center justify-center transition"
+            className="w-7 h-7 sm:w-8 sm:h-8 bg-white/20 hover:bg-white/30 rounded-full flex items-center justify-center transition flex-shrink-0"
           >
-            <X className="w-5 h-5" />
+            <X className="w-4 h-4 sm:w-5 sm:h-5" />
           </button>
         </div>
 
         {/* Content */}
-        <div className="p-6 sm:p-8">
-          <h2 className="text-2xl sm:text-3xl font-extrabold text-gray-800 mb-3">
+        <div className="p-4 sm:p-6 md:p-8">
+          <h2 className="text-xl sm:text-2xl md:text-3xl font-extrabold text-gray-800 mb-2 sm:mb-3 leading-tight">
             {steps[currentStep].title}
           </h2>
-          <p className="text-lg sm:text-xl text-gray-700 mb-4 font-semibold">
+          <p className="text-base sm:text-lg md:text-xl text-gray-700 mb-3 sm:mb-4 font-semibold">
             {steps[currentStep].content}
           </p>
-          <div className="bg-blue-50 rounded-xl p-4 sm:p-5 mb-6">
-            <p className="text-sm sm:text-base text-gray-700 whitespace-pre-line leading-relaxed">
+          <div className="bg-blue-50 rounded-lg sm:rounded-xl p-3 sm:p-4 md:p-5 mb-4 sm:mb-6">
+            <p className="text-xs sm:text-sm md:text-base text-gray-700 whitespace-pre-line leading-relaxed">
               {steps[currentStep].description}
             </p>
           </div>
@@ -124,30 +124,30 @@ export default function WelcomeGuide() {
           </div>
 
           {/* Actions */}
-          <div className="flex gap-3">
+          <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
             {currentStep < steps.length - 1 ? (
               <>
                 <button
                   onClick={handleSkip}
-                  className="flex-1 px-4 py-3 bg-gray-100 hover:bg-gray-200 rounded-lg font-semibold text-gray-700 transition"
+                  className="flex-1 px-3 sm:px-4 py-2.5 sm:py-3 bg-gray-100 hover:bg-gray-200 rounded-lg font-semibold text-sm sm:text-base text-gray-700 transition"
                 >
                   تخطي
                 </button>
                 <button
                   onClick={handleNext}
-                  className="flex-1 px-4 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold flex items-center justify-center gap-2 transition"
+                  className="flex-1 px-3 sm:px-4 py-2.5 sm:py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold text-sm sm:text-base flex items-center justify-center gap-2 transition"
                 >
                   التالي
-                  <ArrowRight className="w-5 h-5" />
+                  <ArrowRight className="w-4 h-4 sm:w-5 sm:h-5" />
                 </button>
               </>
             ) : (
               <button
                 onClick={handleClose}
-                className="w-full px-4 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold flex items-center justify-center gap-2 transition"
+                className="w-full px-3 sm:px-4 py-2.5 sm:py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold text-sm sm:text-base flex items-center justify-center gap-2 transition"
               >
                 ابدأ الآن
-                <CheckCircle className="w-5 h-5" />
+                <CheckCircle className="w-4 h-4 sm:w-5 sm:h-5" />
               </button>
             )}
           </div>

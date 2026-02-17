@@ -91,10 +91,10 @@ export default function HelpFloatingButton() {
       {/* Floating Button */}
       <button
         onClick={() => setShowHelp(!showHelp)}
-        className="fixed bottom-4 left-4 z-40 w-12 h-12 sm:w-14 sm:h-14 bg-blue-600 hover:bg-blue-700 text-white rounded-full shadow-lg flex items-center justify-center transition-all hover:scale-110"
+        className="fixed bottom-3 left-3 sm:bottom-4 sm:left-4 z-40 w-11 h-11 sm:w-12 sm:h-12 md:w-14 md:h-14 bg-blue-600 hover:bg-blue-700 text-white rounded-full shadow-lg flex items-center justify-center transition-all hover:scale-110 active:scale-95"
         aria-label="مركز المساعدة"
       >
-        <HelpCircle className="w-5 h-5 sm:w-6 sm:h-6" />
+        <HelpCircle className="w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6" />
       </button>
 
       {/* Help Panel - Modal */}
@@ -107,47 +107,47 @@ export default function HelpFloatingButton() {
           />
           
           {/* Panel - يظهر من الأسفل */}
-          <div className="fixed bottom-20 left-4 z-50 bg-white rounded-2xl shadow-2xl border border-gray-200 w-80 max-h-[70vh] overflow-y-auto">
-            <div className="sticky top-0 bg-gradient-to-r from-blue-600 to-blue-700 text-white p-4 flex items-center justify-between rounded-t-2xl">
-              <h3 className="font-bold text-base sm:text-lg">مركز المساعدة</h3>
+          <div className="fixed bottom-16 left-2 right-2 sm:left-4 sm:right-auto sm:w-80 z-50 bg-white rounded-xl sm:rounded-2xl shadow-2xl border border-gray-200 max-h-[75vh] sm:max-h-[70vh] overflow-y-auto">
+            <div className="sticky top-0 bg-gradient-to-r from-blue-600 to-blue-700 text-white p-3 sm:p-4 flex items-center justify-between rounded-t-xl sm:rounded-t-2xl">
+              <h3 className="font-bold text-sm sm:text-base md:text-lg">مركز المساعدة</h3>
               <button
                 onClick={() => setShowHelp(false)}
-                className="w-8 h-8 hover:bg-white/20 rounded-full flex items-center justify-center transition"
+                className="w-7 h-7 sm:w-8 sm:h-8 hover:bg-white/20 rounded-full flex items-center justify-center transition flex-shrink-0"
               >
-                <X className="w-5 h-5" />
+                <X className="w-4 h-4 sm:w-5 sm:h-5" />
               </button>
             </div>
             
             {/* Supervisor Info */}
             {supervisorContact && (
-              <div className="p-4 border-b border-gray-200 bg-blue-50">
-                <p className="text-xs text-blue-700 font-semibold mb-1">
+              <div className="p-3 sm:p-4 border-b border-gray-200 bg-blue-50">
+                <p className="text-[10px] sm:text-xs text-blue-700 font-semibold mb-1">
                   {supervisorContact.display_type === 'office' ? 'المكتب المخصص' : 'المشرف المخصص'}:
                 </p>
-                <p className="text-sm font-bold text-gray-800">{supervisorContact.display_name}</p>
+                <p className="text-xs sm:text-sm font-bold text-gray-800 truncate">{supervisorContact.display_name}</p>
               </div>
             )}
             
             {/* Quick Actions Icons */}
-            <div className="p-4 border-b border-gray-200">
-              <p className="text-xs text-gray-600 mb-3 font-medium">وصول سريع:</p>
+            <div className="p-3 sm:p-4 border-b border-gray-200">
+              <p className="text-[10px] sm:text-xs text-gray-600 mb-2 sm:mb-3 font-medium">وصول سريع:</p>
               <div className="grid grid-cols-2 gap-2">
                 <Link
                   href="/services/jordan-visit"
                   onClick={() => setShowHelp(false)}
-                  className="flex flex-col items-center gap-2 p-3 bg-blue-50 hover:bg-blue-100 rounded-lg transition"
+                  className="flex flex-col items-center gap-1.5 sm:gap-2 p-2 sm:p-3 bg-blue-50 hover:bg-blue-100 rounded-lg transition"
                 >
-                  <BookOpen className="w-5 h-5 text-blue-600" />
-                  <span className="text-xs font-semibold text-gray-800">طلب زيارة</span>
+                  <BookOpen className="w-4 h-4 sm:w-5 sm:h-5 text-blue-600" />
+                  <span className="text-[10px] sm:text-xs font-semibold text-gray-800">طلب زيارة</span>
                 </Link>
                 
                 <Link
                   href="/map"
                   onClick={() => setShowHelp(false)}
-                  className="flex flex-col items-center gap-2 p-3 bg-green-50 hover:bg-green-100 rounded-lg transition"
+                  className="flex flex-col items-center gap-1.5 sm:gap-2 p-2 sm:p-3 bg-green-50 hover:bg-green-100 rounded-lg transition"
                 >
-                  <MapPin className="w-5 h-5 text-green-600" />
-                  <span className="text-xs font-semibold text-gray-800">تتبع رحلة</span>
+                  <MapPin className="w-4 h-4 sm:w-5 sm:h-5 text-green-600" />
+                  <span className="text-[10px] sm:text-xs font-semibold text-gray-800">تتبع رحلة</span>
                 </Link>
                 
                 <a
@@ -155,46 +155,46 @@ export default function HelpFloatingButton() {
                   target="_blank"
                   rel="noopener noreferrer"
                   onClick={() => setShowHelp(false)}
-                  className="flex flex-col items-center gap-2 p-3 bg-green-50 hover:bg-green-100 rounded-lg transition"
+                  className="flex flex-col items-center gap-1.5 sm:gap-2 p-2 sm:p-3 bg-green-50 hover:bg-green-100 rounded-lg transition"
                 >
-                  <MessageCircle className="w-5 h-5 text-green-600" />
-                  <span className="text-xs font-semibold text-gray-800">واتساب</span>
+                  <MessageCircle className="w-4 h-4 sm:w-5 sm:h-5 text-green-600" />
+                  <span className="text-[10px] sm:text-xs font-semibold text-gray-800">واتساب</span>
                 </a>
                 
                 <a
                   href={`tel:${callDigits}`}
                   onClick={() => setShowHelp(false)}
-                  className="flex flex-col items-center gap-2 p-3 bg-blue-50 hover:bg-blue-100 rounded-lg transition"
+                  className="flex flex-col items-center gap-1.5 sm:gap-2 p-2 sm:p-3 bg-blue-50 hover:bg-blue-100 rounded-lg transition"
                 >
-                  <Phone className="w-5 h-5 text-blue-600" />
-                  <span className="text-xs font-semibold text-gray-800">اتصال</span>
+                  <Phone className="w-4 h-4 sm:w-5 sm:h-5 text-blue-600" />
+                  <span className="text-[10px] sm:text-xs font-semibold text-gray-800">اتصال</span>
                 </a>
               </div>
             </div>
             
             {/* Detailed Links */}
-            <div className="p-4 space-y-3">
+            <div className="p-3 sm:p-4 space-y-2 sm:space-y-3">
               <Link
                 href="/services/jordan-visit"
                 onClick={() => setShowHelp(false)}
-                className="flex items-center gap-3 p-3 bg-blue-50 hover:bg-blue-100 rounded-lg transition"
+                className="flex items-center gap-2 sm:gap-3 p-2.5 sm:p-3 bg-blue-50 hover:bg-blue-100 rounded-lg transition"
               >
-                <BookOpen className="w-5 h-5 text-blue-600 flex-shrink-0" />
-                <div>
-                  <p className="font-semibold text-sm text-gray-800">كيف أقدم طلب زيارة؟</p>
-                  <p className="text-xs text-gray-600">دليل خطوة بخطوة</p>
+                <BookOpen className="w-4 h-4 sm:w-5 sm:h-5 text-blue-600 flex-shrink-0" />
+                <div className="min-w-0 flex-1">
+                  <p className="font-semibold text-xs sm:text-sm text-gray-800">كيف أقدم طلب زيارة؟</p>
+                  <p className="text-[10px] sm:text-xs text-gray-600">دليل خطوة بخطوة</p>
                 </div>
               </Link>
               
               <Link
                 href="/map"
                 onClick={() => setShowHelp(false)}
-                className="flex items-center gap-3 p-3 bg-green-50 hover:bg-green-100 rounded-lg transition"
+                className="flex items-center gap-2 sm:gap-3 p-2.5 sm:p-3 bg-green-50 hover:bg-green-100 rounded-lg transition"
               >
-                <MapPin className="w-5 h-5 text-green-600 flex-shrink-0" />
-                <div>
-                  <p className="font-semibold text-sm text-gray-800">تتبع رحلتي</p>
-                  <p className="text-xs text-gray-600">عرض الخريطة والتتبع</p>
+                <MapPin className="w-4 h-4 sm:w-5 sm:h-5 text-green-600 flex-shrink-0" />
+                <div className="min-w-0 flex-1">
+                  <p className="font-semibold text-xs sm:text-sm text-gray-800">تتبع رحلتي</p>
+                  <p className="text-[10px] sm:text-xs text-gray-600">عرض الخريطة والتتبع</p>
                 </div>
               </Link>
               
@@ -203,12 +203,12 @@ export default function HelpFloatingButton() {
                 target="_blank"
                 rel="noopener noreferrer"
                 onClick={() => setShowHelp(false)}
-                className="flex items-center gap-3 p-3 bg-green-50 hover:bg-green-100 rounded-lg transition"
+                className="flex items-center gap-2 sm:gap-3 p-2.5 sm:p-3 bg-green-50 hover:bg-green-100 rounded-lg transition"
               >
-                <MessageCircle className="w-5 h-5 text-green-600 flex-shrink-0" />
-                <div>
-                  <p className="font-semibold text-sm text-gray-800">واتساب للمساعدة</p>
-                  <p className="text-xs text-gray-600">
+                <MessageCircle className="w-4 h-4 sm:w-5 sm:h-5 text-green-600 flex-shrink-0" />
+                <div className="min-w-0 flex-1">
+                  <p className="font-semibold text-xs sm:text-sm text-gray-800">واتساب للمساعدة</p>
+                  <p className="text-[10px] sm:text-xs text-gray-600 truncate">
                     {supervisorContact ? `تواصل مع ${supervisorContact.display_type === 'office' ? 'المكتب' : 'المشرف'}` : 'تواصل مباشر'}
                   </p>
                 </div>
@@ -217,12 +217,12 @@ export default function HelpFloatingButton() {
               <a
                 href={`tel:${callDigits}`}
                 onClick={() => setShowHelp(false)}
-                className="flex items-center gap-3 p-3 bg-blue-50 hover:bg-blue-100 rounded-lg transition"
+                className="flex items-center gap-2 sm:gap-3 p-2.5 sm:p-3 bg-blue-50 hover:bg-blue-100 rounded-lg transition"
               >
-                <Phone className="w-5 h-5 text-blue-600 flex-shrink-0" />
-                <div>
-                  <p className="font-semibold text-sm text-gray-800">اتصال للمساعدة</p>
-                  <p className="text-xs text-gray-600">{callNumber}</p>
+                <Phone className="w-4 h-4 sm:w-5 sm:h-5 text-blue-600 flex-shrink-0" />
+                <div className="min-w-0 flex-1">
+                  <p className="font-semibold text-xs sm:text-sm text-gray-800">اتصال للمساعدة</p>
+                  <p className="text-[10px] sm:text-xs text-gray-600 truncate">{callNumber}</p>
                 </div>
               </a>
             </div>
