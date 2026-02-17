@@ -91,7 +91,6 @@ export default function RouteStopsMap({
     if (!autocompleteRef.current && searchInputRef.current) {
       autocompleteRef.current = new googleMaps.places.Autocomplete(searchInputRef.current, {
         fields: ['formatted_address', 'geometry'],
-        language: 'ar',
       })
 
       autocompleteRef.current.addListener('place_changed', () => {
