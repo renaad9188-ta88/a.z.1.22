@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { Phone, MessageCircle } from 'lucide-react'
+import { Phone, MessageCircle, Plane } from 'lucide-react'
 import HeroCarousel from '@/components/HeroCarousel'
 import ServicesSection from '@/components/ServicesSection'
 import QRCodeShare from '@/components/QRCodeShare'
@@ -65,6 +65,68 @@ export default function HomePage() {
                 </div>
               </div>
             </div>
+          </div>
+        </div>
+
+        {/* Promotional Section - خدمات الفيز والتأشيرات */}
+        <div className="max-w-4xl mx-auto mt-4 sm:mt-6 md:mt-8 px-2 sm:px-4">
+          <div className="group relative bg-gradient-to-br from-red-50 to-orange-50 rounded-xl sm:rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden border-2 border-red-200">
+            {/* Gradient Overlay */}
+            <div className="absolute inset-0 bg-gradient-to-br from-red-500 to-orange-600 opacity-0 group-hover:opacity-5 transition-opacity duration-300"></div>
+            
+            {/* Content */}
+            <div className="relative p-4 sm:p-6 md:p-8">
+              <div className="flex flex-col sm:flex-row items-center sm:items-start md:items-center gap-4 sm:gap-5 md:gap-6">
+                {/* Icon and Emoji */}
+                <div className="flex items-center justify-center sm:justify-start gap-3 sm:gap-4 flex-shrink-0">
+                  <span className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl transform group-hover:scale-110 transition-transform duration-300">
+                    🛂
+                  </span>
+                  <div className="bg-red-50 w-14 h-14 sm:w-16 sm:h-16 md:w-20 md:h-20 rounded-lg sm:rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform duration-300 shadow-md">
+                    <Plane className="w-6 h-6 sm:w-8 sm:h-8 md:w-10 md:h-10 text-red-600" />
+                  </div>
+                </div>
+
+                {/* Text Content */}
+                <div className="flex-1 w-full text-center sm:text-right">
+                  <h3 className="text-lg sm:text-xl md:text-2xl lg:text-3xl font-extrabold text-gray-800 mb-2 sm:mb-3 leading-tight">
+                    خدمات الفيز والتأشيرات
+                  </h3>
+                  <p className="text-xs sm:text-sm md:text-base lg:text-lg text-gray-700 mb-3 sm:mb-4 md:mb-5 leading-relaxed">
+                    فيز وتأشيرات للسعودية ودول أخرى - خدمات خاصة - قدوم خاص وسيارة خاصة - قدوم مطار (طيران) - حجوزات تذاكر طيران - رحلات سياحية وعمرة
+                  </p>
+                  
+                  {/* Contact Buttons */}
+                  <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 justify-center sm:justify-start">
+                    <a
+                      href="https://wa.me/962798905595"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center justify-center gap-2 px-4 py-2.5 sm:px-5 sm:py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition font-semibold text-xs sm:text-sm md:text-base shadow-md hover:shadow-lg flex-1 sm:flex-initial min-w-[120px]"
+                    >
+                      <MessageCircle className="w-4 h-4 sm:w-5 sm:h-5 flex-shrink-0" />
+                      <span>واتساب</span>
+                    </a>
+                    <a
+                      href="tel:00962798905595"
+                      className="flex items-center justify-center gap-2 px-4 py-2.5 sm:px-5 sm:py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition font-semibold text-xs sm:text-sm md:text-base shadow-md hover:shadow-lg flex-1 sm:flex-initial min-w-[120px]"
+                    >
+                      <Phone className="w-4 h-4 sm:w-5 sm:h-5 flex-shrink-0" />
+                      <span>اتصال</span>
+                    </a>
+                    <Link
+                      href="/services/visa-services"
+                      className="flex items-center justify-center gap-2 px-4 py-2.5 sm:px-5 sm:py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 transition font-semibold text-xs sm:text-sm md:text-base shadow-md hover:shadow-lg flex-1 sm:flex-initial min-w-[120px]"
+                    >
+                      <span>تقديم طلب</span>
+                    </Link>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Bottom Border */}
+            <div className="absolute bottom-0 left-0 right-0 h-0.5 sm:h-1 bg-gradient-to-r from-red-500 via-orange-500 to-red-600"></div>
           </div>
         </div>
       </section>

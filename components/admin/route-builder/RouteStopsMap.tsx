@@ -1,8 +1,8 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, useCallback } from 'react'
 import toast from 'react-hot-toast'
-import { CheckCircle2, Clock } from 'lucide-react'
+import { CheckCircle2, MapPin, X } from 'lucide-react'
 import { formatDateTime } from '@/lib/date-utils'
 
 type LatLng = { lat: number; lng: number }
@@ -61,8 +61,10 @@ export default function RouteStopsMap({
   const mapRef = useRef<google.maps.Map | null>(null)
   const markersRef = useRef<google.maps.Marker[]>([])
   const directionsRendererRef = useRef<google.maps.DirectionsRenderer | null>(null)
+  const tempMarkerRef = useRef<google.maps.Marker | null>(null)
   const [ready, setReady] = useState(false)
   const [showSearch, setShowSearch] = useState(false)
+  const [tempMarkerPosition, setTempMarkerPosition] = useState<{ lat: number; lng: number } | null>(null)
 
   useEffect(() => {
     let mounted = true
@@ -156,18 +158,113 @@ export default function RouteStopsMap({
       if (!e.latLng) return
       const lat = e.latLng.lat()
       const lng = e.latLng.lng()
-      const geocoder = new googleMaps.Geocoder()
-      geocoder.geocode({ location: { lat, lng } }, (results, status) => {
-        const name = status === 'OK' && results && results[0] ? results[0].formatted_address : 'محطة'
-        onAddStop({ name, lat, lng })
-        toast.success('تمت إضافة المحطة')
-      })
+      
+      // على الهواتف: إظهار دبوس مؤقت قابل للسحب
+      // على الشاشات الكبيرة: إضافة مباشرة (للتوافق مع السلوك القديم)
+      const isMobile = window.innerWidth < 640
+      
+      if (isMobile) {
+        // إظهار دبوس مؤقت
+        setTempMarkerPosition({ lat, lng })
+        
+        // إزالة الدبوس المؤقت القديم إن وجد
+        if (tempMarkerRef.current) {
+          tempMarkerRef.current.setMap(null)
+        }
+        
+        // إنشاء دبوس مؤقت قابل للسحب
+        const tempMarker = new googleMaps.Marker({
+          map,
+          position: { lat, lng },
+          draggable: true,
+          icon: {
+            path: googleMaps.SymbolPath.CIRCLE,
+            scale: 12,
+            fillColor: '#EF4444',
+            fillOpacity: 0.9,
+            strokeColor: '#ffffff',
+            strokeWeight: 3,
+          },
+          zIndex: 1000,
+        })
+        
+        // تحديث الموقع عند السحب (في الوقت الفعلي)
+        tempMarker.addListener('drag', (dragEvent: google.maps.MapMouseEvent) => {
+          if (dragEvent.latLng) {
+            const newPos = { lat: dragEvent.latLng.lat(), lng: dragEvent.latLng.lng() }
+            setTempMarkerPosition(newPos)
+          }
+        })
+        
+        // تحديث نهائي عند انتهاء السحب
+        tempMarker.addListener('dragend', (dragEvent: google.maps.MapMouseEvent) => {
+          if (dragEvent.latLng) {
+            setTempMarkerPosition({ lat: dragEvent.latLng.lat(), lng: dragEvent.latLng.lng() })
+          }
+        })
+        
+        tempMarkerRef.current = tempMarker
+      } else {
+        // على الشاشات الكبيرة: إضافة مباشرة (السلوك القديم)
+        const geocoder = new googleMaps.Geocoder()
+        geocoder.geocode({ location: { lat, lng } }, (results, status) => {
+          const name = status === 'OK' && results && results[0] ? results[0].formatted_address : 'محطة'
+          onAddStop({ name, lat, lng })
+          toast.success('تمت إضافة المحطة')
+        })
+      }
     })
 
     return () => {
       googleMaps.event.removeListener(clickListener)
+      // تنظيف الدبوس المؤقت
+      if (tempMarkerRef.current) {
+        tempMarkerRef.current.setMap(null)
+        tempMarkerRef.current = null
+      }
     }
   }, [addMode, onAddStop, ready, routeStart])
+  
+  // تنظيف الدبوس المؤقت عند إيقاف addMode
+  useEffect(() => {
+    if (!addMode && tempMarkerRef.current) {
+      tempMarkerRef.current.setMap(null)
+      tempMarkerRef.current = null
+      setTempMarkerPosition(null)
+    }
+  }, [addMode])
+  
+  // دالة لإضافة المحطة من الدبوس المؤقت
+  const confirmAddStop = useCallback(() => {
+    if (!tempMarkerPosition || !tempMarkerRef.current) return
+    
+    const lat = tempMarkerPosition.lat
+    const lng = tempMarkerPosition.lng
+    const googleMaps = (window as any).google.maps as typeof google.maps
+    const geocoder = new googleMaps.Geocoder()
+    
+    geocoder.geocode({ location: { lat, lng } }, (results, status) => {
+      const name = status === 'OK' && results && results[0] ? results[0].formatted_address : 'محطة'
+      onAddStop({ name, lat, lng })
+      toast.success('تمت إضافة المحطة')
+      
+      // تنظيف الدبوس المؤقت
+      if (tempMarkerRef.current) {
+        tempMarkerRef.current.setMap(null)
+        tempMarkerRef.current = null
+      }
+      setTempMarkerPosition(null)
+    })
+  }, [tempMarkerPosition, onAddStop])
+  
+  // دالة لإلغاء الدبوس المؤقت
+  const cancelTempMarker = useCallback(() => {
+    if (tempMarkerRef.current) {
+      tempMarkerRef.current.setMap(null)
+      tempMarkerRef.current = null
+    }
+    setTempMarkerPosition(null)
+  }, [])
 
   useEffect(() => {
     if (!ready || !mapRef.current || !(window as any).google?.maps) return
@@ -342,6 +439,28 @@ export default function RouteStopsMap({
         {!ready && (
           <div className="absolute inset-0 flex items-center justify-center bg-gray-100">
             <p className="text-sm text-gray-600 font-bold">جاري تحميل الخريطة...</p>
+          </div>
+        )}
+        
+        {/* زر إضافة المحطة من الدبوس المؤقت (للأجهزة المحمولة) */}
+        {tempMarkerPosition && addMode && (
+          <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 z-10 flex gap-2">
+            <button
+              type="button"
+              onClick={confirmAddStop}
+              className="px-4 py-2.5 rounded-lg bg-green-600 text-white font-extrabold text-sm shadow-lg hover:bg-green-700 transition inline-flex items-center justify-center gap-2"
+            >
+              <MapPin className="w-4 h-4" />
+              <span>إضافة المحطة</span>
+            </button>
+            <button
+              type="button"
+              onClick={cancelTempMarker}
+              className="px-3 py-2.5 rounded-lg bg-gray-600 text-white font-extrabold text-sm shadow-lg hover:bg-gray-700 transition inline-flex items-center justify-center"
+              title="إلغاء"
+            >
+              <X className="w-4 h-4" />
+            </button>
           </div>
         )}
       </div>
