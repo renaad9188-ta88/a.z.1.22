@@ -200,10 +200,10 @@ export default function RouteStopsEditor({
                           alt={s.name}
                           className="w-12 h-12 sm:w-16 sm:h-16 object-cover rounded-lg border border-gray-300"
                           onError={(e) => {
-                            const imageUrl = s.image_url
+                            const imageUrl: string | null | undefined = s.image_url
                             console.error('Image load error:', imageUrl)
                             // محاولة استخدام signed URL إذا فشل public URL
-                            if (!imageUrl) return
+                            if (!imageUrl || typeof imageUrl !== 'string') return
                             const urlParts = imageUrl.split('/')
                             const routeStopsIndex = urlParts.indexOf('route-stops')
                             if (routeStopsIndex === -1) return
