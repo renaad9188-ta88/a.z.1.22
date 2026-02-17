@@ -200,12 +200,15 @@ export default function RouteStopsEditor({
                           alt={s.name}
                           className="w-12 h-12 sm:w-16 sm:h-16 object-cover rounded-lg border border-gray-300"
                           onError={(e) => {
-                            console.error('Image load error:', s.image_url)
+                            const imageUrl = s.image_url
+                            console.error('Image load error:', imageUrl)
                             // محاولة استخدام signed URL إذا فشل public URL
-                            if (!s.image_url) return
-                            const urlParts = s.image_url.split('/')
-                            const fileName = urlParts.slice(urlParts.indexOf('route-stops')).join('/')
-                            if (fileName && fileName !== s.image_url) {
+                            if (!imageUrl) return
+                            const urlParts = imageUrl.split('/')
+                            const routeStopsIndex = urlParts.indexOf('route-stops')
+                            if (routeStopsIndex === -1) return
+                            const fileName = urlParts.slice(routeStopsIndex).join('/')
+                            if (fileName && fileName !== imageUrl) {
                               supabase.storage
                                 .from('passports')
                                 .createSignedUrl(fileName, 3600)
