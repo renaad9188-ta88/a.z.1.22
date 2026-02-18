@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { createSupabaseBrowserClient } from '@/lib/supabase'
 import { ArrowLeft, User, Phone, MapPin, Calendar, Users, Navigation, Route as RouteIcon } from 'lucide-react'
@@ -44,13 +44,7 @@ export default function PassengerDetails() {
   const [showDropoffSelector, setShowDropoffSelector] = useState(false)
   const [showTripStopsEditor, setShowTripStopsEditor] = useState(false)
 
-  useEffect(() => {
-    if (params.id) {
-      loadPassengerDetails(params.id as string)
-    }
-  }, [params.id])
-
-  const loadPassengerDetails = async (requestId: string) => {
+  const loadPassengerDetails = useCallback(async (requestId: string) => {
     try {
       setLoading(true)
 
@@ -159,8 +153,13 @@ export default function PassengerDetails() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [router, supabase])
 
+  useEffect(() => {
+    if (params.id) {
+      loadPassengerDetails(params.id as string)
+    }
+  }, [params.id, loadPassengerDetails])
 
   const getTripStatusBadge = (tripStatus: string | null) => {
     const statusMap: Record<string, { text: string; color: string; bgColor: string; icon: any }> = {

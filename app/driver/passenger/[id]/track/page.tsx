@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { createSupabaseBrowserClient } from '@/lib/supabase'
 import { ArrowLeft, MapPin, Navigation, Users } from 'lucide-react'
@@ -16,13 +16,7 @@ export default function DriverTrackPassenger() {
   const [hasAccess, setHasAccess] = useState(false)
   const [loading, setLoading] = useState(true)
 
-  useEffect(() => {
-    if (params.id) {
-      checkAccess(params.id as string)
-    }
-  }, [params.id])
-
-  const checkAccess = async (requestId: string) => {
+  const checkAccess = useCallback(async (requestId: string) => {
     try {
       setLoading(true)
 
@@ -85,7 +79,13 @@ export default function DriverTrackPassenger() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [router, supabase])
+
+  useEffect(() => {
+    if (params.id) {
+      checkAccess(params.id as string)
+    }
+  }, [params.id, checkAccess])
 
   if (loading) {
     return (

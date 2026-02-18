@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { createSupabaseBrowserClient } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
@@ -28,11 +28,7 @@ export default function DriverDashboard() {
   const [selectedTripId, setSelectedTripId] = useState<string | null>(null)
   // تم تبسيط لوحة السائق: خريطة + زر (متاح) فقط حسب طلب الإدارة
 
-  useEffect(() => {
-    loadDriverProfile()
-  }, [])
-
-  const loadDriverProfile = async () => {
+  const loadDriverProfile = useCallback(async () => {
     try {
       setLoading(true)
 
@@ -90,7 +86,11 @@ export default function DriverDashboard() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [router, supabase])
+
+  useEffect(() => {
+    loadDriverProfile()
+  }, [loadDriverProfile])
 
   const handleLogout = async () => {
     try {
