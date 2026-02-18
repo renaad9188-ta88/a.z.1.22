@@ -132,86 +132,84 @@ export default function RouteStopsMap({
         center,
         zoom: 9,
         mapTypeId: googleMaps.MapTypeId.ROADMAP,
-        mapTypeControl: true,
-        streetViewControl: false,
-        fullscreenControl: true,
-        gestureHandling: 'cooperative',
-        clickableIcons: false,
-        disableDoubleClickZoom: false,
-        zoomControl: true,
-        zoomControlOptions: {
-          position: googleMaps.ControlPosition.RIGHT_CENTER,
-        },
+      mapTypeControl: true,
+      streetViewControl: false,
+      fullscreenControl: true,
+      gestureHandling: 'greedy', // استخدام 'greedy' دائماً لتجنب طلب الضغط بإصبعين
+      clickableIcons: false,
+      disableDoubleClickZoom: false,
+      zoomControl: true,
+      draggable: true,
+      scrollwheel: true, // السماح بالتمرير بالماوس
+      zoomControlOptions: {
+        position: googleMaps.ControlPosition.RIGHT_CENTER,
+      },
       })
     }
 
     const map = mapRef.current
     
     // تحديث gestureHandling عند تغيير addMode
+    // استخدام 'greedy' دائماً لتجنب طلب الضغط بإصبعين
     map.setOptions({ 
-      gestureHandling: addMode ? 'cooperative' : 'greedy' 
+      gestureHandling: 'greedy',
+      draggable: true,
+      scrollwheel: true, // السماح بالتمرير بالماوس
+      // تحسينات لتقليل تحذيرات touch events
+      clickableIcons: false,
+      keyboardShortcuts: false,
     })
     
     const clickListener = map.addListener('click', (e: google.maps.MapMouseEvent) => {
       if (!addMode) return
       if (!e.latLng) return
+      
       const lat = e.latLng.lat()
       const lng = e.latLng.lng()
       
-      // على الهواتف: إظهار دبوس مؤقت قابل للسحب
-      // على الشاشات الكبيرة: إضافة مباشرة (للتوافق مع السلوك القديم)
-      const isMobile = window.innerWidth < 640
-      
-      if (isMobile) {
-        // إظهار دبوس مؤقت
-        setTempMarkerPosition({ lat, lng })
-        
-        // إزالة الدبوس المؤقت القديم إن وجد
-        if (tempMarkerRef.current) {
-          tempMarkerRef.current.setMap(null)
-        }
-        
-        // إنشاء دبوس مؤقت قابل للسحب
-        const tempMarker = new googleMaps.Marker({
-          map,
-          position: { lat, lng },
-          draggable: true,
-          icon: {
-            path: googleMaps.SymbolPath.CIRCLE,
-            scale: 12,
-            fillColor: '#EF4444',
-            fillOpacity: 0.9,
-            strokeColor: '#ffffff',
-            strokeWeight: 3,
-          },
-          zIndex: 1000,
-        })
-        
-        // تحديث الموقع عند السحب (في الوقت الفعلي)
-        tempMarker.addListener('drag', (dragEvent: google.maps.MapMouseEvent) => {
-          if (dragEvent.latLng) {
-            const newPos = { lat: dragEvent.latLng.lat(), lng: dragEvent.latLng.lng() }
-            setTempMarkerPosition(newPos)
-          }
-        })
-        
-        // تحديث نهائي عند انتهاء السحب
-        tempMarker.addListener('dragend', (dragEvent: google.maps.MapMouseEvent) => {
-          if (dragEvent.latLng) {
-            setTempMarkerPosition({ lat: dragEvent.latLng.lat(), lng: dragEvent.latLng.lng() })
-          }
-        })
-        
-        tempMarkerRef.current = tempMarker
-      } else {
-        // على الشاشات الكبيرة: إضافة مباشرة (السلوك القديم)
-        const geocoder = new googleMaps.Geocoder()
-        geocoder.geocode({ location: { lat, lng } }, (results, status) => {
-          const name = status === 'OK' && results && results[0] ? results[0].formatted_address : 'محطة'
-          onAddStop({ name, lat, lng })
-          toast.success('تمت إضافة المحطة')
-        })
+      // إزالة الدبوس المؤقت القديم إن وجد أولاً (لضمان عدم التكرار)
+      if (tempMarkerRef.current) {
+        tempMarkerRef.current.setMap(null)
+        tempMarkerRef.current = null
       }
+      
+      // إظهار دبوس مؤقت قابل للسحب على جميع الأجهزة
+      setTempMarkerPosition({ lat, lng })
+      
+      // إنشاء دبوس مؤقت قابل للسحب (حجم أصغر)
+      const tempMarker = new googleMaps.Marker({
+        map,
+        position: { lat, lng },
+        draggable: true,
+        icon: {
+          path: googleMaps.SymbolPath.CIRCLE,
+          scale: 8,
+          fillColor: '#EF4444',
+          fillOpacity: 0.95,
+          strokeColor: '#ffffff',
+          strokeWeight: 2,
+        },
+        zIndex: 1000,
+        title: 'اسحب الدبوس لتحديد الموقع بدقة',
+        optimized: false, // لضمان الاستجابة السريعة
+      })
+      
+      // تحديث الموقع عند السحب (في الوقت الفعلي)
+      tempMarker.addListener('drag', (dragEvent: google.maps.MapMouseEvent) => {
+        if (dragEvent.latLng) {
+          const newPos = { lat: dragEvent.latLng.lat(), lng: dragEvent.latLng.lng() }
+          setTempMarkerPosition(newPos)
+        }
+      })
+      
+      // تحديث نهائي عند انتهاء السحب
+      tempMarker.addListener('dragend', (dragEvent: google.maps.MapMouseEvent) => {
+        if (dragEvent.latLng) {
+          setTempMarkerPosition({ lat: dragEvent.latLng.lat(), lng: dragEvent.latLng.lng() })
+        }
+      })
+      
+      tempMarkerRef.current = tempMarker
     })
 
     return () => {
@@ -432,8 +430,8 @@ export default function RouteStopsMap({
       <div className="relative">
         <div 
           ref={mapElRef} 
-          className="w-full h-[320px] sm:h-[420px] touch-none" 
-          style={{ touchAction: addMode ? 'manipulation' : 'auto' }}
+          className="w-full h-[320px] sm:h-[420px]" 
+          style={{ touchAction: 'pan-x pan-y pinch-zoom' }}
         />
         {!ready && (
           <div className="absolute inset-0 flex items-center justify-center bg-gray-100">

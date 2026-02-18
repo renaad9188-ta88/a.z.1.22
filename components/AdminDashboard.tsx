@@ -22,10 +22,15 @@ import ContactMessagesManagement from './admin/ContactMessagesManagement'
 import SupervisorCustomersPanel from './supervisor/SupervisorCustomersPanel'
 import SupervisorInvitesPanel from './supervisor/SupervisorInvitesPanel'
 import { VisitRequest, UserProfile, AdminStats as StatsType } from './admin/types'
-import { ChevronDown, Layers, Calendar, Building2, MessageCircle, Phone, Plane, Ticket, MapPin, Archive, RotateCcw } from 'lucide-react'
-import QRCodeShare from './QRCodeShare'
-import { parseAdminNotes } from './request-details/utils'
-import { formatDate } from '@/lib/date-utils'
+import { Calendar, MessageCircle, Archive } from 'lucide-react'
+import AdminDashboardHeader from './admin/dashboard/AdminDashboardHeader'
+import AdminDashboardEmbassySection from './admin/dashboard/AdminDashboardEmbassySection'
+import AdminDashboardVisaSection from './admin/dashboard/AdminDashboardVisaSection'
+import AdminDashboardDeletedRequests from './admin/dashboard/AdminDashboardDeletedRequests'
+import AdminDashboardTripBookingsStats from './admin/dashboard/AdminDashboardTripBookingsStats'
+import AdminDashboardTripDetailsModal from './admin/dashboard/AdminDashboardTripDetailsModal'
+import AdminDashboardRequestsList from './admin/dashboard/AdminDashboardRequestsList'
+import { typeLabel, getFilterTitle, groupedByType, typeOrder } from './admin/dashboard/AdminDashboardUtils'
 
 export default function AdminDashboard() {
   const router = useRouter()
@@ -151,23 +156,7 @@ export default function AdminDashboard() {
   const [loadingDeleted, setLoadingDeleted] = useState(false)
   const [deletedCount, setDeletedCount] = useState(0)
   const [collapsedTypes, setCollapsedTypes] = useState<Record<string, boolean>>({})
-  const [tripBookingsStats, setTripBookingsStats] = useState<Array<{
-    trip_id: string
-    trip_date: string
-    trip_type: 'arrival' | 'departure' | null
-    passengers_count: number
-    requests_count: number
-    bookings: Array<{
-      id: string
-      visitor_name: string
-      user_id: string
-      companions_count: number
-      arrival_date: string | null
-      days_count: number
-      city: string
-    }>
-    expected_departure_date?: string | null
-  }>>([])
+  const [tripBookingsStats, setTripBookingsStats] = useState<import('./admin/dashboard/AdminDashboardTripBookingsStats').TripBookingStat[]>([])
   const [selectedTripForDetails, setSelectedTripForDetails] = useState<{
     trip_id: string
     trip_date: string
@@ -745,32 +734,7 @@ export default function AdminDashboard() {
     return matchesSearch && matchesStatus && matchesType && matchesService
   })
 
-  const typeLabel = (t: string) => {
-    const map: Record<string, string> = {
-      visit: 'الزيارات',
-      umrah: 'العمرة',
-      tourism: 'السياحة',
-      goethe: 'امتحان جوته',
-      embassy: 'موعد سفارة',
-      visa: 'الفيز والتأشيرات والرحلات',
-    }
-    return map[t] || t
-  }
-
-  const getFilterTitle = () => {
-    const filterLabels: Record<string, string> = {
-      all: 'جميع الطلبات',
-      new: 'طلبات جديدة (24 ساعة)',
-      received: 'الطلبات المستلمة',
-      in_progress: 'الطلبات قيد الإجراء',
-      approved: 'الطلبات الموافق عليها',
-      rejected: 'الطلبات المرفوضة',
-      bookings: 'حجوزات الطلبات',
-      drafts: 'المسودات',
-      under_review: 'قيد المراجعة',
-    }
-    return filterLabels[statusFilter] || 'الطلبات'
-  }
+  // typeLabel and getFilterTitle are now imported from AdminDashboardUtils
 
   // دالة للرد السريع على طلبات السفارة
   const handleQuickResponse = async (request: VisitRequest, responseText: string) => {
@@ -899,16 +863,7 @@ export default function AdminDashboard() {
     }
   }
 
-  const typeOrder = ['visit', 'goethe', 'embassy', 'visa', 'umrah', 'tourism']
-  const groupedByType = (list: VisitRequest[]) => {
-    const groups: Record<string, VisitRequest[]> = {}
-    for (const r of list) {
-      const t = (r.visit_type || 'visit') as any
-      if (!groups[t]) groups[t] = []
-      groups[t].push(r)
-    }
-    return groups
-  }
+  // typeOrder and groupedByType are now imported from AdminDashboardUtils
 
 
   // حساب عدد الطلبات لكل خدمة
@@ -956,142 +911,20 @@ export default function AdminDashboard() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-white overflow-x-hidden">
       {/* Header */}
-      <header className="bg-white shadow-md rounded-xl w-full">
-        <div className="container mx-auto px-2 sm:px-3 md:px-4 py-2 sm:py-3 max-w-full">
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 sm:gap-3">
-            <div className="flex items-center gap-1.5 sm:gap-2 md:gap-4 min-w-0 flex-1">
-              <div className="flex flex-col min-w-0">
-                <h1 className="text-base sm:text-lg md:text-xl lg:text-2xl xl:text-3xl font-extrabold text-gray-900 leading-tight truncate">
-                  {currentRole === 'supervisor' ? 'لوحة المشرف' : 'لوحة تحكم الإدارة'}
-                </h1>
-                <p className="text-xs sm:text-sm md:text-base lg:text-lg text-gray-600 truncate font-semibold">
-                  إدارة الطلبات والخطوط
-                </p>
-              </div>
-            </div>
-            <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 md:gap-3 w-full sm:w-auto justify-end sm:justify-start">
-              <QRCodeShare title="سوريا بلس (Syria Plus) خدمات - لوحة الإدارة" />
-              {(currentRole === 'admin' || (currentRole === 'supervisor' && supervisorPermissions?.can_manage_routes)) && (
-                <button
-                  onClick={() => handleSectionToggle('routes')}
-                  className={`px-2 sm:px-3 md:px-4 py-1 sm:py-1.5 md:py-2 text-sm sm:text-base md:text-lg transition font-semibold ${
-                    showRouteManagement 
-                      ? 'text-blue-600 bg-blue-50 rounded-lg' 
-                      : 'text-gray-700 hover:text-blue-600'
-                  }`}
-                >
-                  إدارة الخطوط
-                </button>
-              )}
-              {currentRole === 'admin' && (
-                <button
-                  onClick={() => handleSectionToggle('invites')}
-                  className={`px-2 sm:px-3 md:px-4 py-1 sm:py-1.5 md:py-2 text-sm sm:text-base md:text-lg transition font-semibold ${
-                    showInvitesManagement 
-                      ? 'text-blue-600 bg-blue-50 rounded-lg' 
-                      : 'text-gray-700 hover:text-blue-600'
-                  }`}
-                >
-                  الدعوات
-                </button>
-              )}
-              {currentRole === 'admin' && (
-                <button
-                  onClick={() => handleSectionToggle('bookings')}
-                  className={`px-2 sm:px-3 md:px-4 py-1 sm:py-1.5 md:py-2 text-xs sm:text-sm md:text-base transition flex items-center gap-1 ${
-                    showBookingsManagement 
-                      ? 'text-blue-600 bg-blue-50 rounded-lg' 
-                      : 'text-gray-700 hover:text-blue-600'
-                  }`}
-                >
-                  <Calendar className="w-3 h-3 sm:w-4 sm:h-4" />
-                  الحجوزات
-                </button>
-              )}
-              {currentRole === 'admin' && (
-                <button
-                  onClick={() => handleSectionToggle('customers')}
-                  className={`px-2 sm:px-3 md:px-4 py-1 sm:py-1.5 md:py-2 text-sm sm:text-base md:text-lg transition font-semibold ${
-                    showCustomersManagement 
-                      ? 'text-blue-600 bg-blue-50 rounded-lg' 
-                      : 'text-gray-700 hover:text-blue-600'
-                  }`}
-                >
-                  المنتسبين
-                </button>
-              )}
-              {currentRole === 'admin' && (
-                <button
-                  onClick={() => handleSectionToggle('contact-messages')}
-                  className={`px-2 sm:px-3 md:px-4 py-1 sm:py-1.5 md:py-2 text-xs sm:text-sm md:text-base transition flex items-center gap-1 ${
-                    showContactMessages 
-                      ? 'text-cyan-600 bg-cyan-50 rounded-lg' 
-                      : 'text-gray-700 hover:text-cyan-600'
-                  }`}
-                >
-                  <MessageCircle className="w-3 h-3 sm:w-4 sm:h-4" />
-                  التواصل المباشر
-                </button>
-              )}
-              {currentRole === 'admin' && (
-                <button
-                  onClick={() => handleSectionToggle('supervisors')}
-                  className={`px-2 sm:px-3 md:px-4 py-1 sm:py-1.5 md:py-2 text-sm sm:text-base md:text-lg transition font-semibold ${
-                    showSupervisorsManagement 
-                      ? 'text-blue-600 bg-blue-50 rounded-lg' 
-                      : 'text-gray-700 hover:text-blue-600'
-                  }`}
-                >
-                  المشرفين
-                </button>
-              )}
-              {currentRole === 'admin' && (
-                <button
-                  onClick={() => handleSectionToggle('deleted')}
-                  className={`px-2 sm:px-3 md:px-4 py-1 sm:py-1.5 md:py-2 text-xs sm:text-sm md:text-base transition flex items-center gap-1 ${
-                    showDeletedRequests 
-                      ? 'text-red-600 bg-red-50 rounded-lg' 
-                      : 'text-gray-700 hover:text-red-600'
-                  }`}
-                >
-                  <Archive className="w-3 h-3 sm:w-4 sm:h-4" />
-                  المحذوفة
-                </button>
-              )}
-              {currentRole === 'supervisor' && (
-                <>
-                  <button
-                    onClick={() => handleSectionToggle('supervisor-customers')}
-                    className={`px-2 sm:px-3 md:px-4 py-1 sm:py-1.5 md:py-2 text-xs sm:text-sm md:text-base transition font-semibold ${
-                      showSupervisorCustomers 
-                        ? 'text-blue-600 bg-blue-50 rounded-lg' 
-                        : 'text-gray-700 hover:text-blue-600'
-                    }`}
-                  >
-                    المنتسبين
-                  </button>
-                  <button
-                    onClick={() => handleSectionToggle('supervisor-invites')}
-                    className={`px-2 sm:px-3 md:px-4 py-1 sm:py-1.5 md:py-2 text-xs sm:text-sm md:text-base transition font-semibold ${
-                      showSupervisorInvites 
-                        ? 'text-blue-600 bg-blue-50 rounded-lg' 
-                        : 'text-gray-700 hover:text-blue-600'
-                    }`}
-                  >
-                    الدعوات
-                  </button>
-                </>
-              )}
-              <Link
-                href="/admin/profile"
-                className="px-2 sm:px-3 md:px-4 py-1 sm:py-1.5 md:py-2 text-xs sm:text-sm md:text-base text-gray-700 hover:text-blue-600 transition"
-              >
-                {currentRole === 'supervisor' ? 'إعدادات المشرف' : 'إعدادات الإدمن'}
-              </Link>
-            </div>
-          </div>
-        </div>
-      </header>
+      <AdminDashboardHeader
+        currentRole={currentRole}
+        supervisorPermissions={supervisorPermissions}
+        showRouteManagement={showRouteManagement}
+        showInvitesManagement={showInvitesManagement}
+        showBookingsManagement={showBookingsManagement}
+        showCustomersManagement={showCustomersManagement}
+        showSupervisorsManagement={showSupervisorsManagement}
+        showContactMessages={showContactMessages}
+        showDeletedRequests={showDeletedRequests}
+        showSupervisorCustomers={showSupervisorCustomers}
+        showSupervisorInvites={showSupervisorInvites}
+        onSectionToggle={handleSectionToggle}
+      />
 
       <div className="container mx-auto px-2 sm:px-3 md:px-4 lg:px-6 py-3 sm:py-4 md:py-6 max-w-7xl">
         {/* Route Management */}
@@ -1174,48 +1007,17 @@ export default function AdminDashboard() {
             <SupervisorInvitesPanel supervisorId={currentUserId} />
           </div>
         ) : showDeletedRequests ? (
-          <div className="mb-6">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
-              <h2 className="text-base sm:text-lg md:text-xl font-extrabold text-gray-900 flex items-center gap-2">
-                <Archive className="w-5 h-5 text-red-600" />
-                الطلبات المحذوفة ({deletedRequests.length})
-              </h2>
-              <button
-                onClick={() => setShowDeletedRequests(false)}
-                className="w-full sm:w-auto px-4 py-2 bg-gray-200 rounded-lg hover:bg-gray-300 font-bold"
-              >
-                العودة للطلبات
-              </button>
-            </div>
-            {loadingDeleted ? (
-              <div className="text-center py-8">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-red-600 mx-auto mb-2"></div>
-                <p className="text-gray-600">جاري تحميل الطلبات المحذوفة...</p>
-              </div>
-            ) : deletedRequests.length === 0 ? (
-              <div className="bg-white rounded-xl shadow-md p-6 text-center">
-                <Archive className="w-12 h-12 mx-auto mb-2 text-gray-300" />
-                <p className="text-gray-600">لا توجد طلبات محذوفة</p>
-              </div>
-            ) : (
-              <div className="space-y-3 sm:space-y-4">
-                {deletedRequests.map((request, index) => (
-                  <RequestCard
-                    key={request.id}
-                    request={request}
-                    userProfile={userProfiles[request.user_id]}
-                    onClick={() => handleRequestClick(request)}
-                    onScheduleTrip={() => handleScheduleTrip(request)}
-                    onDelete={currentRole === 'admin' ? () => handleDeleteRequest(request.id) : undefined}
-                    onRestore={currentRole === 'admin' ? () => handleRestoreRequest(request.id) : undefined}
-                    isAdmin={currentRole === 'admin'}
-                    isDeleted={true}
-                    index={index}
-                  />
-                ))}
-              </div>
-            )}
-          </div>
+          <AdminDashboardDeletedRequests
+            deletedRequests={deletedRequests}
+            loadingDeleted={loadingDeleted}
+            userProfiles={userProfiles}
+            currentRole={currentRole}
+            onRequestClick={handleRequestClick}
+            onScheduleTrip={handleScheduleTrip}
+            onDeleteRequest={handleDeleteRequest}
+            onRestoreRequest={handleRestoreRequest}
+            onClose={() => setShowDeletedRequests(false)}
+          />
         ) : showBookingsManagement ? (
           <div className="mb-6">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
@@ -1304,356 +1106,33 @@ export default function AdminDashboard() {
 
             {/* قسم إحصائيات الرحلات - يظهر فقط عند الضغط على "الحجوزات المؤكدة" */}
             {currentRole === 'admin' && (statusFilter === 'bookings' || showBookingsManagement) && tripBookingsStats.length > 0 && (
-              <div className="bg-white rounded-xl shadow-md border border-gray-100 p-4 sm:p-6 mb-6">
-                <div className="flex items-center gap-3 mb-4 p-3 sm:p-4 bg-gradient-to-r from-teal-50 to-teal-100 rounded-lg border-2 border-teal-200">
-                  <div className="bg-teal-500 p-2 sm:p-2.5 rounded-lg flex-shrink-0">
-                    <Ticket className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
-                  </div>
-                  <h2 className="text-base sm:text-lg md:text-xl font-extrabold text-teal-900">
-                    إحصائيات الحجوزات حسب الرحلة
-                  </h2>
-                </div>
-                
-                {/* القادمون */}
-                {tripBookingsStats.filter(s => s.trip_type === 'arrival').length > 0 && (
-                  <div className="mb-6">
-                    <div className="flex items-center gap-2 mb-3">
-                      <MapPin className="w-5 h-5 text-emerald-600" />
-                      <h3 className="text-base sm:text-lg font-bold text-gray-800">القادمون</h3>
-                    </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
-                      {tripBookingsStats
-                        .filter(s => s.trip_type === 'arrival')
-                        .map((stat) => (
-                          <div
-                            key={stat.trip_id}
-                            onClick={() => setSelectedTripForDetails({
-                              trip_id: stat.trip_id,
-                              trip_date: stat.trip_date,
-                              trip_type: stat.trip_type,
-                              bookings: stat.bookings,
-                            })}
-                            className="bg-gradient-to-br from-emerald-50 to-emerald-100 rounded-lg p-3 sm:p-4 border-2 border-emerald-200 cursor-pointer hover:shadow-lg transition-all"
-                          >
-                            <div className="flex items-center justify-between mb-2">
-                              <div className="flex items-center gap-2">
-                                <MapPin className="w-4 h-4 text-emerald-600" />
-                                <span className="text-xs sm:text-sm font-semibold text-gray-700">
-                                  قادمون
-                                </span>
-                              </div>
-                            </div>
-                            <p className="text-xs text-gray-600 mb-1">
-                              {formatDate(stat.trip_date)}
-                            </p>
-                            {stat.expected_departure_date && (
-                              <div className="bg-amber-50 border border-amber-200 rounded p-2 mb-2">
-                                <p className="text-xs font-semibold text-amber-800">
-                                  ⏰ موعد المغادرة المتوقع: {formatDate(stat.expected_departure_date)}
-                                </p>
-                              </div>
-                            )}
-                            <div className="flex items-center justify-between mt-2">
-                              <div>
-                                <p className="text-xs text-gray-600">عدد الأشخاص</p>
-                                <p className="text-xl sm:text-2xl font-extrabold text-emerald-700">
-                                  {stat.passengers_count}
-                                </p>
-                              </div>
-                              <div className="text-right">
-                                <p className="text-xs text-gray-600">عدد الطلبات</p>
-                                <p className="text-lg sm:text-xl font-bold text-emerald-600">
-                                  {stat.requests_count}
-                                </p>
-                              </div>
-                            </div>
-                          </div>
-                        ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* المغادرون */}
-                {tripBookingsStats.filter(s => s.trip_type === 'departure').length > 0 && (
-                  <div>
-                    <div className="flex items-center gap-2 mb-3">
-                      <Plane className="w-5 h-5 text-blue-600" />
-                      <h3 className="text-base sm:text-lg font-bold text-gray-800">المغادرون</h3>
-                    </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
-                      {tripBookingsStats
-                        .filter(s => s.trip_type === 'departure')
-                        .map((stat) => (
-                          <div
-                            key={stat.trip_id}
-                            onClick={() => setSelectedTripForDetails({
-                              trip_id: stat.trip_id,
-                              trip_date: stat.trip_date,
-                              trip_type: stat.trip_type,
-                              bookings: stat.bookings,
-                            })}
-                            className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-lg p-3 sm:p-4 border-2 border-blue-200 cursor-pointer hover:shadow-lg transition-all"
-                          >
-                            <div className="flex items-center justify-between mb-2">
-                              <div className="flex items-center gap-2">
-                                <Plane className="w-4 h-4 text-blue-600" />
-                                <span className="text-xs sm:text-sm font-semibold text-gray-700">
-                                  مغادرون
-                                </span>
-                              </div>
-                            </div>
-                            <p className="text-xs text-gray-600 mb-1">
-                              {formatDate(stat.trip_date)}
-                            </p>
-                            <div className="flex items-center justify-between mt-2">
-                              <div>
-                                <p className="text-xs text-gray-600">عدد الأشخاص</p>
-                                <p className="text-xl sm:text-2xl font-extrabold text-blue-700">
-                                  {stat.passengers_count}
-                                </p>
-                              </div>
-                              <div className="text-right">
-                                <p className="text-xs text-gray-600">عدد الطلبات</p>
-                                <p className="text-lg sm:text-xl font-bold text-blue-600">
-                                  {stat.requests_count}
-                                </p>
-                              </div>
-                            </div>
-                          </div>
-                        ))}
-                    </div>
-                  </div>
-                )}
-              </div>
+              <AdminDashboardTripBookingsStats
+                tripBookingsStats={tripBookingsStats}
+                onTripClick={(trip) => setSelectedTripForDetails(trip)}
+              />
             )}
 
             {/* Modal لعرض قائمة الركاب */}
-            {selectedTripForDetails && (
-              <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-3 sm:p-4 overflow-y-auto">
-                <div className="bg-white rounded-lg max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto">
-                  <div className="p-4 sm:p-6">
-                    <div className="flex items-center justify-between mb-4">
-                      <div>
-                        <h3 className="text-lg sm:text-xl font-bold text-gray-900">
-                          {selectedTripForDetails.trip_type === 'arrival' ? 'قادمون' : 'مغادرون'} - {formatDate(selectedTripForDetails.trip_date)}
-                        </h3>
-                        <p className="text-sm text-gray-600 mt-1">
-                          عدد الركاب: {selectedTripForDetails.bookings.length}
-                        </p>
-                      </div>
-                      <button
-                        onClick={() => setSelectedTripForDetails(null)}
-                        className="text-gray-500 hover:text-gray-700 text-2xl"
-                      >
-                        ×
-                      </button>
-                    </div>
-
-                    <div className="space-y-2">
-                      {selectedTripForDetails.bookings.map((booking) => (
-                        <div
-                          key={booking.id}
-                          className="bg-gray-50 border border-gray-200 rounded-lg p-3 sm:p-4 hover:bg-gray-100 transition"
-                        >
-                          <div className="flex items-center justify-between">
-                            <div className="flex-1">
-                              <h4 className="font-bold text-gray-900 mb-1">{booking.visitor_name}</h4>
-                              <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs sm:text-sm text-gray-600">
-                                <span>المدينة: {booking.city}</span>
-                                <span>الأشخاص: {1 + booking.companions_count}</span>
-                                {booking.arrival_date && (
-                                  <span>تاريخ القدوم: {formatDate(booking.arrival_date)}</span>
-                                )}
-                                {booking.days_count && (
-                                  <span>مدة الإقامة: {booking.days_count} يوم</span>
-                                )}
-                              </div>
-                            </div>
-                            <Link
-                              href={`/admin/request/${booking.id}/follow`}
-                              className="ml-4 px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-xs sm:text-sm font-semibold whitespace-nowrap"
-                              onClick={() => setSelectedTripForDetails(null)}
-                            >
-                              عرض التفاصيل
-                            </Link>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
+            <AdminDashboardTripDetailsModal
+              trip={selectedTripForDetails}
+              onClose={() => setSelectedTripForDetails(null)}
+            />
 
         {/* Embassy Requests Section */}
-        {(() => {
-          const embassyRequests = requests.filter(r => r.visit_type === 'embassy')
-          if (embassyRequests.length === 0) return null
-          
-          return (
-            <div className="mb-8 bg-gradient-to-br from-green-50 to-white rounded-xl shadow-lg p-4 sm:p-6 border-2 border-green-200">
-              <div className="flex items-center gap-3 mb-4">
-                <Building2 className="w-6 h-6 text-green-600" />
-                <h2 className="text-xl font-bold text-gray-800">طلبات مواعيد السفارة</h2>
-                <span className="px-3 py-1 bg-green-600 text-white rounded-full text-sm font-bold">
-                  {embassyRequests.length}
-                </span>
-              </div>
-              
-              <div className="space-y-4">
-                {embassyRequests.map((request) => {
-                  const userProfile = userProfiles[request.user_id]
-                  const adminInfo = parseAdminNotes((request.admin_notes || '') as string) || {}
-                  
-                  // استخراج رقم الهاتف من admin_notes أو userProfile
-                  const phoneMatch = (request.admin_notes || '').match(/الهاتف:\s*([^\n]+)/)
-                  const phone = phoneMatch?.[1]?.trim() || userProfile?.phone || adminInfo.syrianPhone || adminInfo.jordanPhone || ''
-                  const waDigits = String(phone).replace(/[^\d]/g, '')
-                  const callDigits = String(phone).replace(/[^\d+]/g, '')
-                  
-                  const quickResponse = '✅ تم استلام طلبك. سنتواصل معك قريباً لإكمال الإجراءات.'
-                  
-                  return (
-                    <div key={request.id} className="bg-white rounded-lg p-4 border-2 border-green-200 hover:shadow-md transition">
-                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                        <div className="flex-1">
-                          <h3 className="font-bold text-gray-800 mb-1">{request.visitor_name}</h3>
-                          <p className="text-sm text-gray-600 mb-2">#{request.id.slice(0, 8).toUpperCase()}</p>
-                          <p className="text-xs text-gray-500 mb-2">{request.city}</p>
-                          {request.admin_notes && (
-                            <div className="text-xs text-gray-600 mt-2 whitespace-pre-line max-h-20 overflow-y-auto">
-                              {request.admin_notes.split('\n').slice(0, 5).join('\n')}
-                            </div>
-                          )}
-                        </div>
-                        
-                        <div className="flex flex-col sm:flex-row gap-2">
-                          {waDigits && (
-                            <a
-                              href={`https://wa.me/${waDigits}`}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition text-sm font-semibold flex items-center justify-center gap-2"
-                            >
-                              <MessageCircle className="w-4 h-4" />
-                              واتساب
-                            </a>
-                          )}
-                          {callDigits && (
-                            <a
-                              href={`tel:${callDigits}`}
-                              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm font-semibold flex items-center justify-center gap-2"
-                            >
-                              <Phone className="w-4 h-4" />
-                              اتصال
-                            </a>
-                          )}
-                          <button
-                            onClick={() => handleQuickResponse(request, quickResponse)}
-                            className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition text-sm font-semibold"
-                          >
-                            رد سريع
-                          </button>
-                          <button
-                            onClick={() => handleRequestClick(request)}
-                            className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition text-sm font-semibold"
-                          >
-                            عرض التفاصيل
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
-            </div>
-          )
-        })()}
+        <AdminDashboardEmbassySection
+          requests={requests}
+          userProfiles={userProfiles}
+          onRequestClick={handleRequestClick}
+          onQuickResponse={handleQuickResponse}
+        />
 
         {/* Visa Services Requests Section */}
-        {(() => {
-          const visaRequests = requests.filter(r => r.visit_type === 'visa')
-          if (visaRequests.length === 0) return null
-          
-          return (
-            <div className="mb-8 bg-gradient-to-br from-red-50 to-white rounded-xl shadow-lg p-4 sm:p-6 border-2 border-red-200">
-              <div className="flex items-center gap-3 mb-4">
-                <Plane className="w-6 h-6 text-red-600" />
-                <h2 className="text-xl font-bold text-gray-800">طلبات الفيز والتأشيرات والرحلات</h2>
-                <span className="px-3 py-1 bg-red-600 text-white rounded-full text-sm font-bold">
-                  {visaRequests.length}
-                </span>
-              </div>
-              
-              <div className="space-y-4">
-                {visaRequests.map((request) => {
-                  const userProfile = userProfiles[request.user_id]
-                  const adminInfo = parseAdminNotes((request.admin_notes || '') as string) || {}
-                  
-                  // استخراج رقم الهاتف من admin_notes أو userProfile
-                  const phoneMatch = (request.admin_notes || '').match(/الهاتف:\s*([^\n]+)/)
-                  const phone = phoneMatch?.[1]?.trim() || userProfile?.phone || adminInfo.syrianPhone || adminInfo.jordanPhone || ''
-                  const waDigits = String(phone).replace(/[^\d]/g, '')
-                  const callDigits = String(phone).replace(/[^\d+]/g, '')
-                  
-                  const quickResponse = '✅ تم استلام طلبك. سنتواصل معك قريباً لإكمال الإجراءات.'
-                  
-                  return (
-                    <div key={request.id} className="bg-white rounded-lg p-4 border-2 border-red-200 hover:shadow-md transition">
-                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                        <div className="flex-1">
-                          <h3 className="font-bold text-gray-800 mb-1">{request.visitor_name}</h3>
-                          <p className="text-sm text-gray-600 mb-2">#{request.id.slice(0, 8).toUpperCase()}</p>
-                          <p className="text-xs text-gray-500 mb-2">{request.city}</p>
-                          {request.admin_notes && (
-                            <div className="text-xs text-gray-600 mt-2 whitespace-pre-line max-h-20 overflow-y-auto">
-                              {request.admin_notes.split('\n').slice(0, 5).join('\n')}
-                            </div>
-                          )}
-                        </div>
-                        
-                        <div className="flex flex-col sm:flex-row gap-2">
-                          {waDigits && (
-                            <a
-                              href={`https://wa.me/${waDigits}`}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition text-sm font-semibold flex items-center justify-center gap-2"
-                            >
-                              <MessageCircle className="w-4 h-4" />
-                              واتساب
-                            </a>
-                          )}
-                          {callDigits && (
-                            <a
-                              href={`tel:${callDigits}`}
-                              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm font-semibold flex items-center justify-center gap-2"
-                            >
-                              <Phone className="w-4 h-4" />
-                              اتصال
-                            </a>
-                          )}
-                          <button
-                            onClick={() => handleQuickResponse(request, quickResponse)}
-                            className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition text-sm font-semibold"
-                          >
-                            رد سريع
-                          </button>
-                          <button
-                            onClick={() => handleRequestClick(request)}
-                            className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition text-sm font-semibold"
-                          >
-                            عرض التفاصيل
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
-            </div>
-          )
-        })()}
+        <AdminDashboardVisaSection
+          requests={requests}
+          userProfiles={userProfiles}
+          onRequestClick={handleRequestClick}
+          onQuickResponse={handleQuickResponse}
+        />
 
         {/* Filters */}
         <RequestFilters
@@ -1690,81 +1169,26 @@ export default function AdminDashboard() {
             <>
               <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 sm:gap-4 mb-3 sm:mb-4">
                 <h2 className="text-base sm:text-lg md:text-xl font-bold text-gray-800">
-                  {getFilterTitle()} ({filteredRequests.length})
+                  {getFilterTitle(statusFilter)} ({filteredRequests.length})
                 </h2>
                 <p className="text-xs sm:text-sm text-gray-600">
                   انقر على أي طلب لعرض التفاصيل والرد
                 </p>
               </div>
 
-              {/* Grouped view when typeFilter == all (easier when there are many requests) */}
-              {typeFilter === 'all' ? (
-                <div className="space-y-4">
-                  {(() => {
-                    const groups = groupedByType(filteredRequests)
-                    const types = [
-                      ...typeOrder.filter(t => (groups[t] || []).length > 0),
-                      ...Object.keys(groups).filter(t => !typeOrder.includes(t)).sort(),
-                    ]
-                    return types.map((t) => {
-                      const list = groups[t] || []
-                      const isCollapsed = Boolean(collapsedTypes[t])
-                      return (
-                        <div key={t} className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-                          <button
-                            type="button"
-                            onClick={() => setCollapsedTypes(prev => ({ ...prev, [t]: !prev[t] }))}
-                            className="w-full flex items-center justify-between gap-3 px-4 py-3 hover:bg-gray-50 transition"
-                          >
-                            <div className="flex items-center gap-2 min-w-0">
-                              <Layers className="w-4 h-4 text-blue-600 flex-shrink-0" />
-                              <span className="font-extrabold text-gray-800 truncate">
-                                {typeLabel(t)}
-                              </span>
-                              <span className="text-xs font-bold tabular-nums px-2 py-0.5 rounded-full bg-blue-50 border border-blue-100 text-blue-700 flex-shrink-0">
-                                {list.length}
-                              </span>
-                            </div>
-                            <ChevronDown className={`w-4 h-4 text-gray-500 transition-transform ${isCollapsed ? 'rotate-180' : ''}`} />
-                          </button>
-
-                          {!isCollapsed && (
-                            <div className="p-3 sm:p-4 space-y-3">
-                              {list.map((request, idx) => (
-                                <RequestCard
-                                  key={request.id}
-                                  request={request}
-                                  userProfile={userProfiles[request.user_id]}
-                                  onClick={() => handleRequestClick(request)}
-                                  onScheduleTrip={() => handleScheduleTrip(request)}
-                                  onDelete={currentRole === 'admin' ? () => handleDeleteRequest(request.id) : undefined}
-                                  onAssignSupervisor={currentRole === 'admin' ? () => setAssigningRequest(request) : undefined}
-                                  isAdmin={currentRole === 'admin'}
-                                  index={idx}
-                                />
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                      )
-                    })
-                  })()}
-                </div>
-              ) : (
-                filteredRequests.map((request, index) => (
-                  <RequestCard
-                    key={request.id}
-                    request={request}
-                    userProfile={userProfiles[request.user_id]}
-                    onClick={() => handleRequestClick(request)}
-                    onScheduleTrip={() => handleScheduleTrip(request)}
-                    onDelete={currentRole === 'admin' ? () => handleDeleteRequest(request.id) : undefined}
-                    onAssignSupervisor={currentRole === 'admin' ? () => setAssigningRequest(request) : undefined}
-                    isAdmin={currentRole === 'admin'}
-                    index={index}
-                  />
-                ))
-              )}
+              {/* Requests List */}
+              <AdminDashboardRequestsList
+                filteredRequests={filteredRequests}
+                userProfiles={userProfiles}
+                typeFilter={typeFilter}
+                collapsedTypes={collapsedTypes}
+                currentRole={currentRole}
+                onRequestClick={handleRequestClick}
+                onScheduleTrip={handleScheduleTrip}
+                onDeleteRequest={handleDeleteRequest}
+                onAssignSupervisor={(request) => setAssigningRequest(request)}
+                onToggleCollapse={(type) => setCollapsedTypes(prev => ({ ...prev, [type]: !prev[type] }))}
+              />
             </>
           )}
         </div>

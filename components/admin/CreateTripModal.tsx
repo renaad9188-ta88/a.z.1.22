@@ -101,12 +101,14 @@ export default function CreateTripModal({
   // Map
   const [mapsReady, setMapsReady] = useState(false)
   const [mapAddMode, setMapAddMode] = useState<'none' | 'trip_stop' | 'route_stop'>('none')
+  const [tempMarkerPosition, setTempMarkerPosition] = useState<{ lat: number; lng: number } | null>(null)
   const mapElRef = useRef<HTMLDivElement | null>(null)
   const mapObjRef = useRef<google.maps.Map | null>(null)
   const markersRef = useRef<google.maps.Marker[]>([])
   const polylineRef = useRef<google.maps.Polyline | null>(null)
   const directionsServiceRef = useRef<google.maps.DirectionsService | null>(null)
   const directionsRendererRef = useRef<google.maps.DirectionsRenderer | null>(null)
+  const tempMarkerRef = useRef<google.maps.Marker | null>(null)
 
 
   const activeStopPoints = useMemo(() => {
@@ -188,6 +190,9 @@ export default function CreateTripModal({
         fullscreenControl: true,
         streetViewControl: false,
         gestureHandling: 'greedy',
+        draggable: true,
+        scrollwheel: true,
+        clickableIcons: false,
       })
 
       directionsServiceRef.current = new googleMaps.DirectionsService()
@@ -205,51 +210,129 @@ export default function CreateTripModal({
         if (!e.latLng) return
         const mode = mapAddMode
         if (mode === 'none') return
+        
         const lat = e.latLng.lat()
         const lng = e.latLng.lng()
 
-        const geocoder = new googleMaps.Geocoder()
-        geocoder.geocode({ location: { lat, lng } }, async (results) => {
-          const name = results && results[0] ? results[0].formatted_address : stopLabelSingular
-
-          if (mode === 'trip_stop') {
-            const added = addStopPoint({ name, lat, lng })
-            if (!added) {
-              toast.error(`يمكنك إضافة ${MAX_STOP_POINTS} محطات كحد أقصى`)
-            } else {
-              toast.success('تمت إضافة محطة للرحلة')
-            }
-            setMapAddMode('none')
-            return
-          }
-
-          // mode === 'route_stop'
-          try {
-            const nextIdx = (routeStops || []).reduce((m, s) => Math.max(m, Number(s.order_index || 0)), -1) + 1
-            const { error } = await supabase.from('route_stop_points').insert({
-              route_id: routeId,
-              name,
-              description: null,
-              lat,
-              lng,
-              order_index: nextIdx,
-              is_active: true,
-              stop_kind: stopKindForTrip,
-            } as any)
-            if (error) throw error
-            toast.success('تمت إضافة محطة للخط')
-            await loadRouteStops()
-          } catch (err: any) {
-            console.error('add route stop error:', err)
-            toast.error(err?.message || 'تعذر إضافة محطة للخط')
-          } finally {
-            setMapAddMode('none')
+        // إزالة الدبوس المؤقت القديم إن وجد أولاً
+        if (tempMarkerRef.current) {
+          tempMarkerRef.current.setMap(null)
+          tempMarkerRef.current = null
+        }
+        
+        // إظهار دبوس مؤقت قابل للسحب
+        setTempMarkerPosition({ lat, lng })
+        
+        // إنشاء دبوس مؤقت قابل للسحب (حجم أصغر)
+        const tempMarker = new googleMaps.Marker({
+          map: mapObjRef.current!,
+          position: { lat, lng },
+          draggable: true,
+          icon: {
+            path: googleMaps.SymbolPath.CIRCLE,
+            scale: 8,
+            fillColor: '#EF4444',
+            fillOpacity: 0.95,
+            strokeColor: '#ffffff',
+            strokeWeight: 2,
+          },
+          zIndex: 1000,
+          title: 'اسحب الدبوس لتحديد الموقع بدقة',
+          optimized: false, // لضمان الاستجابة السريعة
+        })
+        
+        // تحديث الموقع عند السحب
+        tempMarker.addListener('drag', (dragEvent: google.maps.MapMouseEvent) => {
+          if (dragEvent.latLng) {
+            const newPos = { lat: dragEvent.latLng.lat(), lng: dragEvent.latLng.lng() }
+            setTempMarkerPosition(newPos)
           }
         })
+        
+        // تحديث نهائي عند انتهاء السحب
+        tempMarker.addListener('dragend', (dragEvent: google.maps.MapMouseEvent) => {
+          if (dragEvent.latLng) {
+            setTempMarkerPosition({ lat: dragEvent.latLng.lat(), lng: dragEvent.latLng.lng() })
+          }
+        })
+        
+        tempMarkerRef.current = tempMarker
       })
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mapsReady])
+
+  // تنظيف الدبوس المؤقت عند إيقاف addMode
+  useEffect(() => {
+    if (mapAddMode === 'none' && tempMarkerRef.current) {
+      tempMarkerRef.current.setMap(null)
+      tempMarkerRef.current = null
+      setTempMarkerPosition(null)
+    }
+  }, [mapAddMode])
+
+  // دالة لإضافة المحطة من الدبوس المؤقت
+  const confirmAddStop = async () => {
+    if (!tempMarkerPosition || !tempMarkerRef.current) return
+    
+    const lat = tempMarkerPosition.lat
+    const lng = tempMarkerPosition.lng
+    const googleMaps = (window as any).google.maps as typeof google.maps
+    const geocoder = new googleMaps.Geocoder()
+    
+    geocoder.geocode({ location: { lat, lng } }, async (results) => {
+      const name = results && results[0] ? results[0].formatted_address : stopLabelSingular
+
+      if (mapAddMode === 'trip_stop') {
+        const added = addStopPoint({ name, lat, lng })
+        if (!added) {
+          toast.error(`يمكنك إضافة ${MAX_STOP_POINTS} محطات كحد أقصى`)
+        } else {
+          toast.success('تمت إضافة محطة للرحلة')
+        }
+        setMapAddMode('none')
+      } else if (mapAddMode === 'route_stop') {
+        try {
+          const nextIdx = (routeStops || []).reduce((m, s) => Math.max(m, Number(s.order_index || 0)), -1) + 1
+          const { error } = await supabase.from('route_stop_points').insert({
+            route_id: routeId,
+            name,
+            description: null,
+            lat,
+            lng,
+            order_index: nextIdx,
+            is_active: true,
+            stop_kind: stopKindForTrip,
+          } as any)
+          if (error) throw error
+          toast.success('تمت إضافة محطة للخط')
+          await loadRouteStops()
+        } catch (err: any) {
+          console.error('add route stop error:', err)
+          toast.error(err?.message || 'تعذر إضافة محطة للخط')
+        } finally {
+          setMapAddMode('none')
+        }
+      }
+      
+      // تنظيف الدبوس المؤقت
+      if (tempMarkerRef.current) {
+        tempMarkerRef.current.setMap(null)
+        tempMarkerRef.current = null
+      }
+      setTempMarkerPosition(null)
+    })
+  }
+
+  // دالة لإلغاء الدبوس المؤقت
+  const cancelTempMarker = () => {
+    if (tempMarkerRef.current) {
+      tempMarkerRef.current.setMap(null)
+      tempMarkerRef.current = null
+    }
+    setTempMarkerPosition(null)
+    setMapAddMode('none')
+  }
 
   // render markers + route polyline
   useEffect(() => {
@@ -474,9 +557,9 @@ export default function CreateTripModal({
                 <div className="flex items-center justify-between gap-2">
                   <p className="text-xs sm:text-sm font-bold text-blue-900">
                     {mapAddMode === 'route_stop'
-                      ? `انقر على الخريطة لإضافة ${stopLabelSingular} للخط`
+                      ? `انقر على الخريطة لإضافة ${stopLabelSingular} للخط - اسحب الدبوس لتحديد الموقع بدقة`
                       : mapAddMode === 'trip_stop'
-                      ? `انقر على الخريطة لإضافة ${stopLabelSingular} لهذه الرحلة`
+                      ? `انقر على الخريطة لإضافة ${stopLabelSingular} لهذه الرحلة - اسحب الدبوس لتحديد الموقع بدقة`
                       : 'اسحب العلامات لتعديل المسار'}
                   </p>
 
@@ -509,7 +592,33 @@ export default function CreateTripModal({
               </div>
             )}
 
-            <div ref={mapElRef} className="flex-1 min-h-[400px] bg-gray-100" />
+            <div 
+              ref={mapElRef} 
+              className="flex-1 min-h-[400px] bg-gray-100 relative"
+              style={{ touchAction: 'pan-x pan-y pinch-zoom' }}
+            >
+              {/* أزرار إضافة المحطة من الدبوس المؤقت */}
+              {tempMarkerPosition && mapAddMode !== 'none' && (
+                <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 z-10 flex gap-2">
+                  <button
+                    type="button"
+                    onClick={confirmAddStop}
+                    className="px-4 py-2.5 rounded-lg bg-green-600 text-white font-extrabold text-sm shadow-lg hover:bg-green-700 transition inline-flex items-center justify-center gap-2"
+                  >
+                    <MapPin className="w-4 h-4" />
+                    <span>إضافة المحطة</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={cancelTempMarker}
+                    className="px-3 py-2.5 rounded-lg bg-gray-600 text-white font-extrabold text-sm shadow-lg hover:bg-gray-700 transition inline-flex items-center justify-center"
+                    title="إلغاء"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              )}
+            </div>
 
             {!apiKey && (
               <div className="p-4 bg-yellow-50 border-t border-yellow-200 text-sm text-yellow-800">

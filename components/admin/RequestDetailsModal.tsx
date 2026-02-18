@@ -127,23 +127,41 @@ function AutoAssignButton({
     try {
       setLoading(true)
       // البحث عن المشرف الذي له هذا المستخدم كمنتسب
-      const { data, error } = await supabase
+      const { data: customerData, error: customerError } = await supabase
         .from('supervisor_customers')
-        .select('supervisor_id, profiles:supervisor_id(user_id, full_name, phone)')
+        .select('supervisor_id')
         .eq('customer_id', requestUserId)
         .limit(1)
         .maybeSingle()
 
-      if (error && error.code !== 'PGRST116') throw error
+      if (customerError && customerError.code !== 'PGRST116') {
+        console.warn('Could not load supervisor assignment:', customerError)
+        return
+      }
 
-      if (data && data.supervisor_id) {
-        const supervisor = data.profiles as any
-        setFoundSupervisor({
-          id: data.supervisor_id,
-          name: supervisor?.full_name || supervisor?.phone || 'مشرف',
-        })
-        onAssign(data.supervisor_id)
-        toast.success(`تم تعيين المشرف: ${supervisor?.full_name || supervisor?.phone || 'مشرف'}`)
+      // جلب معلومات المشرف بشكل منفصل
+      if (customerData && customerData.supervisor_id) {
+        const { data: profileData, error: profileError } = await supabase
+          .from('profiles')
+          .select('user_id, full_name, phone')
+          .eq('user_id', customerData.supervisor_id)
+          .maybeSingle()
+
+        if (profileError) {
+          console.warn('Could not load supervisor profile:', profileError)
+          return
+        }
+
+        if (profileData) {
+          setFoundSupervisor({
+            id: customerData.supervisor_id,
+            name: profileData.full_name || profileData.phone || 'مشرف',
+          })
+          onAssign(customerData.supervisor_id)
+          toast.success(`تم تعيين المشرف: ${profileData.full_name || profileData.phone || 'مشرف'}`)
+        } else {
+          toast.error('لم يتم العثور على مشرف مرتبط بهذا المستخدم')
+        }
       } else {
         toast.error('لم يتم العثور على مشرف مرتبط بهذا المستخدم')
       }
@@ -255,22 +273,29 @@ export default function RequestDetailsModal({
     ;(async () => {
       try {
         // البحث عن المشرف الذي له هذا المستخدم كمنتسب
-        const { data, error } = await supabase
+        const { data: customerData, error: customerError } = await supabase
           .from('supervisor_customers')
-          .select('supervisor_id, profiles:supervisor_id(user_id, full_name, phone)')
+          .select('supervisor_id')
           .eq('customer_id', request.user_id)
           .limit(1)
           .maybeSingle()
 
-        if (error && error.code !== 'PGRST116') {
-          console.warn('Could not load supervisor assignment:', error)
+        if (customerError && customerError.code !== 'PGRST116') {
+          console.warn('Could not load supervisor assignment:', customerError)
           return
         }
 
-        if (data && data.supervisor_id) {
+        if (customerData && customerData.supervisor_id) {
+          // جلب معلومات المشرف بشكل منفصل
+          const { data: profileData } = await supabase
+            .from('profiles')
+            .select('user_id, full_name, phone')
+            .eq('user_id', customerData.supervisor_id)
+            .maybeSingle()
+
           // إذا لم يكن هناك تعيين حالياً، اقترح التعيين التلقائي
           const currentAssigned = (request as any)?.assigned_to
-          if (!currentAssigned) {
+          if (!currentAssigned && profileData) {
             // يمكن إضافة منطق هنا لاقتراح التعيين (مثل toast أو زر)
             // لكننا لن نعين تلقائياً بدون موافقة الإدمن
           }

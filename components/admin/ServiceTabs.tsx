@@ -18,7 +18,7 @@ interface ServiceTab {
 interface ServiceTabsProps {
   selectedService: ServiceType
   onServiceChange: (service: ServiceType) => void
-  serviceCounts?: Record<ServiceType, number>
+  serviceCounts?: Partial<Record<ServiceType, number>>
 }
 
 export default function ServiceTabs({ selectedService, onServiceChange, serviceCounts = {} }: ServiceTabsProps) {
