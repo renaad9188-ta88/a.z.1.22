@@ -265,15 +265,15 @@ export default function HomeTripStatusRow() {
                     setOpenArrivals((v) => !v)
                     setOpenDepartures(false)
                   }}
-                  className="w-full inline-flex items-center justify-between gap-2 px-3 py-2 rounded-xl border border-gray-200 bg-gradient-to-r from-blue-50 to-white hover:from-blue-100 hover:to-white transition text-xs sm:text-sm font-bold text-gray-800"
+                  className="w-full inline-flex items-center justify-between gap-2 px-3 py-2 sm:px-4 sm:py-2.5 md:px-5 md:py-3 rounded-xl border border-gray-200 bg-gradient-to-r from-blue-50 to-white hover:from-blue-100 hover:to-white transition text-xs sm:text-sm md:text-base lg:text-lg font-bold text-gray-800"
                   aria-expanded={openArrivals}
                   aria-label="إظهار الرحلات القادمة (القادمون)"
                 >
                   <span className="inline-flex items-center gap-2 min-w-0">
-                    <CalendarDays className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-blue-700 flex-shrink-0" />
+                    <CalendarDays className="w-3.5 h-3.5 sm:w-4 sm:h-4 md:w-5 md:h-5 lg:w-6 lg:h-6 text-blue-700 flex-shrink-0" />
                     <span className="truncate">الرحلات القادمة</span>
                   </span>
-                  <ChevronDown className={`w-3.5 h-3.5 sm:w-4 sm:h-4 text-gray-600 transition-transform ${openArrivals ? 'rotate-180' : ''}`} />
+                  <ChevronDown className={`w-3.5 h-3.5 sm:w-4 sm:h-4 md:w-5 md:h-5 lg:w-6 lg:h-6 text-gray-600 transition-transform ${openArrivals ? 'rotate-180' : ''}`} />
                 </button>
               }
             />
@@ -337,15 +337,15 @@ export default function HomeTripStatusRow() {
                     setOpenDepartures((v) => !v)
                     setOpenArrivals(false)
                   }}
-                  className="w-full inline-flex items-center justify-between gap-2 px-3 py-2 rounded-xl border border-gray-200 bg-gradient-to-r from-green-50 to-white hover:from-green-100 hover:to-white transition text-xs sm:text-sm font-bold text-gray-800"
+                  className="w-full inline-flex items-center justify-between gap-2 px-3 py-2 sm:px-4 sm:py-2.5 md:px-5 md:py-3 rounded-xl border border-gray-200 bg-gradient-to-r from-green-50 to-white hover:from-green-100 hover:to-white transition text-xs sm:text-sm md:text-base lg:text-lg font-bold text-gray-800"
                   aria-expanded={openDepartures}
                   aria-label="إظهار الرحلات القادمة (المغادرون)"
                 >
                   <span className="inline-flex items-center gap-2 min-w-0">
-                    <CalendarDays className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-green-700 flex-shrink-0" />
+                    <CalendarDays className="w-3.5 h-3.5 sm:w-4 sm:h-4 md:w-5 md:h-5 lg:w-6 lg:h-6 text-green-700 flex-shrink-0" />
                     <span className="truncate">الرحلات القادمة</span>
                   </span>
-                  <ChevronDown className={`w-3.5 h-3.5 sm:w-4 sm:h-4 text-gray-600 transition-transform ${openDepartures ? 'rotate-180' : ''}`} />
+                  <ChevronDown className={`w-3.5 h-3.5 sm:w-4 sm:h-4 md:w-5 md:h-5 lg:w-6 lg:h-6 text-gray-600 transition-transform ${openDepartures ? 'rotate-180' : ''}`} />
                 </button>
               }
             />
