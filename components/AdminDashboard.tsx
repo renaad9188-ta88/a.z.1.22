@@ -7,10 +7,12 @@ import Link from 'next/link'
 import { LogOut, FileText } from 'lucide-react'
 import toast from 'react-hot-toast'
 import AdminStats from './admin/AdminStats'
+import ServiceTabs, { ServiceType } from './admin/ServiceTabs'
 import RequestFilters from './admin/RequestFilters'
 import RequestCard from './admin/RequestCard'
 import RequestDetailsModal from './admin/RequestDetailsModal'
 import TripSchedulingModal from './admin/TripSchedulingModal'
+import SupervisorSelectorModal from './admin/SupervisorSelectorModal'
 import RouteManagement from './admin/RouteManagement'
 import SupervisorsManagement from './admin/SupervisorsManagement'
 import InvitesManagement from './admin/InvitesManagement'
@@ -35,9 +37,11 @@ export default function AdminDashboard() {
   const [selectedRequest, setSelectedRequest] = useState<VisitRequest | null>(null)
   const [selectedUserProfile, setSelectedUserProfile] = useState<UserProfile | null>(null)
   const [schedulingRequest, setSchedulingRequest] = useState<VisitRequest | null>(null)
+  const [assigningRequest, setAssigningRequest] = useState<VisitRequest | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
   const [typeFilter, setTypeFilter] = useState('all')
+  const [selectedService, setSelectedService] = useState<ServiceType>('all')
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
   const [currentRole, setCurrentRole] = useState<'admin' | 'supervisor' | 'other'>('other')
   const [supervisorPermissions, setSupervisorPermissions] = useState<{
@@ -622,6 +626,61 @@ export default function AdminDashboard() {
     }
   }
 
+  const handleAssignSupervisor = async (requestId: string, supervisorId: string) => {
+    if (currentRole !== 'admin') {
+      toast.error('ليس لديك صلاحية لتعيين المشرفين')
+      return
+    }
+
+    try {
+      const { data: { user: adminUser } } = await supabase.auth.getUser()
+      
+      const { error } = await supabase
+        .from('visit_requests')
+        .update({
+          assigned_to: supervisorId,
+          assigned_at: new Date().toISOString(),
+          assigned_by: adminUser?.id || null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', requestId)
+
+      if (error) throw error
+
+      // جلب اسم المشرف للإشعار
+      const { data: supervisorProfile } = await supabase
+        .from('profiles')
+        .select('full_name, phone')
+        .eq('user_id', supervisorId)
+        .maybeSingle()
+
+      const supervisorName = supervisorProfile?.full_name || supervisorProfile?.phone || 'مشرف'
+
+      // إرسال إشعار للمشرف
+      try {
+        const { notifyCustomMessage } = await import('@/lib/notifications')
+        const request = requests.find(r => r.id === requestId)
+        if (request) {
+          await notifyCustomMessage(
+            supervisorId,
+            requestId,
+            `تم تعيين طلب جديد لك: ${request.visitor_name}`
+          )
+        }
+      } catch (notifyErr) {
+        console.error('Error sending notification:', notifyErr)
+        // لا نوقف العملية إذا فشل الإشعار
+      }
+
+      toast.success(`تم نقل الطلب إلى المشرف: ${supervisorName}`)
+      loadRequests()
+    } catch (e: any) {
+      console.error('Assign supervisor error:', e)
+      toast.error(e?.message || 'تعذر تعيين المشرف')
+      throw e
+    }
+  }
+
   // تحميل المحذوفة عند فتح القسم
   useEffect(() => {
     if (showDeletedRequests && currentRole === 'admin' && !loading) {
@@ -671,7 +730,19 @@ export default function AdminDashboard() {
                 : request.status === statusFilter
     const matchesType = typeFilter === 'all' || request.visit_type === typeFilter
 
-    return matchesSearch && matchesStatus && matchesType
+    // فلترة حسب الخدمة المحددة
+    const matchesService = selectedService === 'all' 
+      ? true
+      : (() => {
+          const visitType = (request.visit_type || 'visit') as string
+          if (selectedService === 'other') {
+            return visitType !== 'visit' && visitType !== 'goethe' && visitType !== 'embassy' && 
+                   visitType !== 'visa' && visitType !== 'umrah' && visitType !== 'tourism'
+          }
+          return visitType === selectedService
+        })()
+
+    return matchesSearch && matchesStatus && matchesType && matchesService
   })
 
   const typeLabel = (t: string) => {
@@ -839,18 +910,35 @@ export default function AdminDashboard() {
     return groups
   }
 
-  // حساب الإحصائيات
+
+  // حساب عدد الطلبات لكل خدمة
+  const serviceCounts: Record<ServiceType, number> = {
+    all: requests.length,
+    visit: requests.filter(r => (r.visit_type || 'visit') === 'visit').length,
+    goethe: requests.filter(r => r.visit_type === 'goethe').length,
+    embassy: requests.filter(r => r.visit_type === 'embassy').length,
+    visa: requests.filter(r => r.visit_type === 'visa').length,
+    umrah: requests.filter(r => r.visit_type === 'umrah').length,
+    tourism: requests.filter(r => r.visit_type === 'tourism').length,
+    other: requests.filter(r => {
+      const visitType = (r.visit_type || 'visit') as string
+      return visitType !== 'visit' && visitType !== 'goethe' && visitType !== 'embassy' && 
+             visitType !== 'visa' && visitType !== 'umrah' && visitType !== 'tourism'
+    }).length,
+  }
+
+  // حساب الإحصائيات للطلبات المفلترة
   const stats: StatsType = {
-    total: requests.length,
+    total: filteredRequests.length,
     // ملاحظة: نعتبر المسودات "غير مكتملة" وهي ظاهرة فقط للإدمن (ليس المشرف)
-    newRequests: requests.filter(r => r.status === 'pending' && (Date.now() - new Date(r.created_at).getTime()) < 24 * 60 * 60 * 1000).length,
-    received: requests.filter(r => r.status === 'pending').length,
-    underReview: requests.filter(r => r.status === 'under_review').length,
-    inProgress: requests.filter(r => r.status === 'approved' && (r.trip_status === 'pending_arrival' || r.trip_status === 'arrived')).length,
-    bookings: requests.filter(r => Boolean(r.trip_id)).length,
-    approved: requests.filter(r => r.status === 'approved').length,
-    rejected: requests.filter(r => r.status === 'rejected').length,
-    completed: requests.filter(r => r.status === 'completed' || r.trip_status === 'completed').length,
+    newRequests: filteredRequests.filter(r => r.status === 'pending' && (Date.now() - new Date(r.created_at).getTime()) < 24 * 60 * 60 * 1000).length,
+    received: filteredRequests.filter(r => r.status === 'pending').length,
+    underReview: filteredRequests.filter(r => r.status === 'under_review').length,
+    inProgress: filteredRequests.filter(r => r.status === 'approved' && (r.trip_status === 'pending_arrival' || r.trip_status === 'arrived')).length,
+    bookings: filteredRequests.filter(r => Boolean(r.trip_id)).length,
+    approved: filteredRequests.filter(r => r.status === 'approved').length,
+    rejected: filteredRequests.filter(r => r.status === 'rejected').length,
+    completed: filteredRequests.filter(r => r.status === 'completed' || r.trip_status === 'completed').length,
     deleted: deletedCount,
   }
 
@@ -1166,6 +1254,22 @@ export default function AdminDashboard() {
           </div>
         ) : (
           <>
+            {/* Service Tabs */}
+            <ServiceTabs 
+              selectedService={selectedService}
+              onServiceChange={(service) => {
+                setSelectedService(service)
+                setStatusFilter('all')
+                setShowDeletedRequests(false)
+                setShowRouteManagement(false)
+                setShowInvitesManagement(false)
+                setShowCustomersManagement(false)
+                setShowSupervisorsManagement(false)
+                setShowBookingsManagement(false)
+              }}
+              serviceCounts={serviceCounts}
+            />
+            
             {/* Stats */}
             <AdminStats 
               stats={stats} 
@@ -1634,6 +1738,7 @@ export default function AdminDashboard() {
                                   onClick={() => handleRequestClick(request)}
                                   onScheduleTrip={() => handleScheduleTrip(request)}
                                   onDelete={currentRole === 'admin' ? () => handleDeleteRequest(request.id) : undefined}
+                                  onAssignSupervisor={currentRole === 'admin' ? () => setAssigningRequest(request) : undefined}
                                   isAdmin={currentRole === 'admin'}
                                   index={idx}
                                 />
@@ -1654,6 +1759,7 @@ export default function AdminDashboard() {
                     onClick={() => handleRequestClick(request)}
                     onScheduleTrip={() => handleScheduleTrip(request)}
                     onDelete={currentRole === 'admin' ? () => handleDeleteRequest(request.id) : undefined}
+                    onAssignSupervisor={currentRole === 'admin' ? () => setAssigningRequest(request) : undefined}
                     isAdmin={currentRole === 'admin'}
                     index={index}
                   />
@@ -1683,6 +1789,18 @@ export default function AdminDashboard() {
           onClose={handleCloseSchedulingModal}
           onUpdate={loadRequests}
           isAdmin={true}
+        />
+      )}
+
+      {/* Supervisor Selector Modal */}
+      {assigningRequest && (
+        <SupervisorSelectorModal
+          requestId={assigningRequest.id}
+          currentAssigned={(assigningRequest as any)?.assigned_to}
+          onAssign={async (supervisorId: string) => {
+            await handleAssignSupervisor(assigningRequest.id, supervisorId)
+          }}
+          onClose={() => setAssigningRequest(null)}
         />
       )}
     </div>

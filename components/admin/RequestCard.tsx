@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { formatDate } from '@/lib/date-utils'
 import { VisitRequest } from './types'
-import { Clock, CheckCircle, XCircle, Eye, Calendar, MapPin, Users, DollarSign, Plane, Copy, ExternalLink, MessageCircle, Phone, Ticket, Bus, CheckCircle2, Trash2, RotateCcw, MoreVertical, GraduationCap, Building2, FileText } from 'lucide-react'
+import { Clock, CheckCircle, XCircle, Eye, Calendar, MapPin, Users, DollarSign, Plane, Copy, ExternalLink, MessageCircle, Phone, Ticket, Bus, CheckCircle2, Trash2, RotateCcw, MoreVertical, GraduationCap, Building2, FileText, UserPlus } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { parseAdminNotes } from '../request-details/utils'
 import Link from 'next/link'
@@ -16,12 +16,13 @@ interface RequestCardProps {
   onScheduleTrip?: () => void
   onDelete?: () => void
   onRestore?: () => void
+  onAssignSupervisor?: () => void
   isAdmin?: boolean
   isDeleted?: boolean
   index?: number
 }
 
-export default function RequestCard({ request, userProfile, onClick, onScheduleTrip, onDelete, onRestore, isAdmin = false, isDeleted = false, index }: RequestCardProps) {
+export default function RequestCard({ request, userProfile, onClick, onScheduleTrip, onDelete, onRestore, onAssignSupervisor, isAdmin = false, isDeleted = false, index }: RequestCardProps) {
   const [showMenu, setShowMenu] = useState(false)
   // حساب عمر الطلب (بالساعات)
   const getRequestAge = () => {
@@ -586,7 +587,22 @@ export default function RequestCard({ request, userProfile, onClick, onScheduleT
                         setShowMenu(false)
                       }}
                     />
-                    <div className="absolute right-0 bottom-full mb-1 md:bottom-auto md:top-full md:mt-1 bg-white rounded-lg shadow-xl border border-gray-200 z-[101] min-w-[120px] md:min-w-[140px] whitespace-nowrap">
+                    <div className="absolute right-0 bottom-full mb-1 md:bottom-auto md:top-full md:mt-1 bg-white rounded-lg shadow-xl border border-gray-200 z-[101] min-w-[140px] md:min-w-[160px] whitespace-nowrap">
+                      {isAdmin && !isDeleted && onAssignSupervisor && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            setShowMenu(false)
+                            onAssignSupervisor()
+                          }}
+                          className="w-full px-3 py-2 text-xs sm:text-sm text-blue-600 hover:bg-blue-50 flex items-center gap-2 transition rounded-t-lg"
+                          title="نقل الطلب إلى مشرف"
+                        >
+                          <UserPlus className="w-3.5 h-3.5 flex-shrink-0" />
+                          <span>نقل إلى مشرف</span>
+                        </button>
+                      )}
                       {canDelete && (
                         <button
                           type="button"
@@ -595,7 +611,9 @@ export default function RequestCard({ request, userProfile, onClick, onScheduleT
                             setShowMenu(false)
                             onDelete()
                           }}
-                          className="w-full px-3 py-2 text-xs sm:text-sm text-red-600 hover:bg-red-50 flex items-center gap-2 transition rounded-t-lg"
+                          className={`w-full px-3 py-2 text-xs sm:text-sm text-red-600 hover:bg-red-50 flex items-center gap-2 transition ${
+                            isAdmin && !isDeleted && onAssignSupervisor ? '' : 'rounded-t-lg'
+                          }`}
                           title="حذف الطلب"
                         >
                           <Trash2 className="w-3.5 h-3.5 flex-shrink-0" />
@@ -610,7 +628,9 @@ export default function RequestCard({ request, userProfile, onClick, onScheduleT
                             setShowMenu(false)
                             onRestore()
                           }}
-                          className={`w-full px-3 py-2 text-xs sm:text-sm text-green-600 hover:bg-green-50 flex items-center gap-2 transition ${canDelete ? 'rounded-b-lg' : 'rounded-lg'}`}
+                          className={`w-full px-3 py-2 text-xs sm:text-sm text-green-600 hover:bg-green-50 flex items-center gap-2 transition ${
+                            canDelete ? 'rounded-b-lg' : 'rounded-lg'
+                          }`}
                           title="استرجاع الطلب"
                         >
                           <RotateCcw className="w-3.5 h-3.5 flex-shrink-0" />
