@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { createSupabaseBrowserClient } from '@/lib/supabase'
 import type { ReqRow, TripLite, StopPoint } from '../types'
 
@@ -8,7 +8,7 @@ export function useTripData(request: ReqRow | null) {
   const [selectedDropoffStop, setSelectedDropoffStop] = useState<{ id: string; name: string } | null>(null)
   const [selectedPickupStop, setSelectedPickupStop] = useState<{ id: string; name: string } | null>(null)
 
-  const loadBookedTrip = async (tripId: string) => {
+  const loadBookedTrip = useCallback(async (tripId: string) => {
     try {
       const { data, error } = await supabase
         .from('route_trips')
@@ -22,7 +22,7 @@ export function useTripData(request: ReqRow | null) {
       console.error('Error loading booked trip:', e)
       setBookedTrip(null)
     }
-  }
+  }, [supabase])
 
   // تحميل أسماء نقاط الصعود/النزول المختارة
   useEffect(() => {
@@ -87,7 +87,7 @@ export function useTripData(request: ReqRow | null) {
     } else {
       setBookedTrip(null)
     }
-  }, [request?.trip_id])
+  }, [request?.trip_id, loadBookedTrip])
 
   return {
     bookedTrip,

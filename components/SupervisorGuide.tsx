@@ -146,7 +146,7 @@ export default function SupervisorGuide({ onClose }: SupervisorGuideProps) {
                   نصيحة مهمة:
                 </p>
                 <p className="text-xs sm:text-sm text-blue-800">
-                  استخدم زر "تأكيد الدفعة" في صفحة الطلب بعد استلام المبلغ من المستخدم. سيتم فتح خيار الحجز تلقائياً.
+                  استخدم زر &quot;تأكيد الدفعة&quot; في صفحة الطلب بعد استلام المبلغ من المستخدم. سيتم فتح خيار الحجز تلقائياً.
                 </p>
               </div>
             )}
@@ -158,7 +158,7 @@ export default function SupervisorGuide({ onClose }: SupervisorGuideProps) {
                   موقع الحجز:
                 </p>
                 <p className="text-xs sm:text-sm text-green-800">
-                  اذهب إلى لوحة الإدارة → الطلبات → اضغط على الطلب → "حجز موعد الرحلة"
+                  اذهب إلى لوحة الإدارة → الطلبات → اضغط على الطلب → &quot;حجز موعد الرحلة&quot;
                 </p>
               </div>
             )}
