@@ -2,14 +2,17 @@
 
 import { useState, useEffect } from 'react'
 import { usePathname } from 'next/navigation'
-import { HelpCircle, X, MessageCircle, Phone, BookOpen, MapPin } from 'lucide-react'
+import { HelpCircle, X, MessageCircle, Phone, BookOpen, MapPin, Shield, ArrowRight } from 'lucide-react'
 import Link from 'next/link'
 import { getSupervisorContactForCustomer, getSupervisorForService, getSupervisorWhatsAppNumber, getSupervisorCallNumber, getSupervisorWithFullPermissions } from '@/lib/supervisor-utils'
 import { createSupabaseBrowserClient } from '@/lib/supabase'
+import SupervisorGuide from './SupervisorGuide'
 
 export default function HelpFloatingButton() {
   const pathname = usePathname()
   const [showHelp, setShowHelp] = useState(false)
+  const [showSupervisorGuide, setShowSupervisorGuide] = useState(false)
+  const [isSupervisor, setIsSupervisor] = useState(false)
   const [supervisorContact, setSupervisorContact] = useState<{
     contact_phone: string | null
     whatsapp_phone: string | null
@@ -77,6 +80,32 @@ export default function HelpFloatingButton() {
     }
 
     loadSupervisorContact()
+
+    // Check if user is supervisor
+    const checkSupervisor = async () => {
+      try {
+        const supabase = createSupabaseBrowserClient()
+        const { data: { user } } = await supabase.auth.getUser()
+        
+        if (user) {
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('role')
+            .eq('user_id', user.id)
+            .maybeSingle()
+          
+          const userRole = (profile?.role || '').toLowerCase()
+          setIsSupervisor(userRole === 'supervisor')
+        } else {
+          setIsSupervisor(false)
+        }
+      } catch (error) {
+        console.error('Error checking supervisor:', error)
+        setIsSupervisor(false)
+      }
+    }
+    
+    checkSupervisor()
   }, [pathname])
 
   // استخدام رقم المشرف إذا كان موجوداً، وإلا الرقم الافتراضي
@@ -118,8 +147,28 @@ export default function HelpFloatingButton() {
               </button>
             </div>
             
-            {/* Supervisor Info */}
-            {supervisorContact && (
+            {/* Supervisor Guide Button - Only for Supervisors */}
+            {isSupervisor && (
+              <div className="p-3 sm:p-4 border-b border-gray-200 bg-gradient-to-r from-purple-50 to-indigo-50">
+                <button
+                  onClick={() => {
+                    setShowHelp(false)
+                    setShowSupervisorGuide(true)
+                  }}
+                  className="w-full flex items-center gap-3 p-3 sm:p-4 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white rounded-lg transition shadow-md hover:shadow-lg"
+                >
+                  <Shield className="w-5 h-5 sm:w-6 sm:h-6 flex-shrink-0" />
+                  <div className="flex-1 text-right">
+                    <p className="font-bold text-sm sm:text-base">دليل المشرف الشامل</p>
+                    <p className="text-xs text-white/90">تعلم طريقة العمل والصلاحيات</p>
+                  </div>
+                  <ArrowRight className="w-4 h-4 sm:w-5 sm:h-5 flex-shrink-0" />
+                </button>
+              </div>
+            )}
+
+            {/* Supervisor Info - Only for regular users */}
+            {!isSupervisor && supervisorContact && (
               <div className="p-3 sm:p-4 border-b border-gray-200 bg-blue-50">
                 <p className="text-[10px] sm:text-xs text-blue-700 font-semibold mb-1">
                   {supervisorContact.display_type === 'office' ? 'المكتب المخصص' : 'المشرف المخصص'}:
@@ -228,6 +277,11 @@ export default function HelpFloatingButton() {
             </div>
           </div>
         </>
+      )}
+
+      {/* Supervisor Guide Modal - Only for Supervisors */}
+      {showSupervisorGuide && isSupervisor && (
+        <SupervisorGuide onClose={() => setShowSupervisorGuide(false)} />
       )}
     </>
   )

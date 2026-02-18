@@ -3,20 +3,50 @@
 import { useState, useEffect } from 'react'
 import { X, ArrowRight, CheckCircle, MessageCircle, Phone } from 'lucide-react'
 import Link from 'next/link'
+import { createSupabaseBrowserClient } from '@/lib/supabase'
 
 export default function WelcomeGuide() {
   const [showGuide, setShowGuide] = useState(false)
   const [currentStep, setCurrentStep] = useState(0)
+  const [isSupervisor, setIsSupervisor] = useState(false)
 
   useEffect(() => {
-    // التحقق من أول زيارة
-    const hasSeenGuide = localStorage.getItem('hasSeenWelcomeGuide')
-    if (!hasSeenGuide) {
-      // تأخير بسيط لإظهار الدليل بعد تحميل الصفحة
-      setTimeout(() => {
-        setShowGuide(true)
-      }, 1000)
+    // التحقق من أن المستخدم ليس مشرف
+    const checkUserRole = async () => {
+      try {
+        const supabase = createSupabaseBrowserClient()
+        const { data: { user } } = await supabase.auth.getUser()
+        
+        if (user) {
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('role')
+            .eq('user_id', user.id)
+            .maybeSingle()
+          
+          const userRole = (profile?.role || '').toLowerCase()
+          if (userRole === 'supervisor') {
+            setIsSupervisor(true)
+            return // لا نعرض الدليل للمشرفين
+          }
+        }
+        
+        setIsSupervisor(false)
+        
+        // التحقق من أول زيارة (فقط للمستخدمين العاديين)
+        const hasSeenGuide = localStorage.getItem('hasSeenWelcomeGuide')
+        if (!hasSeenGuide) {
+          // تأخير بسيط لإظهار الدليل بعد تحميل الصفحة
+          setTimeout(() => {
+            setShowGuide(true)
+          }, 1000)
+        }
+      } catch (error) {
+        console.error('Error checking user role:', error)
+      }
     }
+    
+    checkUserRole()
   }, [])
 
   const steps = [
@@ -69,7 +99,8 @@ export default function WelcomeGuide() {
     handleClose()
   }
 
-  if (!showGuide) return null
+  // لا نعرض الدليل للمشرفين
+  if (isSupervisor || !showGuide) return null
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-2 sm:p-4">
