@@ -276,6 +276,7 @@ export default function RequestCard({ request, userProfile, onClick, onScheduleT
   const hasArrivalDate = request.arrival_date !== null
   const isCompleted = request.status === 'completed' || request.trip_status === 'completed'
   const isUnderReview = request.status === 'under_review' || request.status === 'pending'
+  const isRejected = request.status === 'rejected'
 
   // التحقق من إمكانية الحذف (للإدمن فقط - أي طلب)
   const canDelete = isAdmin && onDelete && !isDeleted
@@ -316,369 +317,315 @@ export default function RequestCard({ request, userProfile, onClick, onScheduleT
     return 'bg-gradient-to-br from-purple-50 via-white to-white'
   }
 
+  // حساب وقت الانتظار في المرحلة الحالية
+  const getWaitingTime = () => {
+    const updated = request.updated_at ? new Date(request.updated_at) : new Date(request.created_at)
+    const now = new Date()
+    const diffTime = now.getTime() - updated.getTime()
+    const diffHours = Math.floor(diffTime / (1000 * 60 * 60))
+    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24))
+    
+    if (diffDays > 0) return `${diffDays} يوم`
+    if (diffHours > 0) return `${diffHours} ساعة`
+    return 'أقل من ساعة'
+  }
+
+  // تحديد المرحلة الحالية
+  const getCurrentStage = () => {
+    if (isCompleted) return { text: 'مكتمل', color: 'text-gray-600' }
+    if (hasBooking && isBookingConfirmed) return { text: 'محجوز', color: 'text-teal-600' }
+    if (hasBooking && isBookingPending) return { text: 'حجز بانتظار الموافقة', color: 'text-orange-600' }
+    if (isApproved) return { text: 'موافق عليه', color: 'text-green-600' }
+    if (isUnderReview) return { text: 'قيد المراجعة', color: 'text-yellow-600' }
+    return { text: 'مستلم', color: 'text-blue-600' }
+  }
+
+  const currentStage = getCurrentStage()
+
   return (
-    <div className={`${isDeleted ? 'bg-gradient-to-br from-gray-100 via-white to-white border-l-4 border-l-gray-400' : getBackgroundGradient()} rounded-xl shadow-lg hover:shadow-2xl transition-all duration-300 p-4 sm:p-6 border-2 border-r-0 ${isDeleted ? '' : getBorderColor()} ${
-      isNewRequest ? 'ring-2 ring-blue-300 ring-opacity-50' : ''
-    } w-full max-w-full overflow-hidden ${isDeleted ? 'opacity-75' : ''}`}>
-      <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
-        {/* المعلومات الأساسية */}
-        <div className="flex-1 space-y-3">
-          <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3">
-            <div className="flex-1 min-w-0">
-              <div className="flex flex-wrap items-center gap-2 mb-2">
-                {index !== undefined && (
-                  <div className={`flex items-center justify-center w-8 h-8 rounded-full font-bold text-sm ${
-                    isNewRequest 
-                      ? 'bg-blue-500 text-white animate-bounce' 
-                      : isApproved 
-                      ? 'bg-green-500 text-white' 
-                      : isUnderReview
-                      ? 'bg-yellow-500 text-white'
-                      : 'bg-gray-500 text-white'
-                  }`}>
-                    #{index + 1}
-                  </div>
-                )}
-                <div className="flex items-center gap-2">
-                  {hasBooking && (
-                    <Ticket className={`w-4 h-4 sm:w-5 sm:h-5 flex-shrink-0 ${
-                      isBookingConfirmed ? 'text-teal-600' : 'text-orange-600'
-                    }`} />
-                  )}
-                  <h3 className={`text-base sm:text-lg font-bold ${
-                    isNewRequest ? 'text-blue-700' : 'text-gray-800'
-                  } break-words max-w-full leading-snug`}>
-                    {request.visitor_name}
-                  </h3>
-                </div>
-                {isNewRequest && (
-                  <span className="px-2 py-0.5 bg-blue-500 text-white text-xs font-bold rounded-full animate-pulse">
-                    جديد
-                  </span>
-                )}
-                {isDraft && (
-                  <span className="px-2 py-0.5 bg-red-600 text-white text-xs font-bold rounded-full animate-pulse">
-                    غير مكتمل
-                  </span>
-                )}
-                {isDeleted && (
-                  <span className="px-2 py-0.5 bg-gray-600 text-white text-xs font-bold rounded-full">
-                    محذوف
-                  </span>
-                )}
-              </div>
-              {userProfile?.full_name && (
-                <p className="text-xs sm:text-sm text-gray-600 mb-2 flex items-center gap-1">
-                  <span className="font-medium">المستخدم:</span>
-                  <span>{userProfile.full_name}</span>
-                  {userProfile.phone && (
-                    <span className="text-gray-400">• {userProfile.phone}</span>
-                  )}
-                </p>
-              )}
-              {isDraft && (
-                <div className="flex flex-col gap-2 mb-2">
-                  {supervisorContact && (
-                    <div className="text-xs text-blue-700 font-semibold bg-blue-50 px-2 py-1 rounded">
-                      {supervisorContact.display_type === 'office' ? 'المكتب المخصص' : 'المشرف المخصص'}: {supervisorContact.display_name}
-                    </div>
-                  )}
-                  <div className="flex flex-wrap gap-2">
-                    {waHref && (
-                      <a
-                        href={waHref}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        onClick={(e) => e.stopPropagation()}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-green-600 text-white hover:bg-green-700 transition text-xs font-bold"
-                        title={supervisorContact ? `واتساب ${supervisorContact.display_type === 'office' ? 'المكتب' : 'المشرف'}: ${supervisorContact.display_name}` : "فتح واتساب للتواصل"}
-                      >
-                        <MessageCircle className="w-3.5 h-3.5" />
-                        واتساب
-                      </a>
-                    )}
-                    {callDigits && (
-                      <a
-                        href={`tel:${callDigits}`}
-                        onClick={(e) => e.stopPropagation()}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gray-800 text-white hover:bg-black transition text-xs font-bold"
-                        title={supervisorContact ? `اتصال ${supervisorContact.display_type === 'office' ? 'بالمكتب' : 'بالمشرف'}: ${supervisorContact.display_name}` : "اتصال"}
-                      >
-                        <Phone className="w-3.5 h-3.5" />
-                        اتصال
-                      </a>
-                    )}
-                    {!waHref && !callDigits && !loadingSupervisorContact && (
-                      <span className="text-xs text-gray-500">لا يوجد رقم تواصل محفوظ</span>
-                    )}
-                    {loadingSupervisorContact && (
-                      <span className="text-xs text-gray-500">جاري البحث عن المشرف...</span>
-                    )}
-                  </div>
-                </div>
-              )}
-              {getStatusBadge(request.status)}
-            </div>
-            <div
-              className="text-left bg-gray-50 rounded-lg p-2 border border-gray-200 cursor-pointer hover:bg-gray-100 transition w-full md:w-auto flex-shrink-0"
-              role="button"
-              tabIndex={0}
-              onClick={onClick}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' || e.key === ' ') onClick()
-              }}
-              title="اضغط لفتح تفاصيل الطلب"
-            >
-              <p className="text-xs text-gray-500 mb-1">رقم الطلب</p>
-              <div className="flex items-start sm:items-center justify-between gap-2">
-                <p className="text-xs sm:text-sm font-mono text-gray-700 font-bold">
-                  {shortRef}
-                </p>
-                <div className="flex flex-wrap items-center justify-end gap-1">
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      copyText(shortRef.replace('#', ''), 'تم نسخ رقم الطلب')
-                    }}
-                    className="p-1 rounded-md hover:bg-white border border-transparent hover:border-gray-200 transition"
-                    title="نسخ رقم الطلب المختصر"
-                    aria-label="نسخ رقم الطلب المختصر"
-                  >
-                    <Copy className="w-3.5 h-3.5 text-gray-600" />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      copyText(request.id, 'تم نسخ ID كامل')
-                    }}
-                    className="p-1 rounded-md hover:bg-white border border-transparent hover:border-gray-200 transition"
-                    title="نسخ ID كامل"
-                    aria-label="نسخ ID كامل"
-                  >
-                    <Copy className="w-3.5 h-3.5 text-blue-700" />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      onClick()
-                    }}
-                    className="p-1 rounded-md hover:bg-white border border-transparent hover:border-gray-200 transition"
-                    title="فتح التفاصيل"
-                    aria-label="فتح التفاصيل"
-                  >
-                    <ExternalLink className="w-3.5 h-3.5 text-gray-700" />
-                  </button>
-                </div>
-              </div>
-              {isNewRequest && (
-                <p className="text-xs text-blue-600 mt-1 font-medium">
-                  منذ {requestAge.hours} ساعة
-                </p>
-              )}
-              {!isNewRequest && requestAge.days > 0 && (
-                <p className="text-xs text-gray-500 mt-1">
-                  منذ {requestAge.days} يوم
-                </p>
-              )}
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 text-sm bg-white/50 rounded-lg p-3 border border-gray-100">
-            <div className="flex items-center gap-2 text-gray-700 bg-blue-50 rounded-lg p-2">
-              <Calendar className="w-4 h-4 text-blue-600 flex-shrink-0" />
-              <div>
-                <p className="text-xs text-gray-500">تاريخ السفر</p>
-                <span className="text-xs sm:text-sm font-medium">
-                  {formatDate(request.travel_date)}
-                </span>
-              </div>
-            </div>
-            <div className="flex items-center gap-2 text-gray-700 bg-green-50 rounded-lg p-2">
-              <MapPin className="w-4 h-4 text-green-600 flex-shrink-0" />
-              <div>
-                <p className="text-xs text-gray-500">المدينة</p>
-                <span className="text-xs sm:text-sm font-medium truncate">{request.city}</span>
-              </div>
-            </div>
-            <div className="flex items-center gap-2 text-gray-700 bg-purple-50 rounded-lg p-2">
-              <Users className="w-4 h-4 text-purple-600 flex-shrink-0" />
-              <div>
-                <p className="text-xs text-gray-500">عدد الأشخاص</p>
-                <span className="text-xs sm:text-sm font-medium">
-                  {totalPeople} {totalPeople > 1 ? 'أشخاص' : 'شخص'}
-                </span>
-              </div>
-            </div>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2 sm:gap-3 text-xs sm:text-sm">
-            {(() => {
-              const serviceInfo = getServiceTypeInfo(request.visit_type)
-              const ServiceIcon = serviceInfo.icon
-              return (
-                <span className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-lg font-bold border-2 ${serviceInfo.bgColor} ${serviceInfo.textColor} ${serviceInfo.borderColor}`}>
-                  <ServiceIcon className="w-4 h-4 sm:w-5 sm:h-5 flex-shrink-0" />
-                  {isJordanVisit ? '🇯🇴 زيارة الأردن' : serviceInfo.text}
-                </span>
-              )
-            })()}
-            {request.deposit_paid && (
-              <span className="px-3 py-1.5 bg-gradient-to-r from-green-100 to-green-200 text-green-800 rounded-lg font-bold flex items-center gap-1 border-2 border-green-300">
-                <DollarSign className="w-3.5 h-3.5" />
-                مدفوع
-              </span>
-            )}
-            {request.deposit_amount && (
-              <span className="px-3 py-1.5 bg-gradient-to-r from-gray-100 to-gray-200 text-gray-800 rounded-lg font-bold border-2 border-gray-300">
-                {request.deposit_amount} JOD
-              </span>
-            )}
-            {hasBooking && (
-              <span className={`px-3 py-1.5 rounded-lg font-bold flex items-center gap-1 border-2 ${
-                isBookingConfirmed
-                  ? 'bg-gradient-to-r from-teal-100 to-teal-200 text-teal-800 border-teal-300'
-                  : 'bg-gradient-to-r from-orange-100 to-orange-200 text-orange-800 border-orange-300 animate-pulse'
+    <div 
+      onClick={onClick}
+      className={`${isDeleted ? 'bg-gradient-to-br from-gray-100 via-white to-white border-l-4 border-l-gray-400' : getBackgroundGradient()} rounded-lg sm:rounded-xl shadow-md hover:shadow-lg transition-all duration-200 p-3 sm:p-4 border-2 border-r-0 ${isDeleted ? '' : getBorderColor()} ${
+        isNewRequest ? 'ring-1 ring-blue-300 ring-opacity-50' : ''
+      } w-full max-w-full overflow-hidden ${isDeleted ? 'opacity-75' : ''} cursor-pointer`}>
+      <div className="flex flex-col gap-2.5 sm:gap-3">
+        {/* الصف الأول: الرقم، الاسم، الحالة */}
+        <div className="flex items-start justify-between gap-2">
+          <div className="flex items-center gap-2 flex-1 min-w-0">
+            {index !== undefined && (
+              <div className={`flex items-center justify-center w-7 h-7 sm:w-8 sm:h-8 rounded-full font-bold text-xs sm:text-sm flex-shrink-0 ${
+                isNewRequest 
+                  ? 'bg-blue-500 text-white animate-pulse' 
+                  : isApproved 
+                  ? 'bg-green-500 text-white' 
+                  : isUnderReview
+                  ? 'bg-yellow-500 text-white'
+                  : 'bg-gray-500 text-white'
               }`}>
-                {isBookingConfirmed ? (
-                  <>
-                    <CheckCircle2 className="w-3.5 h-3.5" />
-                    ✓ محجوز
-                  </>
-                ) : (
-                  <>
-                    <Clock className="w-3.5 h-3.5" />
-                    حجز بانتظار الموافقة
-                  </>
-                )}
+                #{index + 1}
+              </div>
+            )}
+            <div className="flex items-center gap-1.5 sm:gap-2 min-w-0 flex-1">
+              {hasBooking && (
+                <Ticket className={`w-3.5 h-3.5 sm:w-4 sm:h-4 flex-shrink-0 ${
+                  isBookingConfirmed ? 'text-teal-600' : 'text-orange-600'
+                }`} />
+              )}
+              <h3 className={`text-sm sm:text-base font-bold truncate ${
+                isNewRequest ? 'text-blue-700' : 'text-gray-800'
+              }`}>
+                {request.visitor_name}
+              </h3>
+            </div>
+            {isNewRequest && (
+              <span className="px-1.5 py-0.5 bg-blue-500 text-white text-[10px] sm:text-xs font-bold rounded-full animate-pulse flex-shrink-0">
+                جديد
               </span>
             )}
-            {needsPaymentVerifyAfterPostApproval && (
-              <span className="px-3 py-1.5 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-lg font-bold border-2 border-blue-500 animate-pulse">
-                استكمال مرسل • بانتظار تأكيد الدفع
-              </span>
-            )}
-            {hasArrivalDate && request.arrival_date && request.trip_status !== 'scheduled_pending_approval' && (
-              <span className="px-3 py-1.5 bg-gradient-to-r from-purple-100 to-purple-200 text-purple-800 rounded-lg font-bold flex items-center gap-1 border-2 border-purple-300">
-                <Plane className="w-3.5 h-3.5" />
-                قدوم: {formatDate(request.arrival_date)}
-              </span>
-            )}
-            {isCompleted && (
-              <span className="px-3 py-1.5 bg-gradient-to-r from-gray-700 to-gray-800 text-white rounded-lg font-bold border-2 border-gray-600">
-                منتهي
+            {isDraft && (
+              <span className="px-1.5 py-0.5 bg-red-600 text-white text-[10px] sm:text-xs font-bold rounded-full flex-shrink-0">
+                غير مكتمل
               </span>
             )}
           </div>
-
-          {/* معلومات الحجز الإضافية */}
-          {hasBooking && request.arrival_date && (
-            <div className="mt-3 p-2 bg-teal-50 border border-teal-200 rounded-lg">
-              <div className="flex items-center gap-2 text-xs text-teal-800">
-                <Bus className="w-3.5 h-3.5 flex-shrink-0" />
-                <span className="font-semibold">رحلة محجوزة</span>
-                {request.arrival_date && (
-                  <span>• قدوم: {formatDate(request.arrival_date)}</span>
-                )}
-                {request.departure_date && (
-                  <span>• مغادرة: {formatDate(request.departure_date)}</span>
-                )}
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* شريط التقدم */}
-        <div className="mt-3 pt-3 border-t border-gray-200">
-          <ProgressBar request={request} compact={true} />
-        </div>
-
-        {/* الأزرار */}
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-3">
-          {!isDeleted && (
-            <Link
-              href={`/admin/request/${request.id}/follow`}
-              onClick={(e) => e.stopPropagation()}
-              className="px-4 py-2.5 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-lg hover:from-blue-700 hover:to-blue-800 transition-all font-bold text-sm sm:text-base flex items-center justify-center gap-2 shadow-md hover:shadow-lg transform hover:scale-105 border-2 border-blue-500"
-              title="متابعة الطلب (مراحل)"
+          
+          {/* رقم الطلب - مبسط */}
+          <div className="flex items-center gap-1 flex-shrink-0">
+            <span className="text-[10px] sm:text-xs font-mono text-gray-600 font-bold">
+              {shortRef}
+            </span>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation()
+                onClick()
+              }}
+              className="p-1 rounded hover:bg-white/50 transition"
+              title="فتح التفاصيل"
             >
-              <Eye className="w-4 h-4" />
-              متابعة الطلب
-            </Link>
-          )}
-          {/* قائمة منسدلة للأزرار الإضافية */}
-          {(canDelete || canRestore) && (
-            <div className="relative">
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  setShowMenu(!showMenu)
-                }}
-                className="p-2 rounded-lg bg-gray-100 hover:bg-gray-200 transition text-gray-700 border border-gray-300"
-                title="المزيد من الخيارات"
-              >
-                <MoreVertical className="w-4 h-4" />
-              </button>
-              
-              {showMenu && (
+              <ExternalLink className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-gray-500" />
+            </button>
+          </div>
+        </div>
+
+        {/* الصف الثاني: نوع الخدمة، الحالة، معلومات سريعة */}
+        <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+          {(() => {
+            const serviceInfo = getServiceTypeInfo(request.visit_type)
+            const ServiceIcon = serviceInfo.icon
+            return (
+              <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-md font-semibold border text-[10px] sm:text-xs ${serviceInfo.bgColor} ${serviceInfo.textColor} ${serviceInfo.borderColor}`}>
+                <ServiceIcon className="w-3 h-3 flex-shrink-0" />
+                <span className="truncate max-w-[80px] sm:max-w-none">{isJordanVisit ? '🇯🇴 زيارة الأردن' : serviceInfo.text}</span>
+              </span>
+            )
+          })()}
+          
+          {getStatusBadge(request.status)}
+          
+          {hasBooking && (
+            <span className={`px-2 py-1 rounded-md font-semibold text-[10px] sm:text-xs flex items-center gap-1 border ${
+              isBookingConfirmed
+                ? 'bg-teal-50 text-teal-700 border-teal-300'
+                : 'bg-orange-50 text-orange-700 border-orange-300'
+            }`}>
+              {isBookingConfirmed ? (
                 <>
-                  {/* Overlay لإغلاق القائمة عند النقر خارجها */}
-                  <div
-                    className="fixed inset-0 z-[100]"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      setShowMenu(false)
-                    }}
-                  />
-                  
-                  {/* القائمة المنسدلة - responsive */}
-                  <div className="absolute right-0 md:right-auto md:left-0 top-full mt-1 bg-white rounded-lg shadow-xl border border-gray-200 z-[101] min-w-[140px] md:min-w-[160px] whitespace-nowrap">
-                    {canDelete && (
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          setShowMenu(false)
-                          onDelete()
-                        }}
-                        className="w-full px-3 py-2.5 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2 transition rounded-t-lg"
-                        title="حذف الطلب"
-                      >
-                        <Trash2 className="w-3.5 h-3.5 flex-shrink-0" />
-                        <span>حذف</span>
-                      </button>
-                    )}
-                    {canRestore && (
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          setShowMenu(false)
-                          onRestore()
-                        }}
-                        className={`w-full px-3 py-2.5 text-sm text-green-600 hover:bg-green-50 flex items-center gap-2 transition ${canDelete ? 'rounded-b-lg' : 'rounded-lg'}`}
-                        title="استرجاع الطلب"
-                      >
-                        <RotateCcw className="w-3.5 h-3.5 flex-shrink-0" />
-                        <span>استرجاع</span>
-                      </button>
-                    )}
-                  </div>
+                  <CheckCircle2 className="w-3 h-3" />
+                  محجوز
+                </>
+              ) : (
+                <>
+                  <Clock className="w-3 h-3" />
+                  بانتظار
                 </>
               )}
-            </div>
+            </span>
           )}
         </div>
 
-        {/* التاريخ */}
-        <div className="text-left sm:text-right bg-white/70 rounded-lg p-2 border border-gray-200">
-          <p className="text-xs text-gray-500 mb-1 font-medium">تاريخ الإنشاء</p>
-          <p className="text-xs sm:text-sm font-bold text-gray-700">
+        {/* الصف الثالث: معلومات سريعة - صف واحد مضغوط */}
+        <div className="grid grid-cols-3 gap-1.5 sm:gap-2 text-xs">
+          <div className="flex items-center gap-1 bg-blue-50/50 rounded px-1.5 py-1">
+            <Calendar className="w-3 h-3 text-blue-600 flex-shrink-0" />
+            <span className="text-[10px] sm:text-xs text-gray-700 truncate">{formatDate(request.travel_date)}</span>
+          </div>
+          <div className="flex items-center gap-1 bg-green-50/50 rounded px-1.5 py-1">
+            <MapPin className="w-3 h-3 text-green-600 flex-shrink-0" />
+            <span className="text-[10px] sm:text-xs text-gray-700 truncate">{request.city}</span>
+          </div>
+          <div className="flex items-center gap-1 bg-purple-50/50 rounded px-1.5 py-1">
+            <Users className="w-3 h-3 text-purple-600 flex-shrink-0" />
+            <span className="text-[10px] sm:text-xs text-gray-700">{totalPeople}</span>
+          </div>
+        </div>
+
+        {/* Progress Stepper - مضغوط */}
+        <div className="pt-2 border-t border-gray-200">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2 flex-1 min-w-0">
+              <div className="flex items-center gap-1.5 flex-1">
+                {[1, 2, 3].map((stage) => {
+                  const stageCompleted = (stage === 1) || (stage === 2 && (isApproved || isRejected)) || (stage === 3 && (hasBooking || isCompleted))
+                  const isCurrent = !stageCompleted && (
+                    (stage === 1 && !isUnderReview && !isApproved) ||
+                    (stage === 2 && isUnderReview) ||
+                    (stage === 3 && isApproved && !hasBooking)
+                  )
+                  return (
+                    <div key={stage} className="flex items-center gap-1 flex-1">
+                      <div className={`w-5 h-5 sm:w-6 sm:h-6 rounded-full flex items-center justify-center text-[10px] sm:text-xs font-bold transition-all ${
+                        stageCompleted 
+                          ? 'bg-green-500 text-white' 
+                          : isCurrent 
+                          ? 'bg-blue-500 text-white ring-2 ring-blue-300' 
+                          : 'bg-gray-200 text-gray-500'
+                      }`}>
+                        {stageCompleted ? <CheckCircle className="w-3 h-3 sm:w-4 sm:h-4" /> : stage}
+                      </div>
+                      {stage < 3 && (
+                        <div className={`flex-1 h-0.5 ${
+                          stageCompleted ? 'bg-green-500' : 'bg-gray-200'
+                        }`} />
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+            <div className="text-left flex-shrink-0">
+              <p className="text-[9px] sm:text-[10px] text-gray-500">المرحلة الحالية</p>
+              <p className={`text-[10px] sm:text-xs font-bold ${currentStage.color}`}>
+                {currentStage.text}
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center justify-between mt-1.5 pt-1.5 border-t border-gray-100">
+            <div className="text-[9px] sm:text-[10px] text-gray-500">
+              آخر تحديث: {getWaitingTime()}
+            </div>
+            {userProfile?.full_name && (
+              <div className="text-[9px] sm:text-[10px] text-gray-500 truncate max-w-[120px] sm:max-w-none">
+                {userProfile.full_name}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* معلومات إضافية للطلبات غير المكتملة فقط */}
+        {isDraft && (
+          <div className="pt-2 border-t border-gray-200">
+            {supervisorContact && (
+              <div className="text-[10px] sm:text-xs text-blue-700 font-semibold bg-blue-50 px-2 py-1 rounded mb-2">
+                {supervisorContact.display_type === 'office' ? 'المكتب المخصص' : 'المشرف المخصص'}: {supervisorContact.display_name}
+              </div>
+            )}
+            <div className="flex flex-wrap gap-1.5">
+              {waHref && (
+                <a
+                  href={waHref}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={(e) => e.stopPropagation()}
+                  className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-green-600 text-white hover:bg-green-700 transition text-[10px] sm:text-xs font-bold"
+                  title={supervisorContact ? `واتساب ${supervisorContact.display_type === 'office' ? 'المكتب' : 'المشرف'}: ${supervisorContact.display_name}` : "فتح واتساب للتواصل"}
+                >
+                  <MessageCircle className="w-3 h-3" />
+                  واتساب
+                </a>
+              )}
+              {callDigits && (
+                <a
+                  href={`tel:${callDigits}`}
+                  onClick={(e) => e.stopPropagation()}
+                  className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-gray-800 text-white hover:bg-black transition text-[10px] sm:text-xs font-bold"
+                  title={supervisorContact ? `اتصال ${supervisorContact.display_type === 'office' ? 'بالمكتب' : 'بالمشرف'}: ${supervisorContact.display_name}` : "اتصال"}
+                >
+                  <Phone className="w-3 h-3" />
+                  اتصال
+                </a>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* الأزرار */}
+        <div className="flex items-center justify-between gap-2 pt-2 border-t border-gray-200">
+          <div className="flex items-center gap-2">
+            {!isDeleted && (
+              <Link
+                href={`/admin/request/${request.id}/follow`}
+                onClick={(e) => e.stopPropagation()}
+                className="px-3 py-1.5 sm:px-4 sm:py-2 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-lg hover:from-blue-700 hover:to-blue-800 transition-all font-bold text-xs sm:text-sm flex items-center justify-center gap-1.5 shadow-md hover:shadow-lg"
+                title="متابعة الطلب (مراحل)"
+              >
+                <Eye className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                <span className="hidden sm:inline">متابعة</span>
+              </Link>
+            )}
+            {(canDelete || canRestore) && (
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    setShowMenu(!showMenu)
+                  }}
+                  className="p-1.5 sm:p-2 rounded-lg bg-gray-100 hover:bg-gray-200 transition text-gray-700 border border-gray-300"
+                  title="المزيد من الخيارات"
+                >
+                  <MoreVertical className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                </button>
+                
+                {showMenu && (
+                  <>
+                    <div
+                      className="fixed inset-0 z-[100]"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        setShowMenu(false)
+                      }}
+                    />
+                    <div className="absolute right-0 bottom-full mb-1 md:bottom-auto md:top-full md:mt-1 bg-white rounded-lg shadow-xl border border-gray-200 z-[101] min-w-[120px] md:min-w-[140px] whitespace-nowrap">
+                      {canDelete && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            setShowMenu(false)
+                            onDelete()
+                          }}
+                          className="w-full px-3 py-2 text-xs sm:text-sm text-red-600 hover:bg-red-50 flex items-center gap-2 transition rounded-t-lg"
+                          title="حذف الطلب"
+                        >
+                          <Trash2 className="w-3.5 h-3.5 flex-shrink-0" />
+                          <span>حذف</span>
+                        </button>
+                      )}
+                      {canRestore && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            setShowMenu(false)
+                            onRestore()
+                          }}
+                          className={`w-full px-3 py-2 text-xs sm:text-sm text-green-600 hover:bg-green-50 flex items-center gap-2 transition ${canDelete ? 'rounded-b-lg' : 'rounded-lg'}`}
+                          title="استرجاع الطلب"
+                        >
+                          <RotateCcw className="w-3.5 h-3.5 flex-shrink-0" />
+                          <span>استرجاع</span>
+                        </button>
+                      )}
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
+          </div>
+          <div className="text-[9px] sm:text-[10px] text-gray-500">
             {formatDate(request.created_at)}
-          </p>
+          </div>
         </div>
       </div>
     </div>
