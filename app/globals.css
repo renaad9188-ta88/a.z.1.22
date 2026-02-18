@@ -140,7 +140,7 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 p, span, div, a, label, li {
-  color: inherit; /* يرث من العنصر الأب */
+  color: #374151; /* رمادي داكن صريح - بدلاً من inherit لتجنب مشاكل iOS */
 }
 
 /* تحسين الأيقونات لتكون أكثر احترافية - outline style */
@@ -464,6 +464,142 @@ select:disabled option {
   body {
     background-color: #ffffff;
     color: #374151;
+  }
+}
+
+/* ============================================
+   إصلاحات خاصة لـ iOS/Safari - ضمان ظهور النصوص
+   ============================================ */
+
+/* إصلاح مشكلة النصوص المخفية على iOS/Safari */
+@supports (-webkit-touch-callout: none) {
+  /* ضمان أن جميع النصوص مرئية */
+  * {
+    -webkit-text-fill-color: inherit;
+  }
+  
+  /* إجبار النصوص الداكنة لتكون مرئية */
+  .text-gray-800,
+  .text-gray-700,
+  .text-gray-600,
+  .text-gray-900 {
+    -webkit-text-fill-color: currentColor !important;
+    color: currentColor !important;
+  }
+  
+  /* إصلاح حقول الإدخال - ضمان ظهور النص المكتوب */
+  input[type="text"],
+  input[type="tel"],
+  input[type="email"],
+  input[type="password"],
+  input[type="number"],
+  input[type="date"],
+  input[type="time"],
+  input[type="datetime-local"],
+  textarea {
+    -webkit-text-fill-color: #111827 !important;
+    color: #111827 !important;
+    background-color: #ffffff !important;
+  }
+  
+  /* إصلاح placeholder على iOS */
+  input::placeholder,
+  textarea::placeholder {
+    -webkit-text-fill-color: #9ca3af !important;
+    color: #9ca3af !important;
+  }
+  
+  /* إصلاح حقول الإدخال عند التركيز */
+  input:focus,
+  textarea:focus {
+    -webkit-text-fill-color: #111827 !important;
+    color: #111827 !important;
+  }
+  
+  /* إصلاح حقول الإدخال المعطلة */
+  input:disabled,
+  textarea:disabled {
+    -webkit-text-fill-color: #6b7280 !important;
+    color: #6b7280 !important;
+  }
+  
+  /* إصلاح select و option - مشكلة شائعة على iOS */
+  select {
+    -webkit-appearance: none;
+    -webkit-text-fill-color: #111827 !important;
+    color: #111827 !important;
+    background-color: #ffffff !important;
+  }
+  
+  select option {
+    -webkit-text-fill-color: #111827 !important;
+    color: #111827 !important;
+    background-color: #ffffff !important;
+  }
+  
+  /* إصلاح select عند التركيز */
+  select:focus {
+    -webkit-text-fill-color: #111827 !important;
+    color: #111827 !important;
+    background-color: #ffffff !important;
+  }
+  
+  select:focus option {
+    -webkit-text-fill-color: #111827 !important;
+    color: #111827 !important;
+    background-color: #ffffff !important;
+  }
+  
+  /* إصلاح select المعطل */
+  select:disabled {
+    -webkit-text-fill-color: #6b7280 !important;
+    color: #6b7280 !important;
+  }
+  
+  select:disabled option {
+    -webkit-text-fill-color: #6b7280 !important;
+    color: #6b7280 !important;
+  }
+  
+  /* ضمان ظهور النصوص في العناصر العامة */
+  p, span, div, a, label, li, button {
+    -webkit-text-fill-color: currentColor;
+    color: currentColor;
+  }
+  
+  /* ضمان ظهور النصوص في العناوين */
+  h1, h2, h3, h4, h5, h6 {
+    -webkit-text-fill-color: #1f2937 !important;
+    color: #1f2937 !important;
+  }
+  
+  /* ضمان ظهور النصوص في الأزرار */
+  button {
+    -webkit-text-fill-color: inherit;
+    color: inherit;
+  }
+  
+  /* ضمان ظهور النصوص البيضاء في الأزرار الملونة */
+  .bg-blue-600,
+  .bg-green-600,
+  .bg-red-600,
+  .bg-blue-500,
+  .bg-green-500,
+  .bg-gray-800,
+  .bg-gray-900 {
+    -webkit-text-fill-color: #ffffff !important;
+    color: #ffffff !important;
+  }
+  
+  .bg-blue-600 *,
+  .bg-green-600 *,
+  .bg-red-600 *,
+  .bg-blue-500 *,
+  .bg-green-500 *,
+  .bg-gray-800 *,
+  .bg-gray-900 * {
+    -webkit-text-fill-color: #ffffff !important;
+    color: #ffffff !important;
   }
 }
 
