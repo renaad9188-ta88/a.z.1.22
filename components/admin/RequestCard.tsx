@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { formatDate } from '@/lib/date-utils'
 import { VisitRequest } from './types'
-import { Clock, CheckCircle, XCircle, Eye, Calendar, MapPin, Users, DollarSign, Plane, Copy, ExternalLink, MessageCircle, Phone, Ticket, Bus, CheckCircle2, Trash2, RotateCcw, MoreVertical } from 'lucide-react'
+import { Clock, CheckCircle, XCircle, Eye, Calendar, MapPin, Users, DollarSign, Plane, Copy, ExternalLink, MessageCircle, Phone, Ticket, Bus, CheckCircle2, Trash2, RotateCcw, MoreVertical, GraduationCap, Building2, FileText } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { parseAdminNotes } from '../request-details/utils'
 import Link from 'next/link'
@@ -123,6 +123,69 @@ export default function RequestCard({ request, userProfile, onClick, onScheduleT
       visa: 'الفيز والتأشيرات والرحلات',
     }
     return types[type] || type
+  }
+
+  // الحصول على معلومات نوع الخدمة (أيقونة، نص، ألوان)
+  const getServiceTypeInfo = (type: string) => {
+    const serviceTypes: Record<string, { 
+      icon: any, 
+      text: string, 
+      bgColor: string, 
+      textColor: string, 
+      borderColor: string 
+    }> = {
+      visit: {
+        icon: Plane,
+        text: 'زيارة',
+        bgColor: 'bg-blue-50',
+        textColor: 'text-blue-700',
+        borderColor: 'border-blue-300'
+      },
+      umrah: {
+        icon: Calendar,
+        text: 'عمرة',
+        bgColor: 'bg-green-50',
+        textColor: 'text-green-700',
+        borderColor: 'border-green-300'
+      },
+      tourism: {
+        icon: MapPin,
+        text: 'سياحة',
+        bgColor: 'bg-purple-50',
+        textColor: 'text-purple-700',
+        borderColor: 'border-purple-300'
+      },
+      goethe: {
+        icon: GraduationCap,
+        text: 'امتحان جوته',
+        bgColor: 'bg-indigo-50',
+        textColor: 'text-indigo-700',
+        borderColor: 'border-indigo-300'
+      },
+      embassy: {
+        icon: Building2,
+        text: 'موعد سفارة',
+        bgColor: 'bg-amber-50',
+        textColor: 'text-amber-700',
+        borderColor: 'border-amber-300'
+      },
+      visa: {
+        icon: Ticket,
+        text: 'الفيز والتأشيرات',
+        bgColor: 'bg-cyan-50',
+        textColor: 'text-cyan-700',
+        borderColor: 'border-cyan-300'
+      },
+      other: {
+        icon: FileText,
+        text: 'خدمات أخرى',
+        bgColor: 'bg-gray-50',
+        textColor: 'text-gray-700',
+        borderColor: 'border-gray-300'
+      }
+    }
+    
+    return serviceTypes[type] || serviceTypes.other
   }
 
   // التحقق من نوع الطلب (هل هو طلب أردن)
@@ -452,13 +515,16 @@ export default function RequestCard({ request, userProfile, onClick, onScheduleT
           </div>
 
           <div className="flex flex-wrap items-center gap-2 sm:gap-3 text-xs sm:text-sm">
-            <span className={`px-3 py-1.5 rounded-lg font-bold border-2 ${
-              isJordanVisit 
-                ? 'bg-gradient-to-r from-blue-100 to-blue-200 text-blue-800 border-blue-300' 
-                : 'bg-gradient-to-r from-blue-50 to-blue-100 text-blue-700 border-blue-200'
-            }`}>
-              {isJordanVisit ? '🇯🇴 زيارة الأردن' : getVisitTypeText(request.visit_type)}
-            </span>
+            {(() => {
+              const serviceInfo = getServiceTypeInfo(request.visit_type)
+              const ServiceIcon = serviceInfo.icon
+              return (
+                <span className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-lg font-bold border-2 ${serviceInfo.bgColor} ${serviceInfo.textColor} ${serviceInfo.borderColor}`}>
+                  <ServiceIcon className="w-4 h-4 sm:w-5 sm:h-5 flex-shrink-0" />
+                  {isJordanVisit ? '🇯🇴 زيارة الأردن' : serviceInfo.text}
+                </span>
+              )
+            })()}
             {request.deposit_paid && (
               <span className="px-3 py-1.5 bg-gradient-to-r from-green-100 to-green-200 text-green-800 rounded-lg font-bold flex items-center gap-1 border-2 border-green-300">
                 <DollarSign className="w-3.5 h-3.5" />

@@ -1179,6 +1179,7 @@ export default function AdminDashboard() {
                   setShowSupervisorsManagement(false)
                   setShowBookingsManagement(false)
                 } else if (filterType === 'bookings') {
+                  setStatusFilter('bookings')
                   setShowBookingsManagement(true)
                   setShowRouteManagement(false)
                   setShowInvitesManagement(false)
@@ -1197,12 +1198,14 @@ export default function AdminDashboard() {
               }}
             />
 
-            {/* قسم إحصائيات الرحلات */}
-            {currentRole === 'admin' && tripBookingsStats.length > 0 && (
+            {/* قسم إحصائيات الرحلات - يظهر فقط عند الضغط على "الحجوزات المؤكدة" */}
+            {currentRole === 'admin' && (statusFilter === 'bookings' || showBookingsManagement) && tripBookingsStats.length > 0 && (
               <div className="bg-white rounded-xl shadow-md border border-gray-100 p-4 sm:p-6 mb-6">
-                <div className="flex items-center gap-2 mb-4">
-                  <Ticket className="w-5 h-5 sm:w-6 sm:h-6 text-teal-600" />
-                  <h2 className="text-lg sm:text-xl font-extrabold text-gray-900">
+                <div className="flex items-center gap-3 mb-4 p-3 sm:p-4 bg-gradient-to-r from-teal-50 to-teal-100 rounded-lg border-2 border-teal-200">
+                  <div className="bg-teal-500 p-2 sm:p-2.5 rounded-lg flex-shrink-0">
+                    <Ticket className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
+                  </div>
+                  <h2 className="text-base sm:text-lg md:text-xl font-extrabold text-teal-900">
                     إحصائيات الحجوزات حسب الرحلة
                   </h2>
                 </div>
