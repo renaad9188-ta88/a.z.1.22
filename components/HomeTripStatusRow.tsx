@@ -5,6 +5,71 @@ import { Plane, Calendar, ArrowLeftRight, ChevronDown, CalendarDays } from 'luci
 import { createSupabaseBrowserClient } from '@/lib/supabase'
 import { formatDate } from '@/lib/date-utils'
 
+// Hook للعداد المتحرك
+function useAnimatedCounter(targetValue: number | null, baseValue: number, duration: number = 2000) {
+  const [currentValue, setCurrentValue] = useState(baseValue)
+  const animationRef = useRef<number>()
+  const targetRef = useRef<number | null>(null)
+
+  useEffect(() => {
+    // إلغاء أي animation سابقة
+    if (animationRef.current) {
+      cancelAnimationFrame(animationRef.current)
+    }
+
+    if (targetValue === null) {
+      setCurrentValue(baseValue)
+      targetRef.current = null
+      return
+    }
+
+    const finalValue = baseValue + targetValue
+    
+    // إذا كانت القيمة النهائية نفس القيمة الحالية، لا حاجة للحركة
+    if (finalValue === currentValue && targetRef.current === targetValue) {
+      return
+    }
+
+    targetRef.current = targetValue
+    const startValue = currentValue
+    const startTime = Date.now()
+    const difference = finalValue - startValue
+
+    // إذا كان الفرق صغير جداً، انتقل مباشرة
+    if (Math.abs(difference) < 1) {
+      setCurrentValue(finalValue)
+      return
+    }
+
+    const animate = () => {
+      const elapsed = Date.now() - startTime
+      const progress = Math.min(elapsed / duration, 1)
+      
+      // استخدام easing function لحركة سلسة (ease-out)
+      const easeOutCubic = 1 - Math.pow(1 - progress, 3)
+      const newValue = Math.round(startValue + difference * easeOutCubic)
+      
+      setCurrentValue(newValue)
+
+      if (progress < 1) {
+        animationRef.current = requestAnimationFrame(animate)
+      } else {
+        setCurrentValue(finalValue)
+      }
+    }
+
+    animationRef.current = requestAnimationFrame(animate)
+
+    return () => {
+      if (animationRef.current) {
+        cancelAnimationFrame(animationRef.current)
+      }
+    }
+  }, [targetValue, baseValue, duration])
+
+  return currentValue
+}
+
 type TripOverviewRow = {
   default_route_name: string | null
   default_route_start: string | null
@@ -50,22 +115,41 @@ function TripMiniCard({
   const isArr = variant === 'arrivals'
   const weekday = formatArabicWeekday(date)
   
-  // توليد رقم عشوائي ثابت لكل نوع رحلة (يولد مرة واحدة فقط)
-  // القادمين: 22 + رقم عشوائي (5-20) = بين 27 و 42 (أرقام أعلى)
-  // المغادرين: 17 + رقم عشوائي (0-8) = بين 17 و 25 (أرقام أقل)
+  // القيم الأساسية: القادمين يبدأ من 27، المغادرين يبدأ من 22
+  const baseCount = isArr ? 27 : 22
+  
+  // توليد رقم عشوائي ثابت لكل نوع رحلة (يولد مرة واحدة فقط) للـ placeholder
   const placeholderCount = useMemo(() => {
     if (isArr) {
       // القادمين: 22 + (5 إلى 20) = بين 27 و 42
-      const randomOffset = Math.floor(Math.random() * 16) + 5 // رقم عشوائي بين 5 و 20
+      const randomOffset = Math.floor(Math.random() * 16) + 5
       return 22 + randomOffset
     } else {
       // المغادرين: 17 + (0 إلى 8) = بين 17 و 25
-      const randomOffset = Math.floor(Math.random() * 9) // رقم عشوائي بين 0 و 8
+      const randomOffset = Math.floor(Math.random() * 9)
       return 17 + randomOffset
     }
   }, [isArr])
   
-  const countText = loading ? '…' : people != null ? `${people}` : `${placeholderCount}`
+  // استخدام العداد المتحرك
+  const hasActualTrip = date != null
+  const animatedCount = useAnimatedCounter(
+    hasActualTrip && people != null ? people : null,
+    baseCount,
+    2000 // مدة الحركة: 2 ثانية
+  )
+  
+  // تحديد النص المعروض
+  let countText: string
+  if (loading) {
+    countText = '…'
+  } else if (hasActualTrip && people != null) {
+    // عرض العدد المتحرك
+    countText = `${animatedCount}`
+  } else {
+    // إذا لم تكن هناك رحلة فعلية، استخدم placeholder
+    countText = `${placeholderCount}`
+  }
 
   const borderClass = isArr ? 'from-blue-500 to-blue-600' : 'from-green-500 to-green-600'
   const badgeClass = isArr
@@ -92,8 +176,15 @@ function TripMiniCard({
         </div>
 
         <div className="mt-2 flex items-end justify-between gap-2">
-          <div className="text-2xl sm:text-3xl font-extrabold text-gray-900 tabular-nums leading-none">
-            {countText}
+          <div 
+            className="text-2xl sm:text-3xl font-extrabold text-gray-900 tabular-nums leading-none transition-all duration-300"
+            style={{
+              transform: hasActualTrip && people != null ? 'scale(1.05)' : 'scale(1)',
+            }}
+          >
+            <span className="inline-block transition-all duration-200">
+              {countText}
+            </span>
           </div>
           <div className={`inline-flex items-center gap-1 text-xs sm:text-sm md:text-base border px-2 py-1 rounded-full font-extrabold ${badgeClass}`}>
             <Calendar className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
