@@ -388,12 +388,8 @@ export default function HomeTripStatusRow() {
                 </div>
               ) : (
                 <div className="space-y-2 sm:space-y-2.5">
-                  <div className="flex items-center justify-between gap-2 sm:gap-3 text-[10px] sm:text-xs text-gray-500 pb-2 border-b border-gray-100">
-                    <span className="min-w-0 truncate font-semibold">التاريخ والوقت</span>
-                    <span className="flex-shrink-0 whitespace-nowrap font-semibold">عدد الأشخاص</span>
-                  </div>
                   {arrivalsList.map((x, idx) => (
-                    <div key={idx} className="flex items-center justify-between gap-2 sm:gap-3 py-1.5 sm:py-2 hover:bg-gray-50 rounded-lg px-1 -mx-1 transition-colors">
+                    <div key={idx} className="py-1.5 sm:py-2 hover:bg-gray-50 rounded-lg px-1 -mx-1 transition-colors">
                       <div className="flex items-center gap-1.5 sm:gap-2 min-w-0 flex-1">
                         <span className="tabular-nums text-[11px] sm:text-xs font-medium break-words">
                           {formatDate(x.trip_date)} · {String(x.trip_time || '10:00').slice(0, 5)}
@@ -404,7 +400,6 @@ export default function HomeTripStatusRow() {
                           </span>
                         )}
                       </div>
-                      <span className="font-extrabold tabular-nums text-gray-900 flex-shrink-0 text-xs sm:text-sm">{x.people_count}</span>
                     </div>
                   ))}
                 </div>
@@ -460,12 +455,8 @@ export default function HomeTripStatusRow() {
                 </div>
               ) : (
                 <div className="space-y-2 sm:space-y-2.5">
-                  <div className="flex items-center justify-between gap-2 sm:gap-3 text-[10px] sm:text-xs text-gray-500 pb-2 border-b border-gray-100">
-                    <span className="min-w-0 truncate font-semibold">التاريخ والوقت</span>
-                    <span className="flex-shrink-0 whitespace-nowrap font-semibold">عدد الأشخاص</span>
-                  </div>
                   {departuresList.map((x, idx) => (
-                    <div key={idx} className="flex items-center justify-between gap-2 sm:gap-3 py-1.5 sm:py-2 hover:bg-gray-50 rounded-lg px-1 -mx-1 transition-colors">
+                    <div key={idx} className="py-1.5 sm:py-2 hover:bg-gray-50 rounded-lg px-1 -mx-1 transition-colors">
                       <div className="flex items-center gap-1.5 sm:gap-2 min-w-0 flex-1">
                         <span className="tabular-nums text-[11px] sm:text-xs font-medium break-words">
                           {formatDate(x.trip_date)} · {String(x.trip_time || '10:00').slice(0, 5)}
@@ -476,7 +467,6 @@ export default function HomeTripStatusRow() {
                           </span>
                         )}
                       </div>
-                      <span className="font-extrabold tabular-nums text-gray-900 flex-shrink-0 text-xs sm:text-sm">{x.people_count}</span>
                     </div>
                   ))}
                 </div>
