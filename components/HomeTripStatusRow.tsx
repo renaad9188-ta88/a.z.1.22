@@ -376,8 +376,8 @@ export default function HomeTripStatusRow() {
                 left-0 right-0 w-full max-w-[calc(100vw-1rem)]
                 sm:left-0 sm:right-auto sm:w-auto sm:min-w-[20rem] sm:max-w-[28rem]
                 md:max-w-[32rem]
-                lg:max-w-[30rem]
-                xl:max-w-[28rem]
+                lg:left-0 lg:right-0 lg:w-full lg:max-w-none
+                xl:w-full xl:max-w-none
                 bg-white rounded-xl border border-gray-100 shadow-xl p-3 sm:p-4 text-xs sm:text-sm text-gray-700
                 max-h-[80vh] overflow-y-auto
               "
@@ -443,8 +443,8 @@ export default function HomeTripStatusRow() {
                 left-0 right-0 w-full max-w-[calc(100vw-1rem)]
                 sm:left-auto sm:right-0 sm:w-auto sm:min-w-[20rem] sm:max-w-[28rem]
                 md:max-w-[32rem]
-                lg:max-w-[30rem]
-                xl:max-w-[28rem]
+                lg:left-0 lg:right-0 lg:w-full lg:max-w-none
+                xl:w-full xl:max-w-none
                 bg-white rounded-xl border border-gray-100 shadow-xl p-3 sm:p-4 text-xs sm:text-sm text-gray-700
                 max-h-[80vh] overflow-y-auto
               "
